@@ -128,8 +128,23 @@ def sync(section: str = None, verbose: bool = True) -> dict:
     """
     Incremental sync. If section is given, only process that section's folder.
     Returns stats dict: {added, deleted, skipped, errors}.
+
+    Requires CORTEX_KB_PATH to be set in the environment.
     """
+    if not KB_PATH:
+        raise RuntimeError(
+            "CORTEX_KB_PATH environment variable is not set.\n"
+            "Set it once with:\n"
+            "    setx CORTEX_KB_PATH \"<path to your knowledge base>\"\n"
+            "Then open a new terminal and try again."
+        )
+
     kb_root = Path(KB_PATH)
+    if not kb_root.is_dir():
+        raise RuntimeError(
+            f"CORTEX_KB_PATH points to a non-existent directory: {KB_PATH}"
+        )
+
     stats = {"added": 0, "deleted": 0, "skipped": 0, "errors": 0}
 
     client = get_client()

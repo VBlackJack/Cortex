@@ -1,12 +1,29 @@
 """
 Cortex — Configuration
+
+Both KB_PATH and CHROMA_PATH are environment-driven for portability:
+  - CORTEX_KB_PATH      : root of the markdown knowledge base (REQUIRED for indexing)
+  - CORTEX_CHROMA_PATH  : vector database location (defaults next to this script)
+
+Search keeps working without CORTEX_KB_PATH (read-only against an existing index).
+Only `cortex_sync` / indexer.sync() require it.
 """
 
-# Knowledge base root (Confluence markdown export)
-KB_PATH = r"G:\_DATA"
+import os
+from pathlib import Path
 
-# ChromaDB persistent storage
-CHROMA_PATH = r"G:\_dev\Cortex\chroma_db"
+# Cortex install directory — derived from this file's location.
+# Lets the whole project relocate without editing any code.
+SCRIPT_DIR = Path(__file__).parent.resolve()
+
+# Knowledge base root — must be set via env var when indexing.
+# Empty string when unset; consumers (indexer.sync) validate explicitly.
+KB_PATH = os.environ.get("CORTEX_KB_PATH", "")
+
+# ChromaDB persistent storage — defaults next to the code so a fresh clone
+# works without configuration. Override via CORTEX_CHROMA_PATH if you want
+# the vector database on a different drive.
+CHROMA_PATH = os.environ.get("CORTEX_CHROMA_PATH", str(SCRIPT_DIR / "chroma_db"))
 
 # ChromaDB collection name
 COLLECTION_NAME = "cortex"
