@@ -7,7 +7,6 @@ Usage:
 """
 
 import os
-import sys
 import gc
 import warnings
 import argparse
@@ -25,9 +24,19 @@ from fastembed import TextEmbedding
 
 from config import (
     KB_PATH, CHROMA_PATH, COLLECTION_NAME, EMBEDDING_MODEL,
-    EXCLUDE_DIRS, EXCLUDE_FILES,
+    CHUNK_SIZE, CHUNK_OVERLAP, EXCLUDE_DIRS, EXCLUDE_FILES, KNOWN_SECTIONS
 )
-from chunker import chunk_markdown_file as chunk_file
+from chunker import chunk_markdown_file
+from chunker_pdf import chunk_pdf_file
+
+# ── Format routing ────────────────────────────────────────────────────────────
+
+CHUNKERS = {
+    ".md":  chunk_markdown_file,
+    ".pdf": chunk_pdf_file,
+}
+
+SUPPORTED_EXTENSIONS = set(CHUNKERS.keys())
 
 # ── Embedding function ────────────────────────────────────────────────────────
 
@@ -38,13 +47,19 @@ class FastEmbedFunction(EmbeddingFunction):
     """
 
     _instance = None
+    _initialized = False
 
     def __new__(cls, model_name: str):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._model = TextEmbedding(model_name=model_name)
-            cls._instance._model_name = model_name
         return cls._instance
+
+    def __init__(self, model_name: str):
+        if self._initialized:
+            return
+        self._model = TextEmbedding(model_name=model_name)
+        self._model_name = model_name
+        FastEmbedFunction._initialized = True
 
     def __call__(self, input: list[str]) -> Embeddings:
         embeddings = list(self._model.embed(input))
@@ -74,71 +89,36 @@ def get_collection(client=None):
     )
 
 
-PAGE_SIZE = 5000  # ChromaDB SQLite backend hits "too many SQL variables"
-                  # on unbounded .get() once a section grows beyond ~10k chunks.
-
-
-def get_section_index(collection, section: str = None) -> dict:
+def discover_sections() -> list[str]:
     """
-    Fetch the section's index, paginating to stay under SQLite parameter limits.
-    Returns {"hash_by_path": {path: file_hash},
-             "ids_by_path":  {path: [chunk_id, ...]}}
+    Return the list of known sections from config.
+    Also includes any extra folders found in KB_PATH that are not in KNOWN_SECTIONS.
+    """
+    kb_root = Path(KB_PATH)
+    sections = list(KNOWN_SECTIONS)
+    if kb_root.is_dir():
+        for folder in sorted(kb_root.iterdir()):
+            if folder.is_dir() and folder.name not in sections:
+                sections.append(folder.name)
+    return sections
+
+
+def get_indexed_hashes(collection, section: str = None) -> dict[str, str]:
+    """
+    Return {file_path: file_hash} for already-indexed documents.
     Scoped to section to avoid cross-section contamination.
     """
     where = {"section": section} if section else None
-    hash_by_path: dict[str, str] = {}
-    ids_by_path: dict[str, list[str]] = {}
+    try:
+        result = collection.get(where=where, include=["metadatas"])
+    except Exception:
+        return {}
 
-    offset = 0
-    while True:
-        try:
-            result = collection.get(
-                where=where,
-                include=["metadatas"],
-                limit=PAGE_SIZE,
-                offset=offset,
-            )
-        except Exception:
-            # If even a paginated read fails, fall back to whatever we already have.
-            break
-
-        ids = result.get("ids") or []
-        metas = result.get("metadatas") or []
-        if not ids:
-            break
-
-        for chunk_id, meta in zip(ids, metas):
-            if not meta or "path" not in meta:
-                continue
-            path = meta["path"]
-            ids_by_path.setdefault(path, []).append(chunk_id)
-            if "file_hash" in meta and path not in hash_by_path:
-                hash_by_path[path] = meta["file_hash"]
-
-        if len(ids) < PAGE_SIZE:
-            break
-        offset += PAGE_SIZE
-
-    return {"hash_by_path": hash_by_path, "ids_by_path": ids_by_path}
-
-
-# ── Section discovery ─────────────────────────────────────────────────────────
-
-def discover_sections() -> list[str]:
-    """
-    Return the sorted list of sections under CORTEX_KB_PATH.
-    A section is any first-level directory not in EXCLUDE_DIRS.
-    Returns an empty list if KB_PATH is unset or does not exist.
-    """
-    if not KB_PATH:
-        return []
-    root = Path(KB_PATH)
-    if not root.is_dir():
-        return []
-    return sorted(
-        d.name for d in root.iterdir()
-        if d.is_dir() and d.name not in EXCLUDE_DIRS
-    )
+    hashes: dict[str, str] = {}
+    for meta in result.get("metadatas") or []:
+        if meta and "path" in meta and "file_hash" in meta:
+            hashes[meta["path"]] = meta["file_hash"]
+    return hashes
 
 
 # ── Sync ──────────────────────────────────────────────────────────────────────
@@ -147,30 +127,14 @@ def sync(section: str = None, verbose: bool = True) -> dict:
     """
     Incremental sync. If section is given, only process that section's folder.
     Returns stats dict: {added, deleted, skipped, errors}.
-
-    Requires CORTEX_KB_PATH to be set in the environment.
     """
-    if not KB_PATH:
-        raise RuntimeError(
-            "CORTEX_KB_PATH environment variable is not set.\n"
-            "Set it once with:\n"
-            "    setx CORTEX_KB_PATH \"<path to your knowledge base>\"\n"
-            "Then open a new terminal and try again."
-        )
-
     kb_root = Path(KB_PATH)
-    if not kb_root.is_dir():
-        raise RuntimeError(
-            f"CORTEX_KB_PATH points to a non-existent directory: {KB_PATH}"
-        )
-
     stats = {"added": 0, "deleted": 0, "skipped": 0, "errors": 0}
 
     client = get_client()
     collection = get_collection(client)
 
-    sections = [section] if section else discover_sections()
-    folders = [kb_root / s for s in sections]
+    folders = [kb_root / section] if section else [kb_root / s for s in KNOWN_SECTIONS]
 
     for folder in folders:
         sec_name = folder.name
@@ -182,43 +146,46 @@ def sync(section: str = None, verbose: bool = True) -> dict:
         if verbose:
             print(f"\n--- Section: {sec_name} ---")
 
-        # Single ChromaDB read per section: hashes + chunk IDs in one shot.
-        index = get_section_index(collection, section=sec_name)
-        hash_by_path = index["hash_by_path"]
-        ids_by_path = index["ids_by_path"]
+        indexed = get_indexed_hashes(collection, section=sec_name)
 
         current_paths: set[str] = set()
         files_to_index: list = []
 
-        for md_file in sorted(folder.rglob("*.md")):
-            if any(part in EXCLUDE_DIRS for part in md_file.parts):
-                continue
-            if md_file.name in EXCLUDE_FILES:
-                continue
+        for ext in SUPPORTED_EXTENSIONS:
+            for file_path in sorted(folder.rglob(f"*{ext}")):
+                if any(part in EXCLUDE_DIRS for part in file_path.parts):
+                    continue
+                if file_path.name in EXCLUDE_FILES:
+                    continue
 
-            chunks = chunk_file(md_file)
-            if not chunks:
-                stats["skipped"] += 1
-                continue
+                path_str = str(file_path)
+                current_paths.add(path_str)
 
-            # Use the same key the chunker stores in metadata (relative to KB_PATH).
-            # Otherwise hash_by_path lookups never hit and the sync is not incremental.
-            path_key = chunks[0]["metadata"]["path"]
-            current_paths.add(path_key)
+                chunker = CHUNKERS[ext]
+                chunks = chunker(file_path)
+                if not chunks:
+                    stats["skipped"] += 1
+                    continue
 
-            file_hash = chunks[0]["metadata"]["file_hash"]
-            if hash_by_path.get(path_key) == file_hash:
-                stats["skipped"] += 1
-                continue
+                file_hash = chunks[0]["metadata"]["file_hash"]
+                if indexed.get(path_str) == file_hash:
+                    stats["skipped"] += 1
+                    continue
 
-            files_to_index.append((md_file, chunks, path_key))
+                files_to_index.append((file_path, chunks))
 
         # Delete chunks for files removed from the section
-        stale_paths = set(hash_by_path.keys()) - current_paths
+        stale_paths = set(indexed.keys()) - current_paths
         if stale_paths:
-            stale_ids: list[str] = []
-            for p in stale_paths:
-                stale_ids.extend(ids_by_path.get(p, []))
+            stale_result = collection.get(
+                where={"section": sec_name},
+                include=["metadatas"],
+            )
+            stale_ids = [
+                stale_result["ids"][i]
+                for i, meta in enumerate(stale_result.get("metadatas") or [])
+                if meta and meta.get("path") in stale_paths
+            ]
             if stale_ids:
                 collection.delete(ids=stale_ids)
                 stats["deleted"] += len(stale_ids)
@@ -226,18 +193,24 @@ def sync(section: str = None, verbose: bool = True) -> dict:
                     print(f"  Deleted {len(stale_ids)} chunks from {len(stale_paths)} removed files")
 
         # Delete old chunks for changed files before re-adding
-        changed_paths = {pk for _, _, pk in files_to_index if hash_by_path.get(pk)}
+        changed_paths = {str(f) for f, _ in files_to_index if indexed.get(str(f))}
         if changed_paths:
-            changed_ids: list[str] = []
-            for p in changed_paths:
-                changed_ids.extend(ids_by_path.get(p, []))
+            changed_result = collection.get(
+                where={"section": sec_name},
+                include=["metadatas"],
+            )
+            changed_ids = [
+                changed_result["ids"][i]
+                for i, meta in enumerate(changed_result.get("metadatas") or [])
+                if meta and meta.get("path") in changed_paths
+            ]
             if changed_ids:
                 collection.delete(ids=changed_ids)
 
         # Index new / changed files in batches
         batch_ids, batch_texts, batch_metas = [], [], []
 
-        for md_file, chunks, _ in files_to_index:
+        for file_path, chunks in files_to_index:
             for chunk in chunks:
                 batch_ids.append(chunk["id"])
                 batch_texts.append(chunk["text"])
@@ -259,7 +232,7 @@ def sync(section: str = None, verbose: bool = True) -> dict:
                     gc.collect()
 
             if verbose:
-                print(f"  + {md_file.name} ({len(chunks)} chunks)")
+                print(f"  + {file_path.name} ({len(chunks)} chunks)")
             gc.collect()
 
         # Flush remaining batch
@@ -313,18 +286,11 @@ def search(query: str, section: str = None, top_k: int = 5) -> list[dict]:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cortex indexer")
     parser.add_argument("section", nargs="?", default=None,
-                        help="Section to sync (default: all auto-discovered)")
+                        help="Section to sync (default: all)")
     parser.add_argument("--search", metavar="QUERY", default=None,
                         help="Run a search instead of syncing")
     parser.add_argument("--top-k", type=int, default=5)
-    parser.add_argument("--list-sections", action="store_true",
-                        help="Print discovered section names (one per line) and exit")
     args = parser.parse_args()
-
-    if args.list_sections:
-        for s in discover_sections():
-            print(s)
-        sys.exit(0)
 
     if args.search:
         hits = search(args.search, section=args.section, top_k=args.top_k)
@@ -332,7 +298,7 @@ if __name__ == "__main__":
             meta = h["metadata"]
             print(f"\n[{i}] {meta.get('title', meta.get('path', '?'))} "
                   f"(dist={h['distance']:.3f})")
-            print(f"    Section: {meta.get('section')} | Header: {meta.get('header')}")
+            print(f"    Section: {meta.get('section')} | {meta.get('header', '')}")
             print(f"    {h['text'][:300]}...")
     else:
         sync(section=args.section, verbose=True)

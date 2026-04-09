@@ -2,4 +2,4 @@ mcp[cli]
 chromadb
 fastembed
 pydantic
-pytest
+pdfplumber
