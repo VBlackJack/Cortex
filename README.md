@@ -102,19 +102,28 @@ CHUNK_CHARS         = 400   # taille max d'un chunk en caractères (~110 tokens 
 CHUNK_OVERLAP_CHARS = 60    # chevauchement entre chunks
 EXCLUDE_DIRS        = {"_attachments", "zzz_Corbeille"}
 EXCLUDE_FILES       = {"00_INDEX.md"}
-KNOWN_SECTIONS      = ["Adsec", "Ansible", "Processes", "Products",
-                       "Projects", "Technical Services", "Zabbix"]
 ```
 
 > `CHUNK_CHARS` est dimensionné pour rester sous la limite de 128 tokens du modèle MiniLM.
 > Voir « Pourquoi 400 caractères par chunk ? » dans les choix techniques.
 
+### Sections
+
+Les sections sont **auto-découvertes** : tout sous-dossier de premier niveau de `CORTEX_KB_PATH` qui n'est pas dans `EXCLUDE_DIRS` devient une section. Aucune liste à maintenir dans le code.
+
+```powershell
+:: Lister les sections détectées
+python indexer.py --list-sections
+```
+
+Depuis Claude, l'outil MCP `cortex_list_sections` retourne la même chose.
+
 ### Ajouter une nouvelle section Confluence
 
 1. Exporter la section depuis Confluence vers `%CORTEX_KB_PATH%\<NomSection>\`
-2. Ajouter `"NomSection"` à `KNOWN_SECTIONS` dans `config.py`
-3. Ajouter la ligne correspondante dans `sync.bat`
-4. Lancer `sync.bat` (ou `cortex_sync` depuis Claude)
+2. Lancer `sync.bat` (ou `cortex_sync` depuis Claude)
+
+C'est tout — pas besoin de modifier le code, la nouvelle section est détectée automatiquement.
 
 ---
 
@@ -180,6 +189,7 @@ python indexer.py --search "OSCARE" --top-k 10
 |---|---|
 | `cortex_search` | Recherche sémantique. Paramètres : `query`, `section` (optionnel), `top_k` (1-10) |
 | `cortex_sync` | Déclenche un sync incrémental. Paramètre : `section` (optionnel) |
+| `cortex_list_sections` | Liste les sections détectées sous `CORTEX_KB_PATH` |
 
 ---
 

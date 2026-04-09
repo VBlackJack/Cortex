@@ -25,7 +25,7 @@ from fastembed import TextEmbedding
 
 from config import (
     KB_PATH, CHROMA_PATH, COLLECTION_NAME, EMBEDDING_MODEL,
-    EXCLUDE_DIRS, EXCLUDE_FILES, KNOWN_SECTIONS
+    EXCLUDE_DIRS, EXCLUDE_FILES,
 )
 from chunker import chunk_markdown_file as chunk_file
 
@@ -122,6 +122,25 @@ def get_section_index(collection, section: str = None) -> dict:
     return {"hash_by_path": hash_by_path, "ids_by_path": ids_by_path}
 
 
+# ── Section discovery ─────────────────────────────────────────────────────────
+
+def discover_sections() -> list[str]:
+    """
+    Return the sorted list of sections under CORTEX_KB_PATH.
+    A section is any first-level directory not in EXCLUDE_DIRS.
+    Returns an empty list if KB_PATH is unset or does not exist.
+    """
+    if not KB_PATH:
+        return []
+    root = Path(KB_PATH)
+    if not root.is_dir():
+        return []
+    return sorted(
+        d.name for d in root.iterdir()
+        if d.is_dir() and d.name not in EXCLUDE_DIRS
+    )
+
+
 # ── Sync ──────────────────────────────────────────────────────────────────────
 
 def sync(section: str = None, verbose: bool = True) -> dict:
@@ -150,7 +169,8 @@ def sync(section: str = None, verbose: bool = True) -> dict:
     client = get_client()
     collection = get_collection(client)
 
-    folders = [kb_root / section] if section else [kb_root / s for s in KNOWN_SECTIONS]
+    sections = [section] if section else discover_sections()
+    folders = [kb_root / s for s in sections]
 
     for folder in folders:
         sec_name = folder.name
@@ -293,11 +313,18 @@ def search(query: str, section: str = None, top_k: int = 5) -> list[dict]:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cortex indexer")
     parser.add_argument("section", nargs="?", default=None,
-                        help="Section to sync (default: all)")
+                        help="Section to sync (default: all auto-discovered)")
     parser.add_argument("--search", metavar="QUERY", default=None,
                         help="Run a search instead of syncing")
     parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument("--list-sections", action="store_true",
+                        help="Print discovered section names (one per line) and exit")
     args = parser.parse_args()
+
+    if args.list_sections:
+        for s in discover_sections():
+            print(s)
+        sys.exit(0)
 
     if args.search:
         hits = search(args.search, section=args.section, top_k=args.top_k)

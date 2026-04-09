@@ -39,33 +39,30 @@ echo   Python     : %PYTHON_EXE%
 echo  ================================================
 echo.
 
-echo [1/7] Adsec...
-"%PYTHON_EXE%" "%CORTEX_DIR%\indexer.py" Adsec
+:: Discover sections from CORTEX_KB_PATH (one per line)
+echo  Discovering sections...
+set /a SECTION_COUNT=0
+for /f "usebackq delims=" %%S in (`""%PYTHON_EXE%" "%CORTEX_DIR%\indexer.py" --list-sections"`) do (
+    set /a SECTION_COUNT+=1
+)
+
+if %SECTION_COUNT%==0 (
+    echo  [FAIL] No sections found under "%CORTEX_KB_PATH%".
+    echo         Make sure the directory contains at least one subdirectory.
+    pause
+    exit /b 1
+)
+
+echo  Found %SECTION_COUNT% section(s).
 echo.
 
-echo [2/7] Ansible...
-"%PYTHON_EXE%" "%CORTEX_DIR%\indexer.py" Ansible
-echo.
-
-echo [3/7] Processes...
-"%PYTHON_EXE%" "%CORTEX_DIR%\indexer.py" Processes
-echo.
-
-echo [4/7] Products...
-"%PYTHON_EXE%" "%CORTEX_DIR%\indexer.py" Products
-echo.
-
-echo [5/7] Projects...
-"%PYTHON_EXE%" "%CORTEX_DIR%\indexer.py" Projects
-echo.
-
-echo [6/7] Technical Services...
-"%PYTHON_EXE%" "%CORTEX_DIR%\indexer.py" "Technical Services"
-echo.
-
-echo [7/7] Zabbix...
-"%PYTHON_EXE%" "%CORTEX_DIR%\indexer.py" Zabbix
-echo.
+set /a INDEX=0
+for /f "usebackq delims=" %%S in (`""%PYTHON_EXE%" "%CORTEX_DIR%\indexer.py" --list-sections"`) do (
+    set /a INDEX+=1
+    echo [!INDEX!/%SECTION_COUNT%] %%S...
+    "%PYTHON_EXE%" "%CORTEX_DIR%\indexer.py" "%%S"
+    echo.
+)
 
 echo  ================================================
 echo   Sync termine ! Appuie sur une touche.

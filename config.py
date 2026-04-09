@@ -42,17 +42,11 @@ CHUNK_OVERLAP_CHARS = 60
 # Search defaults
 TOP_K_DEFAULT = 5
 
-# Directories and files to skip during indexing
+# Directories and files to skip during indexing.
+# Applied at every depth, including the section level (first-level dirs).
 EXCLUDE_DIRS = {"_attachments", "zzz_Corbeille"}
 EXCLUDE_FILES = {"00_INDEX.md"}
 
-# Known sections (first-level directories in KB_PATH)
-KNOWN_SECTIONS = [
-    "Adsec",
-    "Ansible",
-    "Processes",
-    "Products",
-    "Projects",
-    "Technical Services",
-    "Zabbix",
-]
+# Sections are auto-discovered at runtime: every first-level directory under
+# CORTEX_KB_PATH that is not in EXCLUDE_DIRS becomes a section. See
+# `indexer.discover_sections()`.
