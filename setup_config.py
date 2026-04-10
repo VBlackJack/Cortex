@@ -18,7 +18,7 @@ from pathlib import Path
 SCRIPT_DIR   = Path(__file__).parent.resolve()          # G:\_dev\Cortex
 SERVER_PY    = SCRIPT_DIR / "server.py"
 CONFIG_PATH  = Path(os.environ.get("APPDATA", "")) / "Claude" / "claude_desktop_config.json"
-REQUIRED_PACKAGES = ["mcp", "chromadb", "fastembed", "pydantic"]
+REQUIRED_PACKAGES = ["mcp", "chromadb", "fastembed", "pydantic", "pdfplumber"]
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

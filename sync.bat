@@ -1,7 +1,9 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
 chcp 65001 >nul 2>&1
 set PYTHONIOENCODING=utf-8
+
+set "CORTEX_DIR=%~dp0"
 
 echo.
 echo ================================================
@@ -10,33 +12,64 @@ echo ================================================
 echo  Mode : ONNX (no PyTorch) - RAM optimized
 echo.
 
-C:\Python313\python.exe G:\_dev\Cortex\indexer.py Adsec
-echo [1/8] Adsec done.
+set PYTHON_EXE=
+for %%C in (python python3) do (
+    if "!PYTHON_EXE!"=="" (
+        for /f "delims=" %%P in ('where %%C 2^>nul') do (
+            if "!PYTHON_EXE!"=="" (
+                "%%P" --version >nul 2>&1
+                if not errorlevel 1 set "PYTHON_EXE=%%P"
+            )
+        )
+    )
+)
 
-C:\Python313\python.exe G:\_dev\Cortex\indexer.py Ansible
-echo [2/8] Ansible done.
+if "!PYTHON_EXE!"=="" (
+    echo [FAIL] Python not found in PATH.
+    echo        Install Python 3.9+ from https://python.org and rerun.
+    pause
+    exit /b 1
+)
 
-C:\Python313\python.exe G:\_dev\Cortex\indexer.py Processes
-echo [3/8] Processes done.
-
-C:\Python313\python.exe G:\_dev\Cortex\indexer.py Products
-echo [4/8] Products done.
-
-C:\Python313\python.exe G:\_dev\Cortex\indexer.py Projects
-echo [5/8] Projects done.
-
-C:\Python313\python.exe G:\_dev\Cortex\indexer.py "Technical Services"
-echo [6/8] Technical Services done.
-
-C:\Python313\python.exe G:\_dev\Cortex\indexer.py Zabbix
-echo [7/8] Zabbix done.
-
-C:\Python313\python.exe G:\_dev\Cortex\indexer.py Books
-echo [8/8] Books done.
-
+echo  Python : !PYTHON_EXE!
 echo.
+
+cd /d "%CORTEX_DIR%"
+"!PYTHON_EXE!" -c "from indexer import discover_sections; print('\n'.join(discover_sections()))" > "%TEMP%\cortex_sections.txt" 2>nul
+
+if not exist "%TEMP%\cortex_sections.txt" (
+    echo [WARN] Could not discover sections, using defaults.
+    (
+        echo Adsec
+        echo Ansible
+        echo Processes
+        echo Products
+        echo Projects
+        echo Technical Services
+        echo Zabbix
+        echo Books
+    ) > "%TEMP%\cortex_sections.txt"
+)
+
+set /a COUNT=0
+for /f "usebackq delims=" %%S in ("%TEMP%\cortex_sections.txt") do set /a COUNT+=1
+
+set /a IDX=0
+for /f "usebackq delims=" %%S in ("%TEMP%\cortex_sections.txt") do (
+    set /a IDX+=1
+    echo [!IDX!/%COUNT%] Syncing: %%S
+    "!PYTHON_EXE!" "%CORTEX_DIR%indexer.py" "%%S"
+    echo [!IDX!/%COUNT%] %%S done.
+    echo.
+)
+
+del "%TEMP%\cortex_sections.txt" 2>nul
+
 echo ================================================
-echo  Sync complete! Press any key to exit.
+echo  Sync complete!
 echo ================================================
+echo.
+"!PYTHON_EXE!" "%CORTEX_DIR%sync_summary.py"
+echo.
 pause >nul
 endlocal

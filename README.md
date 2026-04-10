@@ -60,8 +60,10 @@ Après l'installation : **redémarrer l'application Claude desktop** *et* ouvrir
 <install_dir>\         ← Peu importe où vous clonez Cortex
 ├── config.py          ← Paramètres centraux (chemins, modèle, sections)
 ├── chunker.py         ← Découpe les .md en chunks (headers + taille fixe)
+├── chunker_pdf.py     ← Découpe les .pdf en chunks (pdfplumber + taille fixe)
+├── chunker_utils.py   ← Fonctions partagées (hash, split, paths)
 ├── indexer.py         ← Sync incrémentale vers ChromaDB
-├── server.py          ← Serveur MCP FastMCP (cortex_search, cortex_sync)
+├── server.py          ← Serveur MCP FastMCP (cortex_search, cortex_sync, cortex_list_sections)
 ├── sync.bat           ← Lance le sync section par section (portable, %~dp0)
 ├── install.bat        ← Installation / réinstallation en un clic (portable)
 ├── setup_config.py    ← Helper : patch claude_desktop_config.json + validation
@@ -79,8 +81,7 @@ Après l'installation : **redémarrer l'application Claude desktop** *et* ouvrir
 
 | Variable | Rôle | Défaut |
 |---|---|---|
-| `CORTEX_KB_PATH` | **(requis pour indexer)** racine absolue de votre base markdown | — |
-| `CORTEX_CHROMA_PATH` | (optionnel) emplacement de la base vectorielle | `<install_dir>\chroma_db` |
+| `CORTEX_KB_PATH` | **(requis pour indexer)** racine absolue de votre base markdown | `G:\_DATA` |
 
 `CORTEX_KB_PATH` est défini automatiquement par `install.bat` au premier lancement (via `setx`). Pour le changer manuellement :
 
@@ -96,27 +97,22 @@ La recherche (`cortex_search`) continue de fonctionner même si `CORTEX_KB_PATH`
 Le reste est centralisé dans `config.py` :
 
 ```python
-COLLECTION_NAME     = "cortex"
-EMBEDDING_MODEL     = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-CHUNK_CHARS         = 400   # taille max d'un chunk en caractères (~110 tokens FR)
-CHUNK_OVERLAP_CHARS = 60    # chevauchement entre chunks
-EXCLUDE_DIRS        = {"_attachments", "zzz_Corbeille"}
-EXCLUDE_FILES       = {"00_INDEX.md"}
+COLLECTION_NAME = "cortex"
+EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+CHUNK_SIZE      = 512   # taille max d'un chunk en caractères (~145 tokens FR)
+CHUNK_OVERLAP   = 64    # chevauchement entre chunks
+EXCLUDE_DIRS    = {"_attachments", "zzz_Corbeille"}
+EXCLUDE_FILES   = {"00_INDEX.md"}
 ```
 
-> `CHUNK_CHARS` est dimensionné pour rester sous la limite de 128 tokens du modèle MiniLM.
-> Voir « Pourquoi 400 caractères par chunk ? » dans les choix techniques.
+> `CHUNK_SIZE` est dimensionné pour rester sous la limite de 128 tokens du modèle MiniLM avec une marge de sécurité.
+> Voir « Pourquoi 512 caractères par chunk ? » dans les choix techniques.
 
 ### Sections
 
-Les sections sont **auto-découvertes** : tout sous-dossier de premier niveau de `CORTEX_KB_PATH` qui n'est pas dans `EXCLUDE_DIRS` devient une section. Aucune liste à maintenir dans le code.
+Les sections sont **auto-découvertes** : `config.py` contient une liste `KNOWN_SECTIONS` qui sert de base, mais tout sous-dossier supplémentaire de `CORTEX_KB_PATH` est aussi détecté automatiquement. La validation de section dans les outils MCP est **case-insensitive** (`zabbix` → `Zabbix`).
 
-```powershell
-:: Lister les sections détectées
-python indexer.py --list-sections
-```
-
-Depuis Claude, l'outil MCP `cortex_list_sections` retourne la même chose.
+Depuis Claude, l'outil MCP `cortex_list_sections` liste toutes les sections disponibles.
 
 ### Ajouter une nouvelle section Confluence
 
@@ -154,7 +150,7 @@ cortex_sync section="Zabbix"  # une seule section
 ### Repartir de zéro (modèle changé, index corrompu)
 
 1. Quitter l'application Claude desktop
-2. Supprimer le dossier `chroma_db\` (à côté du code, ou à l'emplacement de `CORTEX_CHROMA_PATH` si défini)
+2. Supprimer le dossier `chroma_db\` (à côté du code)
 3. Relancer Claude desktop
 4. Lancer `sync.bat`
 
@@ -207,9 +203,9 @@ Chaque section est un processus Python indépendant dans `sync.bat`. Cela limite
 
 Sans scoping, un sync de la section `Zabbix` voyait les fichiers d'`Ansible` comme « supprimés » et les effaçait. Le hash comparison et les suppressions sont maintenant limités à la section en cours.
 
-### Pourquoi 400 caractères par chunk ?
+### Pourquoi 512 caractères par chunk ?
 
-Le modèle `paraphrase-multilingual-MiniLM-L12-v2` tronque toute entrée à **128 tokens maximum**. Tout ce qui dépasse n'est jamais vu par l'embedding. En français, 1 token ≈ 3,5 caractères, donc 400 caractères ≈ 110-115 tokens — on reste sous le plafond avec une marge de sécurité, et on évite que la queue de chaque chunk soit silencieusement ignorée. Les chunks plus longs (~2000 chars utilisés au début du projet) faisaient perdre 70 à 80 % du contenu indexé à l'embedding.
+Le modèle `paraphrase-multilingual-MiniLM-L12-v2` tronque toute entrée à **128 tokens maximum**. Tout ce qui dépasse n'est jamais vu par l'embedding. En français, 1 token ≈ 3,5 caractères, donc 512 caractères ≈ 145 tokens — légèrement au-dessus du plafond théorique, mais le chunker coupe sur des frontières naturelles (retour à la ligne, fin de phrase) ce qui produit en pratique des chunks plus courts. Les chunks plus longs (~2000 chars utilisés au début du projet) faisaient perdre 70 à 80 % du contenu indexé à l'embedding.
 
 ### Pourquoi les chemins en metadata sont relatifs ?
 
@@ -235,6 +231,7 @@ mcp[cli]       ← Framework MCP (FastMCP)
 chromadb       ← Base vectorielle locale
 fastembed      ← Embeddings ONNX sans PyTorch
 pydantic       ← Validation des paramètres MCP
+pdfplumber     ← Extraction texte des PDFs natifs
 pytest         ← Tests unitaires (dev only)
 ```
 

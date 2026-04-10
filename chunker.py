@@ -3,22 +3,22 @@ Cortex — Markdown Chunker
 Splits .md files into semantically meaningful chunks with metadata.
 """
 
-import hashlib
 import re
 from pathlib import Path
 
-from config import CHUNK_CHARS, CHUNK_OVERLAP_CHARS, KB_PATH
+from config import CHUNK_SIZE, CHUNK_OVERLAP, KB_PATH
+from chunker_utils import compute_hash, get_section, get_relative_path, split_fixed_size
 
-MAX_CHARS = CHUNK_CHARS
-OVERLAP_CHARS = CHUNK_OVERLAP_CHARS
+MAX_CHARS = CHUNK_SIZE
+OVERLAP_CHARS = CHUNK_OVERLAP
 
 # Skip files larger than this (bytes) — avoids loading huge index pages
 MAX_FILE_SIZE_BYTES = 300_000  # ~300 KB
 
 
-def _compute_hash(content: str) -> str:
-    """MD5 hash of file content for change detection."""
-    return hashlib.md5(content.encode("utf-8", errors="ignore")).hexdigest()
+# Keep private aliases so existing tests can import them
+_compute_hash = compute_hash
+_split_fixed_size = split_fixed_size
 
 
 def _parse_frontmatter(content: str) -> tuple[dict, str]:
@@ -45,15 +45,6 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
     return metadata, body
 
 
-def _get_section(file_path: Path, kb_path: str) -> str:
-    """Extract top-level section from file path relative to KB_PATH."""
-    try:
-        rel = file_path.relative_to(kb_path)
-        return rel.parts[0] if rel.parts else "Unknown"
-    except ValueError:
-        return "Unknown"
-
-
 def _split_by_headers(content: str) -> list[tuple[str, str]]:
     """
     Split markdown content on H1/H2/H3 headers.
@@ -76,46 +67,6 @@ def _split_by_headers(content: str) -> list[tuple[str, str]]:
         parts.append((current_header, remaining))
 
     return parts if parts else [("", content.strip())]
-
-
-def _split_fixed_size(text: str, max_chars: int, overlap_chars: int) -> list[str]:
-    """
-    Split text into fixed-size chunks with overlap.
-    Guarantees termination: start always advances by at least 1 char.
-    """
-    if len(text) <= max_chars:
-        return [text] if text.strip() else []
-
-    chunks = []
-    start = 0
-    text_len = len(text)
-
-    while start < text_len:
-        end = min(start + max_chars, text_len)
-
-        # Try to break on a natural boundary near the end of the window
-        if end < text_len:
-            split_pos = text.rfind("\n", start, end)
-            if split_pos == -1 or split_pos <= start:
-                split_pos = text.rfind(". ", start, end)
-            if split_pos != -1 and split_pos > start:
-                end = split_pos + 1
-
-        chunk = text[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-
-        # If we've reached the end, stop
-        if end >= text_len:
-            break
-
-        # Advance start — guarantee progress even if overlap is large
-        next_start = end - overlap_chars
-        if next_start <= start:
-            next_start = start + 1  # always move forward
-        start = next_start
-
-    return chunks
 
 
 def chunk_markdown_file(file_path: Path) -> list[dict]:
@@ -144,18 +95,14 @@ def chunk_markdown_file(file_path: Path) -> list[dict]:
         return []
 
     try:
-        raw_content = file_path.read_text(encoding="utf-8", errors="ignore")
+        raw_content = file_path.read_text(encoding="utf-8", errors="replace")
     except Exception:
         return []
 
-    file_hash = _compute_hash(raw_content)
+    file_hash = compute_hash(raw_content)
     frontmatter, body = _parse_frontmatter(raw_content)
-    section = _get_section(file_path, KB_PATH)
-
-    try:
-        rel_path = str(file_path.relative_to(KB_PATH))
-    except ValueError:
-        rel_path = str(file_path)
+    section = get_section(file_path, KB_PATH)
+    rel_path = get_relative_path(file_path, KB_PATH)
 
     title = frontmatter.get("title") or file_path.stem
 
@@ -168,7 +115,7 @@ def chunk_markdown_file(file_path: Path) -> list[dict]:
 
     for header, section_content in header_sections:
         full_text = f"{header}\n{section_content}".strip() if header else section_content
-        sub_chunks = _split_fixed_size(full_text, MAX_CHARS, OVERLAP_CHARS)
+        sub_chunks = split_fixed_size(full_text, MAX_CHARS, OVERLAP_CHARS)
 
         for sub_chunk in sub_chunks:
             if not sub_chunk.strip():

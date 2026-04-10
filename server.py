@@ -1,8 +1,9 @@
 """
 server.py — Cortex MCP server
-Exposes two tools to Claude:
-  - cortex_search : semantic search in the knowledge base
-  - cortex_sync   : incremental sync of the knowledge base
+Exposes three tools to Claude:
+  - cortex_search         : semantic search in the knowledge base
+  - cortex_sync           : incremental sync of the knowledge base
+  - cortex_list_sections  : list available sections
 """
 
 import os
@@ -12,7 +13,6 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import BaseModel, Field
 
 from indexer import discover_sections, get_collection, search, sync
 
@@ -35,26 +35,26 @@ async def app_lifespan(app):
 mcp = FastMCP("cortex_mcp", lifespan=app_lifespan)
 
 
+# ── Section validation helper ────────────────────────────────────────────────
+
+def _resolve_section(section: str | None) -> tuple[str | None, str | None]:
+    """
+    Validate and normalize a section name (case-insensitive).
+    Returns (resolved_name, error_message). error_message is None on success.
+    """
+    if section is None:
+        return None, None
+    available = discover_sections()
+    matching = [s for s in available if s.lower() == section.lower()]
+    if matching:
+        return matching[0], None
+    return None, (
+        f"Unknown section: '{section}'\n\n"
+        f"Available sections: {', '.join(sorted(available))}"
+    )
+
+
 # ── Tool: cortex_search ───────────────────────────────────────────────────────
-
-class SearchInput(BaseModel):
-    query: str = Field(description="Search query (French or English)")
-    section: Optional[str] = Field(
-        default=None,
-        description=(
-            "Limit search to a specific section. A section is a first-level "
-            "directory under the knowledge base root (CORTEX_KB_PATH). "
-            "Use cortex_list_sections to see what is available. "
-            "Leave empty to search all sections."
-        ),
-    )
-    top_k: int = Field(
-        default=5,
-        ge=1,
-        le=10,
-        description="Number of results to return (1-10)",
-    )
-
 
 @mcp.tool()
 def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> str:
@@ -63,6 +63,10 @@ def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> 
     Use this tool whenever the user asks about anything that may be documented
     in their local knowledge base. Supports French and English queries.
     """
+    section, err = _resolve_section(section)
+    if err:
+        return err
+
     hits = search(query=query, section=section, top_k=top_k)
 
     if not hits:
@@ -101,6 +105,10 @@ def cortex_sync(section: Optional[str] = None) -> str:
     cortex_list_sections to see what is available.
     Returns a summary of what was added, deleted, and skipped.
     """
+    section, err = _resolve_section(section)
+    if err:
+        return err
+
     stats = sync(section=section, verbose=False)
     sec_label = section or "all sections"
     return (

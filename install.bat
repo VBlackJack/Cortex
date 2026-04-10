@@ -21,8 +21,8 @@ echo [1/6] Detecting Python...
 
 set PYTHON_EXE=
 
-:: Try python3 first, then python
-for %%C in (python3 python) do (
+:: Try python first (on Windows, python3 is often the Microsoft Store stub)
+for %%C in (python python3) do (
     if "!PYTHON_EXE!"=="" (
         for /f "delims=" %%P in ('where %%C 2^>nul') do (
             if "!PYTHON_EXE!"=="" set PYTHON_EXE=%%P

@@ -8,15 +8,18 @@ Usage:
 
 import os
 import gc
+import logging
 import warnings
 import argparse
 from pathlib import Path
+
+log = logging.getLogger("cortex")
 
 # Force CPU-only - avoid GPU driver crashes
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 # Suppress fastembed pooling migration notice (mean pooling is correct for this model)
-warnings.filterwarnings("ignore", category=UserWarning, module="fastembed")
+warnings.filterwarnings("ignore", message=".*mean pooling.*", category=UserWarning)
 
 import chromadb
 from chromadb import EmbeddingFunction, Embeddings
@@ -28,6 +31,7 @@ from config import (
 )
 from chunker import chunk_markdown_file
 from chunker_pdf import chunk_pdf_file
+from chunker_utils import compute_hash, get_relative_path
 
 # ── Format routing ────────────────────────────────────────────────────────────
 
@@ -37,6 +41,21 @@ CHUNKERS = {
 }
 
 SUPPORTED_EXTENSIONS = set(CHUNKERS.keys())
+
+
+def _quick_file_hash(file_path: Path, ext: str) -> str | None:
+    """
+    Compute file hash without full chunking — fast path for change detection.
+    Returns None if quick hash is not available (e.g. PDF needs text extraction).
+    """
+    if ext == ".md":
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="replace")
+            return compute_hash(content)
+        except Exception:
+            return None
+    # PDF hash depends on extracted text, no cheap shortcut
+    return None
 
 # ── Embedding function ────────────────────────────────────────────────────────
 
@@ -107,17 +126,37 @@ def get_indexed_hashes(collection, section: str = None) -> dict[str, str]:
     """
     Return {file_path: file_hash} for already-indexed documents.
     Scoped to section to avoid cross-section contamination.
+    Uses batched queries to handle large sections (ChromaDB SQL variable limit).
     """
     where = {"section": section} if section else None
-    try:
-        result = collection.get(where=where, include=["metadatas"])
-    except Exception:
-        return {}
-
     hashes: dict[str, str] = {}
-    for meta in result.get("metadatas") or []:
-        if meta and "path" in meta and "file_hash" in meta:
-            hashes[meta["path"]] = meta["file_hash"]
+    offset = 0
+    page_size = 5_000
+
+    while True:
+        try:
+            result = collection.get(
+                where=where,
+                include=["metadatas"],
+                limit=page_size,
+                offset=offset,
+            )
+        except Exception as e:
+            log.warning("get_indexed_hashes failed at offset %d: %s", offset, e)
+            break
+
+        metadatas = result.get("metadatas") or []
+        if not metadatas:
+            break
+
+        for meta in metadatas:
+            if meta and "path" in meta and "file_hash" in meta:
+                hashes[meta["path"]] = meta["file_hash"]
+
+        if len(metadatas) < page_size:
+            break
+        offset += page_size
+
     return hashes
 
 
@@ -134,17 +173,17 @@ def sync(section: str = None, verbose: bool = True) -> dict:
     client = get_client()
     collection = get_collection(client)
 
-    folders = [kb_root / section] if section else [kb_root / s for s in KNOWN_SECTIONS]
+    folders = [kb_root / section] if section else [kb_root / s for s in discover_sections()]
 
     for folder in folders:
         sec_name = folder.name
         if not folder.is_dir():
             if verbose:
-                print(f"[WARN] Section folder not found: {folder}")
+                log.warning("Section folder not found: %s", folder)
             continue
 
         if verbose:
-            print(f"\n--- Section: {sec_name} ---")
+            log.info("--- Section: %s ---", sec_name)
 
         indexed = get_indexed_hashes(collection, section=sec_name)
 
@@ -158,9 +197,16 @@ def sync(section: str = None, verbose: bool = True) -> dict:
                 if file_path.name in EXCLUDE_FILES:
                     continue
 
-                path_str = str(file_path)
+                path_str = get_relative_path(file_path, KB_PATH)
                 current_paths.add(path_str)
 
+                # Fast path: compare hash without chunking (works for .md)
+                quick_hash = _quick_file_hash(file_path, ext)
+                if quick_hash and indexed.get(path_str) == quick_hash:
+                    stats["skipped"] += 1
+                    continue
+
+                # Slow path: full chunking needed (new/changed file, or PDF)
                 chunker = CHUNKERS[ext]
                 chunks = chunker(file_path)
                 if not chunks:
@@ -174,38 +220,52 @@ def sync(section: str = None, verbose: bool = True) -> dict:
 
                 files_to_index.append((file_path, chunks))
 
-        # Delete chunks for files removed from the section
+        # Determine which paths need their chunks deleted
         stale_paths = set(indexed.keys()) - current_paths
-        if stale_paths:
-            stale_result = collection.get(
-                where={"section": sec_name},
-                include=["metadatas"],
-            )
-            stale_ids = [
-                stale_result["ids"][i]
-                for i, meta in enumerate(stale_result.get("metadatas") or [])
-                if meta and meta.get("path") in stale_paths
-            ]
-            if stale_ids:
-                collection.delete(ids=stale_ids)
-                stats["deleted"] += len(stale_ids)
-                if verbose:
-                    print(f"  Deleted {len(stale_ids)} chunks from {len(stale_paths)} removed files")
+        changed_paths = {get_relative_path(f, KB_PATH) for f, _ in files_to_index
+                         if indexed.get(get_relative_path(f, KB_PATH))}
+        paths_to_delete = stale_paths | changed_paths
 
-        # Delete old chunks for changed files before re-adding
-        changed_paths = {str(f) for f, _ in files_to_index if indexed.get(str(f))}
-        if changed_paths:
-            changed_result = collection.get(
-                where={"section": sec_name},
-                include=["metadatas"],
-            )
-            changed_ids = [
-                changed_result["ids"][i]
-                for i, meta in enumerate(changed_result.get("metadatas") or [])
-                if meta and meta.get("path") in changed_paths
-            ]
-            if changed_ids:
-                collection.delete(ids=changed_ids)
+        if paths_to_delete:
+            # Batched collection.get() for both stale and changed files
+            ids_to_delete = []
+            stale_chunk_count = 0
+            offset = 0
+            page_size = 5_000
+
+            while True:
+                try:
+                    page = collection.get(
+                        where={"section": sec_name},
+                        include=["metadatas"],
+                        limit=page_size,
+                        offset=offset,
+                    )
+                except Exception:
+                    break
+
+                page_ids = page.get("ids", [])
+                page_metas = page.get("metadatas") or []
+                if not page_ids:
+                    break
+
+                for chunk_id, meta in zip(page_ids, page_metas):
+                    if meta and meta.get("path") in paths_to_delete:
+                        ids_to_delete.append(chunk_id)
+                        if meta.get("path") in stale_paths:
+                            stale_chunk_count += 1
+
+                if len(page_ids) < page_size:
+                    break
+                offset += page_size
+
+            if ids_to_delete:
+                # ChromaDB delete also has limits, batch the deletes
+                for i in range(0, len(ids_to_delete), page_size):
+                    collection.delete(ids=ids_to_delete[i:i + page_size])
+                stats["deleted"] += stale_chunk_count
+                if verbose and stale_paths:
+                    log.info("  Deleted %d chunks from %d removed files", stale_chunk_count, len(stale_paths))
 
         # Index new / changed files in batches
         batch_ids, batch_texts, batch_metas = [], [], []
@@ -226,13 +286,13 @@ def sync(section: str = None, verbose: bool = True) -> dict:
                         stats["added"] += len(batch_ids)
                     except Exception as e:
                         if verbose:
-                            print(f"  [ERROR] Batch upsert: {e}")
+                            log.error("  Batch upsert failed: %s", e)
                         stats["errors"] += len(batch_ids)
                     batch_ids, batch_texts, batch_metas = [], [], []
                     gc.collect()
 
             if verbose:
-                print(f"  + {file_path.name} ({len(chunks)} chunks)")
+                log.info("  + %s (%d chunks)", file_path.name, len(chunks))
             gc.collect()
 
         # Flush remaining batch
@@ -246,13 +306,13 @@ def sync(section: str = None, verbose: bool = True) -> dict:
                 stats["added"] += len(batch_ids)
             except Exception as e:
                 if verbose:
-                    print(f"  [ERROR] Final batch: {e}")
+                    log.error("  Final batch failed: %s", e)
                 stats["errors"] += len(batch_ids)
             gc.collect()
 
     if verbose:
-        print(f"\nSync complete: Added={stats['added']} Deleted={stats['deleted']} "
-              f"Skipped={stats['skipped']} Errors={stats['errors']}")
+        log.info("Sync complete: Added=%d Deleted=%d Skipped=%d Errors=%d",
+                 stats["added"], stats["deleted"], stats["skipped"], stats["errors"])
     return stats
 
 
@@ -284,6 +344,12 @@ def search(query: str, section: str = None, top_k: int = 5) -> list[dict]:
 # ── CLI entry point ───────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
     parser = argparse.ArgumentParser(description="Cortex indexer")
     parser.add_argument("section", nargs="?", default=None,
                         help="Section to sync (default: all)")
