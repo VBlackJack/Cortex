@@ -36,3 +36,6 @@ Thumbs.db
 gemini_output.txt
 gemini_prompt.txt
 codex_task.md
+
+# Local execution reports
+local/

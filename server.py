@@ -1,3 +1,8 @@
+# Copyright 2026 Julien Bombled
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
 """
 server.py — Cortex MCP server
 Exposes three tools to Claude:
@@ -7,6 +12,7 @@ Exposes three tools to Claude:
 """
 
 import os
+
 os.environ["CUDA_VISIBLE_DEVICES"] = ""  # force CPU, avoid GPU driver issues
 
 from contextlib import asynccontextmanager
@@ -14,10 +20,12 @@ from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
+from freshness import cortex_freshness_report
 from indexer import discover_sections, get_collection, search, sync
 
 
 # ── Lifespan: warm up the model at startup ────────────────────────────────────
+
 
 @asynccontextmanager
 async def app_lifespan(app):
@@ -37,6 +45,7 @@ mcp = FastMCP("cortex_mcp", lifespan=app_lifespan)
 
 # ── Section validation helper ────────────────────────────────────────────────
 
+
 def _resolve_section(section: str | None) -> tuple[str | None, str | None]:
     """
     Validate and normalize a section name (case-insensitive).
@@ -55,6 +64,7 @@ def _resolve_section(section: str | None) -> tuple[str | None, str | None]:
 
 
 # ── Tool: cortex_search ───────────────────────────────────────────────────────
+
 
 @mcp.tool()
 def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> str:
@@ -96,6 +106,7 @@ def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> 
 
 # ── Tool: cortex_sync ─────────────────────────────────────────────────────────
 
+
 @mcp.tool()
 def cortex_sync(section: Optional[str] = None) -> str:
     """
@@ -122,6 +133,7 @@ def cortex_sync(section: Optional[str] = None) -> str:
 
 # ── Tool: cortex_list_sections ────────────────────────────────────────────────
 
+
 @mcp.tool()
 def cortex_list_sections() -> str:
     """
@@ -140,6 +152,15 @@ def cortex_list_sections() -> str:
     for s in sections:
         lines.append(f"- `{s}`")
     return "\n".join(lines)
+
+
+@mcp.tool()
+def cortex_freshness(section: Optional[str] = None) -> dict:
+    """Report source freshness without changing the ChromaDB index."""
+    section, err = _resolve_section(section)
+    if err:
+        return {"error": err}
+    return cortex_freshness_report(get_collection(), section=section)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

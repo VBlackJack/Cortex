@@ -1,3 +1,8 @@
+# Copyright 2026 Julien Bombled
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
 """
 chunker_utils.py - Shared utilities for markdown and PDF chunkers.
 """
@@ -9,6 +14,11 @@ from pathlib import Path
 def compute_hash(content: str) -> str:
     """MD5 hash of file content for change detection."""
     return hashlib.md5(content.encode("utf-8", errors="replace")).hexdigest()
+
+
+def sha256_bytes(data: bytes) -> str:
+    """Return the lowercase SHA-256 digest of exact input bytes."""
+    return hashlib.sha256(data).hexdigest()
 
 
 def get_section(file_path: Path, kb_path: str) -> str:
@@ -23,7 +33,7 @@ def get_section(file_path: Path, kb_path: str) -> str:
 def get_relative_path(file_path: Path, kb_path: str) -> str:
     """Return file path relative to KB_PATH, or absolute path as fallback."""
     try:
-        return str(file_path.relative_to(kb_path))
+        return file_path.relative_to(kb_path).as_posix()
     except ValueError:
         return str(file_path)
 

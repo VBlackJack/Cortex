@@ -1,3 +1,8 @@
+# Copyright 2026 Julien Bombled
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
 """
 indexer.py - Cortex incremental indexer
 Usage:
@@ -21,43 +26,35 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 # Suppress fastembed pooling migration notice (mean pooling is correct for this model)
 warnings.filterwarnings("ignore", message=".*mean pooling.*", category=UserWarning)
 
-import chromadb
-from chromadb import EmbeddingFunction, Embeddings
-from fastembed import TextEmbedding
+import chromadb  # noqa: E402
+from chromadb import EmbeddingFunction, Embeddings  # noqa: E402
+from fastembed import TextEmbedding  # noqa: E402
 
-from config import (
-    KB_PATH, CHROMA_PATH, COLLECTION_NAME, EMBEDDING_MODEL,
-    CHUNK_SIZE, CHUNK_OVERLAP, EXCLUDE_DIRS, EXCLUDE_FILES, KNOWN_SECTIONS
+from config import (  # noqa: E402
+    KB_PATH,
+    CHROMA_PATH,
+    COLLECTION_NAME,
+    EMBEDDING_MODEL,
+    EXCLUDE_DIRS,
+    EXCLUDE_FILES,
+    KNOWN_SECTIONS,
 )
-from chunker import chunk_markdown_file
-from chunker_pdf import chunk_pdf_file
-from chunker_utils import compute_hash, get_relative_path
+from chunker import chunk_markdown_file  # noqa: E402
+from chunker_pdf import chunk_pdf_file  # noqa: E402
+from chunker_utils import get_relative_path  # noqa: E402
 
 # ── Format routing ────────────────────────────────────────────────────────────
 
 CHUNKERS = {
-    ".md":  chunk_markdown_file,
+    ".md": chunk_markdown_file,
     ".pdf": chunk_pdf_file,
 }
 
 SUPPORTED_EXTENSIONS = set(CHUNKERS.keys())
 
 
-def _quick_file_hash(file_path: Path, ext: str) -> str | None:
-    """
-    Compute file hash without full chunking — fast path for change detection.
-    Returns None if quick hash is not available (e.g. PDF needs text extraction).
-    """
-    if ext == ".md":
-        try:
-            content = file_path.read_text(encoding="utf-8", errors="replace")
-            return compute_hash(content)
-        except Exception:
-            return None
-    # PDF hash depends on extracted text, no cheap shortcut
-    return None
-
 # ── Embedding function ────────────────────────────────────────────────────────
+
 
 class FastEmbedFunction(EmbeddingFunction):
     """
@@ -162,6 +159,7 @@ def get_indexed_hashes(collection, section: str = None) -> dict[str, str]:
 
 # ── Sync ──────────────────────────────────────────────────────────────────────
 
+
 def sync(section: str = None, verbose: bool = True) -> dict:
     """
     Incremental sync. If section is given, only process that section's folder.
@@ -173,7 +171,9 @@ def sync(section: str = None, verbose: bool = True) -> dict:
     client = get_client()
     collection = get_collection(client)
 
-    folders = [kb_root / section] if section else [kb_root / s for s in discover_sections()]
+    folders = (
+        [kb_root / section] if section else [kb_root / s for s in discover_sections()]
+    )
 
     for folder in folders:
         sec_name = folder.name
@@ -200,13 +200,7 @@ def sync(section: str = None, verbose: bool = True) -> dict:
                 path_str = get_relative_path(file_path, KB_PATH)
                 current_paths.add(path_str)
 
-                # Fast path: compare hash without chunking (works for .md)
-                quick_hash = _quick_file_hash(file_path, ext)
-                if quick_hash and indexed.get(path_str) == quick_hash:
-                    stats["skipped"] += 1
-                    continue
-
-                # Slow path: full chunking needed (new/changed file, or PDF)
+                # One read produces the hash and the text that would be embedded.
                 chunker = CHUNKERS[ext]
                 chunks = chunker(file_path)
                 if not chunks:
@@ -222,8 +216,11 @@ def sync(section: str = None, verbose: bool = True) -> dict:
 
         # Determine which paths need their chunks deleted
         stale_paths = set(indexed.keys()) - current_paths
-        changed_paths = {get_relative_path(f, KB_PATH) for f, _ in files_to_index
-                         if indexed.get(get_relative_path(f, KB_PATH))}
+        changed_paths = {
+            get_relative_path(f, KB_PATH)
+            for f, _ in files_to_index
+            if indexed.get(get_relative_path(f, KB_PATH))
+        }
         paths_to_delete = stale_paths | changed_paths
 
         if paths_to_delete:
@@ -262,10 +259,14 @@ def sync(section: str = None, verbose: bool = True) -> dict:
             if ids_to_delete:
                 # ChromaDB delete also has limits, batch the deletes
                 for i in range(0, len(ids_to_delete), page_size):
-                    collection.delete(ids=ids_to_delete[i:i + page_size])
+                    collection.delete(ids=ids_to_delete[i : i + page_size])
                 stats["deleted"] += stale_chunk_count
                 if verbose and stale_paths:
-                    log.info("  Deleted %d chunks from %d removed files", stale_chunk_count, len(stale_paths))
+                    log.info(
+                        "  Deleted %d chunks from %d removed files",
+                        stale_chunk_count,
+                        len(stale_paths),
+                    )
 
         # Index new / changed files in batches
         batch_ids, batch_texts, batch_metas = [], [], []
@@ -311,12 +312,18 @@ def sync(section: str = None, verbose: bool = True) -> dict:
             gc.collect()
 
     if verbose:
-        log.info("Sync complete: Added=%d Deleted=%d Skipped=%d Errors=%d",
-                 stats["added"], stats["deleted"], stats["skipped"], stats["errors"])
+        log.info(
+            "Sync complete: Added=%d Deleted=%d Skipped=%d Errors=%d",
+            stats["added"],
+            stats["deleted"],
+            stats["skipped"],
+            stats["errors"],
+        )
     return stats
 
 
 # ── Search ────────────────────────────────────────────────────────────────────
+
 
 def search(query: str, section: str = None, top_k: int = 5) -> list[dict]:
     """Return top_k results as list of {text, metadata, distance}."""
@@ -351,10 +358,15 @@ if __name__ == "__main__":
     )
 
     parser = argparse.ArgumentParser(description="Cortex indexer")
-    parser.add_argument("section", nargs="?", default=None,
-                        help="Section to sync (default: all)")
-    parser.add_argument("--search", metavar="QUERY", default=None,
-                        help="Run a search instead of syncing")
+    parser.add_argument(
+        "section", nargs="?", default=None, help="Section to sync (default: all)"
+    )
+    parser.add_argument(
+        "--search",
+        metavar="QUERY",
+        default=None,
+        help="Run a search instead of syncing",
+    )
     parser.add_argument("--top-k", type=int, default=5)
     args = parser.parse_args()
 
@@ -362,8 +374,10 @@ if __name__ == "__main__":
         hits = search(args.search, section=args.section, top_k=args.top_k)
         for i, h in enumerate(hits, 1):
             meta = h["metadata"]
-            print(f"\n[{i}] {meta.get('title', meta.get('path', '?'))} "
-                  f"(dist={h['distance']:.3f})")
+            print(
+                f"\n[{i}] {meta.get('title', meta.get('path', '?'))} "
+                f"(dist={h['distance']:.3f})"
+            )
             print(f"    Section: {meta.get('section')} | {meta.get('header', '')}")
             print(f"    {h['text'][:300]}...")
     else:

@@ -1,0 +1,11 @@
+{
+  "contract": "freshness-contract-v1",
+  "vectors": [
+    {"id": "lf-final-newline", "base64": "IyBOb3RlCmxpZ25lCg==", "sha256": "9aaffb0aeffb32980e9ac17aae9361628120cf66f391fbf6eeb9023898477ed3"},
+    {"id": "crlf-final-newline", "base64": "IyBOb3RlDQpsaWduZQ0K", "sha256": "4c81ac3f6c7b2cba88cc9c1d71a65e7ca3ca392330a900c3dcdfacf6602f77b4"},
+    {"id": "lf-no-final-newline", "base64": "IyBOb3RlCmxpZ25l", "sha256": "6723ebbb99fb2431b46aff3b4fb78cd18841729a05b9cc113713462fc4c60bd3"},
+    {"id": "french-utf8", "base64": "ZnJhw65jaGV1ciDDqXTDqQo=", "sha256": "815525825f67528b367f6059042c9947127cc7327ee8cf443992b24bf1c36d28"},
+    {"id": "utf8-bom", "base64": "77u/IyBOb3RlCg==", "sha256": "aeb5e55152a933699da0c3c6342c9cc30aa796c4c10b47a1e8aed842e67856c8"},
+    {"id": "unicode-nfd", "base64": "ZnJhacyCY2hldXIK", "sha256": "92102fe2121edfb8dcd2d7841d8462bc272abd25c2fbc4a1ab2f67cbcb250213"}
+  ]
+}

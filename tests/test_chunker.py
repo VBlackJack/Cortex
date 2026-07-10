@@ -1,13 +1,17 @@
+# Copyright 2026 Julien Bombled
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
 """
 Unit tests for chunker.py — boundary cases and invariants.
 """
+
 from pathlib import Path
 
-import pytest
 
 from chunker import (
     MAX_CHARS,
-    OVERLAP_CHARS,
     MAX_FILE_SIZE_BYTES,
     _split_fixed_size,
     _parse_frontmatter,
@@ -17,6 +21,7 @@ from chunker import (
 
 
 # ── _split_fixed_size ─────────────────────────────────────────────────────────
+
 
 def test_split_fixed_size_empty_returns_empty():
     assert _split_fixed_size("", 100, 10) == []
@@ -67,6 +72,7 @@ def test_split_fixed_size_no_natural_boundary_falls_back_to_hard_cut():
 
 # ── _parse_frontmatter ────────────────────────────────────────────────────────
 
+
 def test_parse_frontmatter_none():
     meta, body = _parse_frontmatter("# Title\n\nbody text")
     assert meta == {}
@@ -81,13 +87,14 @@ def test_parse_frontmatter_unclosed():
 
 
 def test_parse_frontmatter_valid_with_quotes():
-    content = '---\ntitle: "Hello"\nauthor: \'Bob\'\n---\nbody here'
+    content = "---\ntitle: \"Hello\"\nauthor: 'Bob'\n---\nbody here"
     meta, body = _parse_frontmatter(content)
     assert meta == {"title": "Hello", "author": "Bob"}
     assert body == "body here"
 
 
 # ── _split_by_headers ─────────────────────────────────────────────────────────
+
 
 def test_split_by_headers_no_headers():
     parts = _split_by_headers("just plain text\nwith newlines")
@@ -111,6 +118,7 @@ def test_split_by_headers_header_without_following_content():
 
 
 # ── chunk_markdown_file ───────────────────────────────────────────────────────
+
 
 def test_chunk_markdown_file_empty(tmp_path: Path):
     f = tmp_path / "empty.md"
@@ -144,6 +152,9 @@ def test_chunk_markdown_file_valid(tmp_path: Path):
     assert "path" in meta
     assert "section" in meta
     assert "file_hash" in meta
+    assert len(meta["content_hash"]) == 64
+    assert meta["contract_id"] == "freshness-contract-v1"
+    assert meta["content_hash_contract_version"] == "v1"
     assert "chunk_index" in meta
 
 
@@ -154,6 +165,12 @@ def test_chunk_markdown_file_hash_stable(tmp_path: Path):
     h1 = chunk_markdown_file(f)[0]["metadata"]["file_hash"]
     h2 = chunk_markdown_file(f)[0]["metadata"]["file_hash"]
     assert h1 == h2
+
+
+def test_chunk_markdown_file_rejects_invalid_utf8(tmp_path: Path):
+    f = tmp_path / "invalid.md"
+    f.write_bytes(b"# Invalid\n\xff")
+    assert chunk_markdown_file(f) == []
 
 
 def test_chunk_respects_max_chars(tmp_path: Path):

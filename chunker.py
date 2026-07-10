@@ -1,3 +1,8 @@
+# Copyright 2026 Julien Bombled
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
 """
 Cortex — Markdown Chunker
 Splits .md files into semantically meaningful chunks with metadata.
@@ -6,8 +11,20 @@ Splits .md files into semantically meaningful chunks with metadata.
 import re
 from pathlib import Path
 
-from config import CHUNK_SIZE, CHUNK_OVERLAP, KB_PATH
-from chunker_utils import compute_hash, get_section, get_relative_path, split_fixed_size
+from config import (
+    CHUNK_SIZE,
+    CHUNK_OVERLAP,
+    FRESHNESS_CONTRACT_ID,
+    FRESHNESS_CONTRACT_VERSION,
+    KB_PATH,
+)
+from chunker_utils import (
+    compute_hash,
+    get_section,
+    get_relative_path,
+    sha256_bytes,
+    split_fixed_size,
+)
 
 MAX_CHARS = CHUNK_SIZE
 OVERLAP_CHARS = CHUNK_OVERLAP
@@ -35,7 +52,7 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
         return metadata, content
 
     frontmatter = content[3:end].strip()
-    body = content[end + 4:].lstrip("\n")
+    body = content[end + 4 :].lstrip("\n")
 
     for line in frontmatter.splitlines():
         if ":" in line:
@@ -56,7 +73,7 @@ def _split_by_headers(content: str) -> list[tuple[str, str]]:
     current_header = ""
 
     for match in pattern.finditer(content):
-        chunk_text = content[last_end:match.start()].strip()
+        chunk_text = content[last_end : match.start()].strip()
         if chunk_text:
             parts.append((current_header, chunk_text))
         current_header = match.group(1).strip()
@@ -95,11 +112,14 @@ def chunk_markdown_file(file_path: Path) -> list[dict]:
         return []
 
     try:
-        raw_content = file_path.read_text(encoding="utf-8", errors="replace")
-    except Exception:
+        raw_bytes = file_path.read_bytes()
+        raw_content = raw_bytes.decode("utf-8", errors="strict")
+    except (OSError, UnicodeDecodeError):
         return []
 
-    file_hash = compute_hash(raw_content)
+    # Preserve the legacy MD5 domain solely to skip unchanged legacy rows in B1.
+    file_hash = compute_hash(raw_content.replace("\r\n", "\n").replace("\r", "\n"))
+    content_hash = sha256_bytes(raw_bytes)
     frontmatter, body = _parse_frontmatter(raw_content)
     section = get_section(file_path, KB_PATH)
     rel_path = get_relative_path(file_path, KB_PATH)
@@ -114,24 +134,31 @@ def chunk_markdown_file(file_path: Path) -> list[dict]:
     chunk_index = 0
 
     for header, section_content in header_sections:
-        full_text = f"{header}\n{section_content}".strip() if header else section_content
+        full_text = (
+            f"{header}\n{section_content}".strip() if header else section_content
+        )
         sub_chunks = split_fixed_size(full_text, MAX_CHARS, OVERLAP_CHARS)
 
         for sub_chunk in sub_chunks:
             if not sub_chunk.strip():
                 continue
-            chunks.append({
-                "id": f"{rel_path}::{chunk_index}",
-                "text": sub_chunk,
-                "metadata": {
-                    "path": rel_path,
-                    "section": section,
-                    "title": title,
-                    "header": header,
-                    "chunk_index": chunk_index,
-                    "file_hash": file_hash,
+            chunks.append(
+                {
+                    "id": f"{rel_path}::{chunk_index}",
+                    "text": sub_chunk,
+                    "metadata": {
+                        "path": rel_path,
+                        "section": section,
+                        "title": title,
+                        "header": header,
+                        "chunk_index": chunk_index,
+                        "file_hash": file_hash,
+                        "content_hash": content_hash,
+                        "contract_id": FRESHNESS_CONTRACT_ID,
+                        "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+                    },
                 }
-            })
+            )
             chunk_index += 1
 
     return chunks
