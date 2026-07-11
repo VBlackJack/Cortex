@@ -71,6 +71,12 @@ def test_freshness_taxonomy_is_read_only_and_autonomous(
                 "contract_id": FRESHNESS_CONTRACT_ID,
                 "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
             },
+            {
+                "path": "_memory/_archive/old.md",
+                "content_hash": "3" * 64,
+                "contract_id": FRESHNESS_CONTRACT_ID,
+                "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+            },
             {"path": "../escape.md", "content_hash": "2" * 64},
         ]
     )
@@ -83,6 +89,11 @@ def test_freshness_taxonomy_is_read_only_and_autonomous(
     assert statuses["_memory/stale.md"] == "stale"
     assert statuses["_memory/unknown.md"] == "unknown"
     assert statuses["_memory/missing.md"] == "missing"
+    # Regression guard: an indexed-but-off-disk path under an excluded dir
+    # must report "excluded", not "missing" - this is the exact branch
+    # (freshness.py's is_excluded_path check in the leftover-indexed loop)
+    # that previously crashed with NameError (orphaned "_is_excluded" call).
+    assert statuses["_memory/_archive/old.md"] == "excluded"
     assert statuses["../escape.md"] == "error"
     assert report["read_only"] is True
     assert report["freshness_is_not_completeness"] is True

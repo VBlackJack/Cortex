@@ -10,6 +10,18 @@ chunker_utils.py - Shared utilities for markdown and PDF chunkers.
 import hashlib
 from pathlib import Path
 
+from config import EXCLUDE_DIRS, EXCLUDE_FILES, FRESHNESS_EXCLUDED_DIRS
+
+
+def is_excluded_path(rel_path: Path) -> bool:
+    """True if any parent directory of rel_path is excluded, or the filename itself is."""
+    if rel_path.name in EXCLUDE_FILES:
+        return True
+    return any(
+        part in EXCLUDE_DIRS or part in FRESHNESS_EXCLUDED_DIRS or part.startswith(".")
+        for part in rel_path.parts[:-1]
+    )
+
 
 def compute_hash(content: str) -> str:
     """MD5 hash of file content for change detection."""

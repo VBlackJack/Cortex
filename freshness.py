@@ -15,13 +15,12 @@ from typing import Any
 
 from config import (
     EXCLUDE_DIRS,
-    EXCLUDE_FILES,
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
     FRESHNESS_EXCLUDED_DIRS,
     KB_PATH,
 )
-from chunker_utils import sha256_bytes
+from chunker_utils import is_excluded_path, sha256_bytes
 
 _LOG = logging.getLogger("cortex.freshness")
 _HASH_LENGTH = 64
@@ -88,7 +87,7 @@ def cortex_freshness_report(
         if rel_path in seen_paths:
             continue
         status = "unsupported" if rel_path.lower().endswith(".pdf") else "missing"
-        if _is_excluded(Path(rel_path)):
+        if is_excluded_path(Path(rel_path)):
             status = "excluded"
         entries.append(
             {"path": rel_path, "status": status, "chunks": str(len(metadata))}
@@ -106,7 +105,7 @@ def _discover_sources(root: Path, section: str | None) -> list[Path]:
         if not path.is_file() or path.suffix.lower() not in {".md", ".pdf"}:
             continue
         rel = path.relative_to(root)
-        if _is_excluded(rel) or path.name in EXCLUDE_FILES:
+        if is_excluded_path(rel):
             continue
         paths.append(path)
     return paths
@@ -121,15 +120,8 @@ def _discover_excluded(root: Path, section: str | None) -> list[Path]:
         for path in sorted(base.rglob("*"))
         if path.is_file()
         and path.suffix.lower() in {".md", ".pdf"}
-        and (_is_excluded(path.relative_to(root)) or path.name in EXCLUDE_FILES)
+        and is_excluded_path(path.relative_to(root))
     ]
-
-
-def _is_excluded(rel_path: Path) -> bool:
-    return any(
-        part in EXCLUDE_DIRS or part in FRESHNESS_EXCLUDED_DIRS or part.startswith(".")
-        for part in rel_path.parts[:-1]
-    )
 
 
 def _indexed_metadata(
