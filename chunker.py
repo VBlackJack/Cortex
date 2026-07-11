@@ -10,6 +10,7 @@ Splits .md files into semantically meaningful chunks with metadata.
 
 import re
 from pathlib import Path
+from typing import Any
 
 from config import (
     CHUNK_SIZE,
@@ -39,12 +40,12 @@ _compute_hash = compute_hash
 _split_fixed_size = split_fixed_size
 
 
-def _parse_frontmatter(content: str) -> tuple[dict, str]:
+def _parse_frontmatter(content: str) -> tuple[dict[str, str], str]:
     """
     Extract YAML frontmatter from markdown content.
     Returns (metadata_dict, remaining_content).
     """
-    metadata = {}
+    metadata: dict[str, str] = {}
     if not content.startswith("---"):
         return metadata, content
 
@@ -65,29 +66,26 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
 
 def _split_by_headers(content: str) -> list[tuple[str, str]]:
     """
-    Split markdown content on H1/H2/H3 headers.
-    Returns list of (header, content) tuples.
+    Partition Markdown at H1-H3 while preserving every source character.
+
+    Returns (header metadata, exact source span) tuples. The header remains in
+    the exact span so joining the second tuple items reconstructs ``content``.
     """
     pattern = re.compile(r"^(#{1,3} .+)$", re.MULTILINE)
-    parts = []
-    last_end = 0
-    current_header = ""
+    matches = list(pattern.finditer(content))
+    if not matches:
+        return [("", content)]
 
-    for match in pattern.finditer(content):
-        chunk_text = content[last_end : match.start()].strip()
-        if chunk_text:
-            parts.append((current_header, chunk_text))
-        current_header = match.group(1).strip()
-        last_end = match.end()
-
-    remaining = content[last_end:].strip()
-    if remaining:
-        parts.append((current_header, remaining))
-
-    return parts if parts else [("", content.strip())]
+    parts: list[tuple[str, str]] = []
+    if matches[0].start() > 0:
+        parts.append(("", content[: matches[0].start()]))
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+        parts.append((match.group(1).strip(), content[match.start() : end]))
+    return parts
 
 
-def chunk_markdown_file(file_path: Path) -> list[dict]:
+def chunk_markdown_file(file_path: Path) -> list[dict[str, Any]]:
     """
     Chunk a single markdown file into searchable pieces with metadata.
 
@@ -134,11 +132,8 @@ def chunk_markdown_file(file_path: Path) -> list[dict]:
     chunks = []
     chunk_index = 0
 
-    for header, section_content in header_sections:
-        full_text = (
-            f"{header}\n{section_content}".strip() if header else section_content
-        )
-        sub_chunks = split_fixed_size(full_text, MAX_CHARS, OVERLAP_CHARS)
+    for header, exact_section in header_sections:
+        sub_chunks = split_fixed_size(exact_section, MAX_CHARS, OVERLAP_CHARS)
 
         for sub_chunk in sub_chunks:
             if not sub_chunk.strip():

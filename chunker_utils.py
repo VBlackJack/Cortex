@@ -68,42 +68,53 @@ def get_relative_path(file_path: Path, kb_path: str) -> str:
         return str(file_path)
 
 
-def split_fixed_size(text: str, max_chars: int, overlap_chars: int) -> list[str]:
-    """
-    Split text into fixed-size chunks with overlap.
-    Tries to break on natural boundaries (newline > sentence > hard cut).
-    Guarantees termination: start always advances by at least 1 char.
-    """
-    if len(text) <= max_chars:
-        return [text] if text.strip() else []
+def split_fixed_size_spans(
+    text: str, max_chars: int, overlap_chars: int
+) -> list[tuple[int, int]]:
+    """Return lossless chunk spans with bounded late-boundary backoff."""
+    if max_chars <= 0:
+        raise ValueError("max_chars must be greater than zero")
+    if overlap_chars < 0:
+        raise ValueError("overlap_chars must not be negative")
+    if overlap_chars >= max_chars:
+        raise ValueError("overlap_chars must be smaller than max_chars")
+    if not text:
+        return []
 
-    chunks = []
+    spans: list[tuple[int, int]] = []
     start = 0
     text_len = len(text)
+    minimum_advance = max(1, max_chars - (2 * overlap_chars))
 
     while start < text_len:
         end = min(start + max_chars, text_len)
 
-        # Try to break on a natural boundary near the end of the window
         if end < text_len:
-            split_pos = text.rfind("\n", start, end)
-            if split_pos == -1 or split_pos <= start:
-                split_pos = text.rfind(". ", start, end)
-            if split_pos != -1 and split_pos > start:
+            boundary_floor = start + max_chars - overlap_chars
+            split_pos = text.rfind("\n", boundary_floor, end)
+            if split_pos < boundary_floor:
+                split_pos = text.rfind(". ", boundary_floor, end)
+            if split_pos >= boundary_floor:
                 end = split_pos + 1
 
-        chunk = text[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
+        spans.append((start, end))
 
-        # If we've reached the end, stop
         if end >= text_len:
             break
 
-        # Advance start — guarantee progress even if overlap is large
         next_start = end - overlap_chars
-        if next_start <= start:
-            next_start = start + 1  # always move forward
+        if next_start - start < minimum_advance:
+            next_start = start + minimum_advance
         start = next_start
 
+    return spans
+
+
+def split_fixed_size(text: str, max_chars: int, overlap_chars: int) -> list[str]:
+    """Split text with overlap while preserving lossless source spans."""
+    chunks: list[str] = []
+    for start, end in split_fixed_size_spans(text, max_chars, overlap_chars):
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
     return chunks

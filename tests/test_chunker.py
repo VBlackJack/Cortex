@@ -7,8 +7,11 @@
 Unit tests for chunker.py — boundary cases and invariants.
 """
 
+import hashlib
+import importlib
 from pathlib import Path
 
+import pytest
 
 from chunker import (
     MAX_CHARS,
@@ -18,6 +21,7 @@ from chunker import (
     _split_by_headers,
     chunk_markdown_file,
 )
+from chunker_utils import split_fixed_size, split_fixed_size_spans
 
 
 # ── _split_fixed_size ─────────────────────────────────────────────────────────
@@ -40,27 +44,27 @@ def test_split_fixed_size_one_char():
     assert _split_fixed_size("x", 100, 10) == ["x"]
 
 
-def test_split_fixed_size_overlap_larger_than_max_terminates():
-    """The guard at chunker.py must prevent infinite loops when overlap >= max_chars."""
-    text = "a" * 50
-    chunks = _split_fixed_size(text, max_chars=10, overlap_chars=20)
-    assert len(chunks) > 0
-    # Loop must have terminated — implicit by reaching this assertion.
-    # All chunks should be non-empty.
-    assert all(c for c in chunks)
+@pytest.mark.parametrize(
+    ("max_chars", "overlap_chars"),
+    [(0, 0), (-1, 0), (10, -1), (10, 10), (10, 20)],
+)
+def test_split_fixed_size_rejects_invalid_config(
+    max_chars: int, overlap_chars: int
+) -> None:
+    with pytest.raises(ValueError):
+        _split_fixed_size("a" * 50, max_chars, overlap_chars)
 
 
 def test_split_fixed_size_breaks_on_newline():
-    text = "first line\n" + ("x" * 200)
+    text = ("x" * 45) + "\n" + ("y" * 100)
     chunks = _split_fixed_size(text, max_chars=50, overlap_chars=5)
-    # First chunk should end at the newline boundary, not mid-line.
-    assert chunks[0] == "first line"
+    assert chunks[0] == "x" * 45
 
 
 def test_split_fixed_size_breaks_on_sentence_when_no_newline():
-    text = "Sentence one. " + ("x" * 100)
+    text = ("x" * 25) + ". " + ("y" * 100)
     chunks = _split_fixed_size(text, max_chars=30, overlap_chars=5)
-    assert chunks[0].startswith("Sentence one.")
+    assert chunks[0] == ("x" * 25) + "."
 
 
 def test_split_fixed_size_no_natural_boundary_falls_back_to_hard_cut():
@@ -68,6 +72,38 @@ def test_split_fixed_size_no_natural_boundary_falls_back_to_hard_cut():
     chunks = _split_fixed_size(text, max_chars=20, overlap_chars=5)
     assert len(chunks) >= 5
     assert all(len(c) <= 20 for c in chunks)
+
+
+def test_split_fixed_size_rejects_boundary_inside_existing_overlap() -> None:
+    text = "abcdefgh\n" + ("x" * 30)
+    chunks = _split_fixed_size(text, max_chars=10, overlap_chars=4)
+    assert chunks[1] == "fgh\nxxxxxx"
+    assert "fgh" not in chunks
+
+
+def test_split_fixed_size_boundary_floor_is_inclusive() -> None:
+    accepted = ("x" * 15) + "\n" + ("y" * 40)
+    rejected = ("x" * 14) + "\n" + ("y" * 40)
+    assert _split_fixed_size(accepted, 20, 5)[0] == "x" * 15
+    assert len(_split_fixed_size(rejected, 20, 5)[0]) == 20
+
+
+def test_split_fixed_size_configured_progress_is_at_least_384() -> None:
+    text = (("x" * 448) + "\n") * 5
+    spans = split_fixed_size_spans(text, max_chars=512, overlap_chars=64)
+    starts = [start for start, _ in spans]
+    assert all(current - previous >= 384 for previous, current in zip(starts, starts[1:]))
+
+
+def test_split_fixed_size_spans_reconstruct_exact_source() -> None:
+    text = " preamble \n" + (("body sentence. \n") * 100) + " trailing \n"
+    spans = split_fixed_size_spans(text, max_chars=80, overlap_chars=12)
+    reconstructed = ""
+    covered_end = 0
+    for start, end in spans:
+        reconstructed += text[max(start, covered_end) : end]
+        covered_end = max(covered_end, end)
+    assert reconstructed == text
 
 
 # ── _parse_frontmatter ────────────────────────────────────────────────────────
@@ -108,13 +144,20 @@ def test_split_by_headers_mixed_levels():
     assert "# H1" in headers
     assert "## H2" in headers
     assert "### H3" in headers
+    assert "".join(text for _, text in parts) == content
 
 
 def test_split_by_headers_header_without_following_content():
     content = "## Lonely header"
     parts = _split_by_headers(content)
-    # Empty trailing content should not produce a chunk.
-    assert all(text for _, text in parts) or parts == [("", "")] or parts == []
+    assert parts == [("## Lonely header", content)]
+
+
+def test_split_by_headers_preserves_preamble_and_whitespace() -> None:
+    content = " preamble \n\n# H1\nbody \n\n## H2\n tail\n"
+    parts = _split_by_headers(content)
+    assert [header for header, _ in parts] == ["", "# H1", "## H2"]
+    assert "".join(text for _, text in parts) == content
 
 
 # ── chunk_markdown_file ───────────────────────────────────────────────────────
@@ -165,6 +208,30 @@ def test_chunk_markdown_file_hash_stable(tmp_path: Path):
     h1 = chunk_markdown_file(f)[0]["metadata"]["file_hash"]
     h2 = chunk_markdown_file(f)[0]["metadata"]["file_hash"]
     assert h1 == h2
+
+
+def test_chunk_markdown_content_hash_is_independent_of_chunking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    f = tmp_path / "stable-content.md"
+    raw = ("# Title\r\n\r\n" + ("Stable content. " * 100)).encode()
+    f.write_bytes(raw)
+    expected = hashlib.sha256(raw).hexdigest()
+    original = chunk_markdown_file(f)
+    monkeypatch.setattr(
+        "chunker.split_fixed_size",
+        lambda text, _size, _overlap: [text[:600], text[600:]],
+    )
+    changed_boundaries = chunk_markdown_file(f)
+    assert {chunk["metadata"]["content_hash"] for chunk in original} == {expected}
+    assert {
+        chunk["metadata"]["content_hash"] for chunk in changed_boundaries
+    } == {expected}
+
+
+def test_pdf_chunker_uses_shared_fixed_size_splitter() -> None:
+    pdf_chunker = importlib.import_module("chunker_pdf")
+    assert getattr(pdf_chunker, "split_fixed_size") is split_fixed_size
 
 
 def test_chunk_markdown_file_rejects_invalid_utf8(tmp_path: Path):
