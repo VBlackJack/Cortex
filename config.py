@@ -25,6 +25,16 @@ FRESHNESS_CONTRACT_ID = "freshness-contract-v1"
 FRESHNESS_CONTRACT_VERSION = "v1"
 FRESHNESS_EXCLUDED_DIRS = frozenset({".datacron", "_archive", "_trash"})
 
+# Single-writer guarantee: every Chroma write path acquires this lock before
+# touching the DB. OS-advisory (auto-released if the holder dies), bounded
+# timeout, fail-closed on contention. See write_lock.py.
+CORTEX_WRITE_LOCK_PATH = os.environ.get(
+    "CORTEX_WRITE_LOCK_PATH", str(_SCRIPT_DIR / "chroma_db.write.lock")
+)
+CORTEX_WRITE_LOCK_TIMEOUT_SECONDS = float(
+    os.environ.get("CORTEX_WRITE_LOCK_TIMEOUT_SECONDS", "30")
+)
+
 KNOWN_SECTIONS = [
     "Adsec",
     "Ansible",

@@ -3,3 +3,4 @@ chromadb
 fastembed
 pydantic
 pdfplumber
+filelock

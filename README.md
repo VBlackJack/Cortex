@@ -154,6 +154,41 @@ cortex_sync section="Zabbix"  # une seule section
 3. Relancer Claude desktop
 4. Lancer `sync.bat`
 
+### Écriture concurrente (single-writer) - protocole manuel retiré
+
+ChromaDB (backend SQLite) n'accepte qu'un seul écrivain à la fois. Deux
+incidents de corruption de l'index (segfault, puis désync HNSW/métadonnées)
+ont eu la même cause racine : deux écritures concurrentes sur la même DB
+(typiquement `server.py` respawné par Claude Desktop pendant qu'un sync
+tournait déjà). Le contournement manuel utilisé jusqu'ici - tuer
+`server.py` et retirer temporairement l'entrée `cortex` de
+`claude_desktop_config.json` avant tout sync - n'était pas fiable (Claude
+Desktop réécrit cette entrée depuis son propre état interne, donc un
+respawn pouvait survenir en plein sync malgré le retrait).
+
+**Depuis le lot design "single-writer lock" (write_lock.py) : ce protocole
+manuel n'est plus nécessaire pour la sécurité.** Chaque point d'écriture
+Chroma (`indexer.sync()`, `sync_hash_aware.sync_section()`,
+`scripts/b2_delete_missing.py`, `scripts/b2_rebuild_index.py`) acquiert
+maintenant un verrou inter-processus exclusif (`filelock`, niveau OS,
+auto-libéré si le process qui le détient meurt - crash, kill, respawn - peu
+importe) avant de toucher la DB. Si un second écrivain tente d'écrire
+pendant qu'un premier détient le verrou, il échoue proprement
+(`CortexWriteLockedError`, timeout borné, jamais d'attente infinie) au lieu
+d'écrire en concurrence. `cortex_sync` (l'outil MCP) renvoie un message
+"locked, réessayer plus tard" dans ce cas plutôt qu'une erreur brute. La
+lecture (`cortex_search`, `cortex_freshness`) n'est jamais bloquée - Chroma
+autorise les lectures concurrentes, seule l'écriture est single-writer.
+
+Preuve (voir `tests/test_write_lock.py`, 4 tests, processus réels et DB
+isolée) : deux écrivains concurrents -> exactement un aboutit, l'autre
+échoue proprement, intégrité DB préservée ; scénario respawn-pendant-sync
+reproduit et bloqué ; lecture non bloquée pendant qu'un écrivain détient le
+verrou ; écrivain tué brutalement (crash simulé) -> verrou libéré
+automatiquement, pas de deadlock permanent. Configurable via
+`CORTEX_WRITE_LOCK_PATH` et `CORTEX_WRITE_LOCK_TIMEOUT_SECONDS`
+(`config.py`, 30s par défaut).
+
 ---
 
 ## Recherche

@@ -25,6 +25,7 @@ import chromadb
 
 from config import CHROMA_PATH, COLLECTION_NAME
 from indexer import get_embedding_function
+from write_lock import chroma_write_lock
 
 BATCH_SIZE = 100
 
@@ -60,36 +61,41 @@ def main() -> None:
     source_sqlite = Path(CHROMA_PATH) / "chroma.sqlite3"
     rebuild_path = Path(CHROMA_PATH).parent / "chroma_db_rebuild"
 
-    print(f"[load] reading rows from {source_sqlite} ...", flush=True)
-    rows = _load_rows(source_sqlite)
-    print(f"[load] {len(rows)} chunks found", flush=True)
+    # Chroma write lock covers the raw sqlite3 read of the LIVE db through
+    # the upsert into the rebuild target: a concurrent live writer could
+    # otherwise change the source mid-snapshot, the same class of race that
+    # caused the desync this script exists to recover from.
+    with chroma_write_lock():
+        print(f"[load] reading rows from {source_sqlite} ...", flush=True)
+        rows = _load_rows(source_sqlite)
+        print(f"[load] {len(rows)} chunks found", flush=True)
 
-    missing_doc = [r["embedding_id"] for r in rows if not r["document"]]
-    if missing_doc:
-        raise RuntimeError(f"{len(missing_doc)} rows have no document text, e.g. {missing_doc[:5]}")
+        missing_doc = [r["embedding_id"] for r in rows if not r["document"]]
+        if missing_doc:
+            raise RuntimeError(f"{len(missing_doc)} rows have no document text, e.g. {missing_doc[:5]}")
 
-    client = chromadb.PersistentClient(path=str(rebuild_path))
-    collection = client.get_or_create_collection(
-        name=COLLECTION_NAME,
-        embedding_function=get_embedding_function(),
-        metadata={"hnsw:space": "cosine"},
-    )
-
-    print("[upsert] publishing into fresh collection ...", flush=True)
-    for start in range(0, len(rows), BATCH_SIZE):
-        batch = rows[start : start + BATCH_SIZE]
-        collection.upsert(
-            ids=[r["embedding_id"] for r in batch],
-            documents=[r["document"] for r in batch],
-            metadatas=[r["metadata"] for r in batch],
+        client = chromadb.PersistentClient(path=str(rebuild_path))
+        collection = client.get_or_create_collection(
+            name=COLLECTION_NAME,
+            embedding_function=get_embedding_function(),
+            metadata={"hnsw:space": "cosine"},
         )
-        if start % 2000 == 0:
-            print(f"[upsert] {start}/{len(rows)}", flush=True)
 
-    final_count = collection.count()
-    print(f"[done] rebuilt collection count={final_count} (source rows={len(rows)})", flush=True)
-    if final_count != len(rows):
-        raise RuntimeError(f"count mismatch: rebuilt={final_count} source={len(rows)}")
+        print("[upsert] publishing into fresh collection ...", flush=True)
+        for start in range(0, len(rows), BATCH_SIZE):
+            batch = rows[start : start + BATCH_SIZE]
+            collection.upsert(
+                ids=[r["embedding_id"] for r in batch],
+                documents=[r["document"] for r in batch],
+                metadatas=[r["metadata"] for r in batch],
+            )
+            if start % 2000 == 0:
+                print(f"[upsert] {start}/{len(rows)}", flush=True)
+
+        final_count = collection.count()
+        print(f"[done] rebuilt collection count={final_count} (source rows={len(rows)})", flush=True)
+        if final_count != len(rows):
+            raise RuntimeError(f"count mismatch: rebuilt={final_count} source={len(rows)}")
 
 
 if __name__ == "__main__":

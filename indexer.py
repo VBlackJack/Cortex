@@ -42,6 +42,7 @@ from config import (  # noqa: E402
 from chunker import chunk_markdown_file  # noqa: E402
 from chunker_pdf import chunk_pdf_file  # noqa: E402
 from chunker_utils import get_relative_path  # noqa: E402
+from write_lock import chroma_write_lock  # noqa: E402
 
 # ── Format routing ────────────────────────────────────────────────────────────
 
@@ -164,7 +165,15 @@ def sync(section: str = None, verbose: bool = True) -> dict:
     """
     Incremental sync. If section is given, only process that section's folder.
     Returns stats dict: {added, deleted, skipped, errors}.
+    Acquires the exclusive Chroma write lock for the whole call - see
+    write_lock.chroma_write_lock(). Raises CortexWriteLockedError, without
+    writing anything, if another writer already holds it.
     """
+    with chroma_write_lock():
+        return _sync_locked(section, verbose)
+
+
+def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, int]:
     kb_root = Path(KB_PATH)
     stats = {"added": 0, "deleted": 0, "skipped": 0, "errors": 0}
 

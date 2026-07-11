@@ -22,6 +22,7 @@ from mcp.server.fastmcp import FastMCP
 
 from freshness import annotate_search_hits, cortex_freshness_report
 from indexer import discover_sections, get_collection, search, sync
+from write_lock import CortexWriteLockedError
 
 
 # ── Lifespan: warm up the model at startup ────────────────────────────────────
@@ -124,7 +125,14 @@ def cortex_sync(section: Optional[str] = None) -> str:
     if err:
         return err
 
-    stats = sync(section=section, verbose=False)
+    try:
+        stats = sync(section=section, verbose=False)
+    except CortexWriteLockedError:
+        return (
+            "## Cortex sync locked\n\n"
+            "Another sync is already in progress. Refusing to write "
+            "concurrently - try again once it finishes."
+        )
     sec_label = section or "all sections"
     return (
         f"## Cortex sync complete — {sec_label}\n\n"

@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config import KB_PATH
 from indexer import discover_sections, get_collection
 from sync_hash_aware import SyncCheckpoint, sync_section
+from write_lock import chroma_write_lock
 
 
 def main() -> None:
@@ -37,15 +38,21 @@ def main() -> None:
     print("[init] collection ready", flush=True)
 
     totals = {"published": 0, "skipped": 0}
-    for section in sections:
-        if not (root / section).is_dir():
-            print(f"[skip] {section}: folder not found", flush=True)
-            continue
-        print(f"[sync] {section} ...", flush=True)
-        stats = sync_section(collection, root, section, checkpoint, verbose=args.verbose)
-        totals["published"] += stats["published"]
-        totals["skipped"] += stats["skipped"]
-        print(f"[done] {section}: published={stats['published']} skipped={stats['skipped']}", flush=True)
+    # Holds the write lock for the WHOLE multi-section run, not just each
+    # section individually - closes the gap between sections where another
+    # writer could otherwise slip in. sync_section() acquires the same lock
+    # again per section; filelock is reentrant on the same process/instance,
+    # so this nests without deadlocking (see write_lock.py).
+    with chroma_write_lock():
+        for section in sections:
+            if not (root / section).is_dir():
+                print(f"[skip] {section}: folder not found", flush=True)
+                continue
+            print(f"[sync] {section} ...", flush=True)
+            stats = sync_section(collection, root, section, checkpoint, verbose=args.verbose)
+            totals["published"] += stats["published"]
+            totals["skipped"] += stats["skipped"]
+            print(f"[done] {section}: published={stats['published']} skipped={stats['skipped']}", flush=True)
 
     print(f"TOTAL published={totals['published']} skipped={totals['skipped']}")
 

@@ -14,6 +14,7 @@ from typing import Any
 from config import FRESHNESS_CONTRACT_ID, FRESHNESS_CONTRACT_VERSION
 from chunker import chunk_markdown_file
 from chunker_utils import is_excluded_path
+from write_lock import chroma_write_lock
 
 
 class SyncCheckpoint:
@@ -55,7 +56,21 @@ def _trace(verbose: bool, message: str) -> None:
 def sync_section(
     collection: Any, root: Path, section: str, checkpoint: SyncCheckpoint, verbose: bool = False
 ) -> dict[str, int]:
-    """Synchronize one section by re-reading each source before every decision."""
+    """Synchronize one section by re-reading each source before every decision.
+
+    Acquires the exclusive Chroma write lock for the whole call - see
+    write_lock.chroma_write_lock(). Reentrant: a caller that already holds
+    the lock (e.g. scripts/b2_sync_vault.py wrapping a multi-section run)
+    nests safely instead of deadlocking. Raises CortexWriteLockedError,
+    without writing anything, if a different process holds it.
+    """
+    with chroma_write_lock():
+        return _sync_section_locked(collection, root, section, checkpoint, verbose)
+
+
+def _sync_section_locked(
+    collection: Any, root: Path, section: str, checkpoint: SyncCheckpoint, verbose: bool = False
+) -> dict[str, int]:
     existing: dict[str, tuple[list[str], list[dict[str, Any]]]] = {}
     offset = 0
     _trace(verbose, f"[{section}] fetching existing chunk metadata...")
