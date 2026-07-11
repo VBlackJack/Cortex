@@ -35,13 +35,15 @@ from config import (  # noqa: E402
     CHROMA_PATH,
     COLLECTION_NAME,
     EMBEDDING_MODEL,
-    EXCLUDE_DIRS,
-    EXCLUDE_FILES,
-    KNOWN_SECTIONS,
+    INCLUDED_SECTIONS,
 )
 from chunker import chunk_markdown_file  # noqa: E402
 from chunker_pdf import chunk_pdf_file  # noqa: E402
-from chunker_utils import get_relative_path  # noqa: E402
+from chunker_utils import (  # noqa: E402
+    discover_out_of_policy_dirs,
+    get_relative_path,
+    is_excluded_path,
+)
 from write_lock import chroma_write_lock  # noqa: E402
 
 # ── Format routing ────────────────────────────────────────────────────────────
@@ -108,16 +110,26 @@ def get_collection(client=None):
 
 def discover_sections() -> list[str]:
     """
-    Return the list of known sections from config.
-    Also includes any extra folders found in KB_PATH that are not in KNOWN_SECTIONS.
+    Return the sections eligible for sync/search/list, per the single
+    section policy (config.INCLUDED_SECTIONS). Warns, never silently
+    drops, if a configured section is missing on disk - unlike the old
+    KNOWN_SECTIONS list, whose staleness went unnoticed for months.
     """
     kb_root = Path(KB_PATH)
-    sections = list(KNOWN_SECTIONS)
-    if kb_root.is_dir():
-        for folder in sorted(kb_root.iterdir()):
-            if folder.is_dir() and folder.name not in sections:
-                sections.append(folder.name)
+    sections = []
+    for name in sorted(INCLUDED_SECTIONS):
+        if (kb_root / name).is_dir():
+            sections.append(name)
+        else:
+            log.warning("Included section '%s' not found on disk at %s", name, kb_root / name)
     return sections
+
+
+def discover_out_of_policy_sections() -> list[str]:
+    """Live top-level dirs present but outside the section policy (neither
+    included nor structurally excluded) - never auto-indexed, surfaced so
+    a genuinely new section is never a silent gap."""
+    return discover_out_of_policy_dirs(Path(KB_PATH))
 
 
 def get_indexed_hashes(collection, section: str = None) -> dict[str, str]:
@@ -201,9 +213,10 @@ def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, 
 
         for ext in SUPPORTED_EXTENSIONS:
             for file_path in sorted(folder.rglob(f"*{ext}")):
-                if any(part in EXCLUDE_DIRS for part in file_path.parts):
-                    continue
-                if file_path.name in EXCLUDE_FILES:
+                # Single source of truth (was EXCLUDE_DIRS-only here, missing
+                # .datacron/_archive/_trash entirely - fixed as part of the
+                # section-policy consolidation).
+                if is_excluded_path(file_path.relative_to(kb_root)):
                     continue
 
                 path_str = get_relative_path(file_path, KB_PATH)

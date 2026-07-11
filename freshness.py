@@ -14,14 +14,14 @@ from time import perf_counter
 from typing import Any
 
 from config import (
-    EXCLUDE_DIRS,
+    EXCLUDED_DIRS,
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
-    FRESHNESS_EXCLUDED_DIRS,
+    INCLUDED_SECTIONS,
     KB_PATH,
 )
 from chunker import chunk_markdown_file
-from chunker_utils import is_excluded_path, sha256_bytes
+from chunker_utils import discover_out_of_policy_dirs, is_excluded_path, sha256_bytes
 
 _LOG = logging.getLogger("cortex.freshness")
 _HASH_LENGTH = 64
@@ -94,35 +94,62 @@ def cortex_freshness_report(
             {"path": rel_path, "status": status, "chunks": str(len(metadata))}
         )
 
-    return _report(entries, started)
+    out_of_policy = discover_out_of_policy_dirs(root)
+    return _report(entries, started, out_of_policy_dirs=out_of_policy)
+
+
+def _source_scan_bases(root: Path, section: str | None) -> list[Path]:
+    """Bases to scan for indexable sources. Explicit section: that one
+    folder, whatever its policy status (a diagnostic look is fine -
+    freshness never writes). Whole vault (no section): INCLUDED_SECTIONS
+    only - an out-of-policy dir must not be silently scanned as if it were
+    a normal section (it would get real fresh/unindexed statuses instead
+    of being surfaced distinctly via out_of_policy_dirs)."""
+    if section:
+        return [root / section]
+    return [root / name for name in sorted(INCLUDED_SECTIONS)]
+
+
+def _excluded_scan_bases(root: Path, section: str | None) -> list[Path]:
+    """Bases to scan for excluded content, to surface it rather than hide
+    it. Explicit section: that one folder. Whole vault: INCLUDED_SECTIONS
+    (catches nested exclusions like _memory/_archive/) plus every
+    top-level EXCLUDED_DIRS entry (catches standalone excluded dirs like
+    _archive/) - but never an out-of-policy dir, which is a distinct
+    status, not folded into "excluded"."""
+    if section:
+        return [root / section]
+    return [root / name for name in sorted(INCLUDED_SECTIONS | EXCLUDED_DIRS)]
 
 
 def _discover_sources(root: Path, section: str | None) -> list[Path]:
-    base = root / section if section else root
-    if not base.is_dir():
-        return []
     paths: list[Path] = []
-    for path in sorted(base.rglob("*")):
-        if not path.is_file() or path.suffix.lower() not in {".md", ".pdf"}:
+    for base in _source_scan_bases(root, section):
+        if not base.is_dir():
             continue
-        rel = path.relative_to(root)
-        if is_excluded_path(rel):
-            continue
-        paths.append(path)
-    return paths
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or path.suffix.lower() not in {".md", ".pdf"}:
+                continue
+            rel = path.relative_to(root)
+            if is_excluded_path(rel):
+                continue
+            paths.append(path)
+    return sorted(paths)
 
 
 def _discover_excluded(root: Path, section: str | None) -> list[Path]:
-    base = root / section if section else root
-    if not base.is_dir():
-        return []
-    return [
-        path
-        for path in sorted(base.rglob("*"))
-        if path.is_file()
-        and path.suffix.lower() in {".md", ".pdf"}
-        and is_excluded_path(path.relative_to(root))
-    ]
+    paths: list[Path] = []
+    for base in _excluded_scan_bases(root, section):
+        if not base.is_dir():
+            continue
+        paths.extend(
+            path
+            for path in base.rglob("*")
+            if path.is_file()
+            and path.suffix.lower() in {".md", ".pdf"}
+            and is_excluded_path(path.relative_to(root))
+        )
+    return sorted(set(paths))
 
 
 def _indexed_metadata(
@@ -241,7 +268,10 @@ def _annotate_source(root: Path, rel_path: str, metadata: dict[str, Any]) -> str
 
 
 def _report(
-    entries: list[dict[str, str]], started: float, scope_error: str | None = None
+    entries: list[dict[str, str]],
+    started: float,
+    scope_error: str | None = None,
+    out_of_policy_dirs: list[str] | None = None,
 ) -> dict[str, Any]:
     entries.sort(key=lambda item: item["path"])
     summary: dict[str, int] = defaultdict(int)
@@ -252,8 +282,9 @@ def _report(
         "read_only": True,
         "freshness_is_not_completeness": True,
         "scope": {
-            "excluded_dirs": sorted(FRESHNESS_EXCLUDED_DIRS),
-            "cortex_extra_excluded_dirs": sorted(EXCLUDE_DIRS),
+            "included_sections": sorted(INCLUDED_SECTIONS),
+            "excluded_dirs": sorted(EXCLUDED_DIRS),
+            "out_of_policy_dirs": sorted(out_of_policy_dirs or []),
             "pdf": "unsupported_by_contract_v1",
         },
         "summary": dict(sorted(summary.items())),

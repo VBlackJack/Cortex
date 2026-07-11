@@ -10,17 +10,35 @@ chunker_utils.py - Shared utilities for markdown and PDF chunkers.
 import hashlib
 from pathlib import Path
 
-from config import EXCLUDE_DIRS, EXCLUDE_FILES, FRESHNESS_EXCLUDED_DIRS
+from config import EXCLUDE_FILES, EXCLUDED_DIRS, INCLUDED_SECTIONS
 
 
 def is_excluded_path(rel_path: Path) -> bool:
-    """True if any parent directory of rel_path is excluded, or the filename itself is."""
+    """True if any parent directory of rel_path is structurally excluded
+    (config.EXCLUDED_DIRS, or a dotfile dir), or the filename itself is."""
     if rel_path.name in EXCLUDE_FILES:
         return True
     return any(
-        part in EXCLUDE_DIRS or part in FRESHNESS_EXCLUDED_DIRS or part.startswith(".")
+        part in EXCLUDED_DIRS or part.startswith(".")
         for part in rel_path.parts[:-1]
     )
+
+
+def discover_out_of_policy_dirs(kb_root: Path) -> list[str]:
+    """Live top-level dirs neither in INCLUDED_SECTIONS nor structurally
+    excluded - present on disk but requiring an explicit policy decision
+    before they are ever synced. Never auto-indexed; surfaced so a real gap
+    (a genuinely new section) is never silent."""
+    if not kb_root.is_dir():
+        return []
+    result = []
+    for folder in sorted(kb_root.iterdir()):
+        if not folder.is_dir() or folder.name in INCLUDED_SECTIONS:
+            continue
+        if is_excluded_path(Path(folder.name) / "_probe"):
+            continue
+        result.append(folder.name)
+    return result
 
 
 def compute_hash(content: str) -> str:

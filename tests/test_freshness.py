@@ -99,6 +99,37 @@ def test_freshness_taxonomy_is_read_only_and_autonomous(
     assert report["freshness_is_not_completeness"] is True
 
 
+def test_whole_vault_scan_restricted_to_included_sections(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """section=None (whole vault) must only scan INCLUDED_SECTIONS folders -
+    an out-of-policy dir (neither included nor structurally excluded) must
+    not be silently treated as a normal section (no per-file fresh/
+    unindexed status), but must still be surfaced as present."""
+    root = tmp_path / "kb"
+    included = root / "knowledge"
+    included.mkdir(parents=True)
+    (included / "note.md").write_bytes(b"# Note\nReal content long enough to chunk.\n")
+
+    excluded = root / "_archive"
+    excluded.mkdir(parents=True)
+    (excluded / "old.md").write_bytes(b"# Old\nArchived content.\n")
+
+    unknown = root / "newthing"
+    unknown.mkdir(parents=True)
+    (unknown / "mystery.md").write_bytes(b"# Mystery\nUnclassified content.\n")
+
+    monkeypatch.setattr(freshness, "KB_PATH", str(root))
+
+    report = freshness.cortex_freshness_report(FakeCollection([]), section=None)
+
+    statuses = {entry["path"]: entry["status"] for entry in report["entries"]}
+    assert statuses["knowledge/note.md"] == "unindexed"
+    assert statuses["_archive/old.md"] == "excluded"
+    assert "newthing/mystery.md" not in statuses
+    assert "newthing" in report["scope"]["out_of_policy_dirs"]
+
+
 def test_no_chunks_is_distinct_from_unindexed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

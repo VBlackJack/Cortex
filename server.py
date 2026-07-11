@@ -21,7 +21,7 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 from freshness import annotate_search_hits, cortex_freshness_report
-from indexer import discover_sections, get_collection, search, sync
+from indexer import discover_out_of_policy_sections, discover_sections, get_collection, search, sync
 from write_lock import CortexWriteLockedError
 
 
@@ -155,7 +155,8 @@ def cortex_list_sections() -> str:
     cortex_search/cortex_sync with a section filter.
     """
     sections = discover_sections()
-    if not sections:
+    out_of_policy = discover_out_of_policy_sections()
+    if not sections and not out_of_policy:
         return (
             "No sections found. Either CORTEX_KB_PATH is not set, "
             "the directory does not exist, or it contains no subdirectories."
@@ -163,6 +164,10 @@ def cortex_list_sections() -> str:
     lines = ["## Cortex sections\n"]
     for s in sections:
         lines.append(f"- `{s}`")
+    if out_of_policy:
+        lines.append("\n## Present but out of policy (opt-in required, not indexed)\n")
+        for d in out_of_policy:
+            lines.append(f"- `{d}`")
     return "\n".join(lines)
 
 
