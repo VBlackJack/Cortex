@@ -20,6 +20,7 @@ from config import (
     FRESHNESS_EXCLUDED_DIRS,
     KB_PATH,
 )
+from chunker import chunk_markdown_file
 from chunker_utils import is_excluded_path, sha256_bytes
 
 _LOG = logging.getLogger("cortex.freshness")
@@ -81,7 +82,7 @@ def cortex_freshness_report(
         except (OSError, UnicodeDecodeError, ValueError) as exc:
             entries.append({"path": rel_path, "status": "error", "reason": str(exc)})
             continue
-        entries.append(_classify_present(snapshot, indexed.pop(rel_path, [])))
+        entries.append(_classify_present(snapshot, indexed.pop(rel_path, []), source))
 
     for rel_path, metadata in sorted(indexed.items()):
         if rel_path in seen_paths:
@@ -166,10 +167,15 @@ def _normalize_index_path(value: object) -> str | None:
 
 
 def _classify_present(
-    snapshot: FileSnapshot, metadata: list[dict[str, Any]]
+    snapshot: FileSnapshot, metadata: list[dict[str, Any]], source: Path
 ) -> dict[str, str]:
     if not metadata:
-        return {"path": snapshot.path, "status": "unindexed"}
+        # Mirror the sync side (sync_hash_aware.sync_section): a file that the
+        # chunker legitimately reduces to zero chunks (empty body, oversized,
+        # undecodable) is not a gap. Only a file the chunker would embed, but
+        # that has no stored chunks, is a real "unindexed" gap.
+        status = "unindexed" if chunk_markdown_file(source) else "no_chunks"
+        return {"path": snapshot.path, "status": status}
     hashes = {item.get("content_hash") for item in metadata}
     contracts = {item.get("contract_id") for item in metadata}
     versions = {item.get("content_hash_contract_version") for item in metadata}

@@ -99,6 +99,25 @@ def test_freshness_taxonomy_is_read_only_and_autonomous(
     assert report["freshness_is_not_completeness"] is True
 
 
+def test_no_chunks_is_distinct_from_unindexed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    drafts = root / "_drafts"
+    drafts.mkdir(parents=True)
+    empty_index_page = drafts / "index-stub.md"
+    real_gap = drafts / "real-draft.md"
+    empty_index_page.write_bytes(b"# Stub\n")
+    real_gap.write_bytes(b"# Real draft\nThis body is long enough to chunk.\n")
+    monkeypatch.setattr(freshness, "KB_PATH", str(root))
+
+    report = freshness.cortex_freshness_report(FakeCollection([]), section="_drafts")
+
+    statuses = {entry["path"]: entry["status"] for entry in report["entries"]}
+    assert statuses["_drafts/index-stub.md"] == "no_chunks"
+    assert statuses["_drafts/real-draft.md"] == "unindexed"
+
+
 def test_strict_decode_and_containment_fail_closed(tmp_path: Path) -> None:
     root = tmp_path / "kb"
     root.mkdir()
