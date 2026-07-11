@@ -118,6 +118,114 @@ def test_no_chunks_is_distinct_from_unindexed(
     assert statuses["_drafts/real-draft.md"] == "unindexed"
 
 
+def test_classify_hash_fresh_stale_unknown() -> None:
+    coherent_meta = [
+        {
+            "content_hash": "a" * 64,
+            "contract_id": FRESHNESS_CONTRACT_ID,
+            "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+        }
+    ]
+    assert freshness.classify_hash("a" * 64, coherent_meta) == "fresh"
+    assert freshness.classify_hash("b" * 64, coherent_meta) == "stale"
+    # Legacy row: no contract fields at all.
+    assert freshness.classify_hash("a" * 64, [{"file_hash": "legacy"}]) == "unknown"
+    # Contract id/version mismatch.
+    mismatched = [
+        {
+            "content_hash": "a" * 64,
+            "contract_id": "some-other-contract",
+            "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+        }
+    ]
+    assert freshness.classify_hash("a" * 64, mismatched) == "unknown"
+
+
+def test_annotate_search_hits_fresh_and_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    section = root / "knowledge"
+    section.mkdir(parents=True)
+    note = section / "note.md"
+    note.write_bytes(b"# Note\nbody content here.\n")
+    live_hash = sha256_bytes(note.read_bytes())
+    monkeypatch.setattr(freshness, "KB_PATH", str(root))
+
+    fresh_hit = {
+        "text": "chunk text",
+        "metadata": {
+            "path": "knowledge/note.md",
+            "content_hash": live_hash,
+            "contract_id": FRESHNESS_CONTRACT_ID,
+            "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+        },
+        "distance": 0.1,
+    }
+    hits = freshness.annotate_search_hits([dict(fresh_hit)])
+    assert hits[0]["freshness"] == "fresh"
+
+    note.write_bytes(note.read_bytes() + b"more\n")
+    hits = freshness.annotate_search_hits([dict(fresh_hit)])
+    assert hits[0]["freshness"] == "stale"
+
+
+def test_annotate_search_hits_missing_and_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    root.mkdir()
+    monkeypatch.setattr(freshness, "KB_PATH", str(root))
+
+    missing_hit = {"metadata": {"path": "knowledge/gone.md", "content_hash": "a" * 64}}
+    outside_hit = {"metadata": {"path": "../escape.md", "content_hash": "a" * 64}}
+    malformed_hit = {"metadata": {"path": None}}
+
+    hits = freshness.annotate_search_hits(
+        [dict(missing_hit), dict(outside_hit), dict(malformed_hit)]
+    )
+    assert hits[0]["freshness"] == "missing"
+    assert hits[1]["freshness"] == "error"
+    assert hits[2]["freshness"] == "error"
+
+
+def test_annotate_search_hits_dedups_shared_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    section = root / "knowledge"
+    section.mkdir(parents=True)
+    note = section / "shared.md"
+    note.write_bytes(b"# Shared\nbody content here.\n")
+    live_hash = sha256_bytes(note.read_bytes())
+    monkeypatch.setattr(freshness, "KB_PATH", str(root))
+
+    calls = {"count": 0}
+    original = freshness.read_markdown_snapshot
+
+    def counting_snapshot(path: Path, kb_root: Path) -> freshness.FileSnapshot:
+        calls["count"] += 1
+        return original(path, kb_root)
+
+    monkeypatch.setattr(freshness, "read_markdown_snapshot", counting_snapshot)
+
+    metadata = {
+        "path": "knowledge/shared.md",
+        "content_hash": live_hash,
+        "contract_id": FRESHNESS_CONTRACT_ID,
+        "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+    }
+    hits = [
+        {"metadata": dict(metadata), "distance": 0.1},
+        {"metadata": dict(metadata), "distance": 0.2},
+        {"metadata": dict(metadata), "distance": 0.3},
+    ]
+    annotated = freshness.annotate_search_hits(hits)
+
+    assert calls["count"] == 1
+    assert all(hit["freshness"] == "fresh" for hit in annotated)
+
+
 def test_strict_decode_and_containment_fail_closed(tmp_path: Path) -> None:
     root = tmp_path / "kb"
     root.mkdir()

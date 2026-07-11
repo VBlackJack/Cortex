@@ -166,16 +166,13 @@ def _normalize_index_path(value: object) -> str | None:
     return candidate.as_posix()
 
 
-def _classify_present(
-    snapshot: FileSnapshot, metadata: list[dict[str, Any]], source: Path
-) -> dict[str, str]:
-    if not metadata:
-        # Mirror the sync side (sync_hash_aware.sync_section): a file that the
-        # chunker legitimately reduces to zero chunks (empty body, oversized,
-        # undecodable) is not a gap. Only a file the chunker would embed, but
-        # that has no stored chunks, is a real "unindexed" gap.
-        status = "unindexed" if chunk_markdown_file(source) else "no_chunks"
-        return {"path": snapshot.path, "status": status}
+def classify_hash(live_content_hash: str, metadata: list[dict[str, Any]]) -> str:
+    """Compare a freshly computed content hash against stored chunk metadata.
+
+    Coherent means every metadata row agrees on one valid contract hash under
+    the current contract id/version. Returns "fresh", "stale", or "unknown"
+    (incoherent or legacy metadata - fail-safe, never silently "fresh").
+    """
     hashes = {item.get("content_hash") for item in metadata}
     contracts = {item.get("contract_id") for item in metadata}
     versions = {item.get("content_hash_contract_version") for item in metadata}
@@ -191,17 +188,56 @@ def _classify_present(
         and versions == {FRESHNESS_CONTRACT_VERSION}
     )
     if not coherent:
-        return {
-            "path": snapshot.path,
-            "status": "unknown",
-            "chunks": str(len(metadata)),
-        }
+        return "unknown"
     stored_hash = next(iter(valid_hashes))
-    return {
-        "path": snapshot.path,
-        "status": "fresh" if stored_hash == snapshot.content_hash else "stale",
-        "chunks": str(len(metadata)),
-    }
+    return "fresh" if stored_hash == live_content_hash else "stale"
+
+
+def _classify_present(
+    snapshot: FileSnapshot, metadata: list[dict[str, Any]], source: Path
+) -> dict[str, str]:
+    if not metadata:
+        # Mirror the sync side (sync_hash_aware.sync_section): a file that the
+        # chunker legitimately reduces to zero chunks (empty body, oversized,
+        # undecodable) is not a gap. Only a file the chunker would embed, but
+        # that has no stored chunks, is a real "unindexed" gap.
+        status = "unindexed" if chunk_markdown_file(source) else "no_chunks"
+        return {"path": snapshot.path, "status": status}
+    status = classify_hash(snapshot.content_hash, metadata)
+    return {"path": snapshot.path, "status": status, "chunks": str(len(metadata))}
+
+
+def annotate_search_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach a per-hit freshness verdict to cortex_search results, in place.
+
+    Bounded to the unique source paths present in "hits" (one rehash per
+    distinct file, not per hit). Never raises - a per-source failure
+    degrades that hit's verdict to "missing"/"error" and the rest continue.
+    Order and every existing key are preserved; only "freshness" is added.
+    """
+    root = Path(KB_PATH)
+    verdict_cache: dict[str, str] = {}
+    for hit in hits:
+        metadata = hit.get("metadata") or {}
+        normalized = _normalize_index_path(metadata.get("path"))
+        if normalized is None:
+            hit["freshness"] = "error"
+            continue
+        if normalized not in verdict_cache:
+            verdict_cache[normalized] = _annotate_source(root, normalized, metadata)
+        hit["freshness"] = verdict_cache[normalized]
+    return hits
+
+
+def _annotate_source(root: Path, rel_path: str, metadata: dict[str, Any]) -> str:
+    try:
+        snapshot = read_markdown_snapshot(root / rel_path, root)
+    except FileNotFoundError:
+        return "missing"
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        _LOG.warning("search_annotation_error path=%s reason=%s", rel_path, exc)
+        return "error"
+    return classify_hash(snapshot.content_hash, [metadata])
 
 
 def _report(

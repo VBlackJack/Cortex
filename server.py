@@ -20,7 +20,7 @@ from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from freshness import cortex_freshness_report
+from freshness import annotate_search_hits, cortex_freshness_report
 from indexer import discover_sections, get_collection, search, sync
 
 
@@ -82,6 +82,8 @@ def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> 
     if not hits:
         return "No results found."
 
+    hits = annotate_search_hits(hits)
+
     lines = [f"## Cortex search: `{query}`\n"]
     for i, hit in enumerate(hits, 1):
         meta = hit.get("metadata", {})
@@ -90,6 +92,7 @@ def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> 
         sec = meta.get("section", "")
         dist = hit.get("distance", 1.0)
         text = hit.get("text", "")
+        freshness = hit.get("freshness", "unknown")
 
         lines.append(f"### [{i}] {title}")
         if header:
@@ -97,6 +100,7 @@ def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> 
         else:
             lines.append(f"**Section:** {sec}")
         lines.append(f"**Relevance:** {1 - dist:.0%}")
+        lines.append(f"**Freshness:** {freshness}")
         lines.append("")
         lines.append(text)
         lines.append("")
