@@ -17,6 +17,7 @@ from config import (
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
     KB_PATH,
+    MAX_MARKDOWN_FILE_SIZE_BYTES,
 )
 from chunker_utils import (
     compute_hash,
@@ -30,7 +31,7 @@ MAX_CHARS = CHUNK_SIZE
 OVERLAP_CHARS = CHUNK_OVERLAP
 
 # Skip files larger than this (bytes) — avoids loading huge index pages
-MAX_FILE_SIZE_BYTES = 300_000  # ~300 KB
+MAX_FILE_SIZE_BYTES = MAX_MARKDOWN_FILE_SIZE_BYTES
 
 
 # Keep private aliases so existing tests can import them

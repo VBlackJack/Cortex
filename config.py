@@ -16,6 +16,7 @@ EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 # Chunk sizes (characters)
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64
+MAX_MARKDOWN_FILE_SIZE_BYTES = int(os.environ.get("CORTEX_MAX_MARKDOWN_FILE_SIZE_BYTES", "1000000"))
 
 EXCLUDE_DIRS = {"_attachments", "zzz_Corbeille"}
 EXCLUDE_FILES = {"00_INDEX.md"}
