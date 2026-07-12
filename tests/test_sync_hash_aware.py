@@ -233,6 +233,21 @@ def test_reconciliation_removes_absent_and_newly_excluded_paths(
     assert stats["deleted_chunks"] == 2
 
 
+def test_unavailable_section_preserves_all_indexed_content(tmp_path: Path) -> None:
+    root = tmp_path / "kb"
+    root.mkdir()
+    old = _chunks(path="knowledge/note.md", content_hash="0" * 64)
+    collection = Collection()
+    collection.seed(old)
+
+    stats = _sync_section_locked(collection, root, "knowledge")
+
+    assert set(collection.rows) == {old[0]["id"]}
+    assert stats["errors"] == 1
+    assert stats["deleted_chunks"] == 0
+    assert stats["removed_files"] == 0
+
+
 def test_complete_hash_and_chunking_version_is_skipped(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

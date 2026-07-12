@@ -232,8 +232,17 @@ def _sync_section_locked(
 ) -> dict[str, int]:
     """Reconcile live, excluded and removed paths for one section."""
     stats = empty_sync_stats()
-    existing = _existing_by_path(collection, section)
     section_root = root / section
+    if not section_root.is_dir():
+        stats["errors"] += 1
+        _LOG.error(
+            "section_unavailable section=%s path=%s; preserving indexed content",
+            section,
+            section_root,
+        )
+        return stats
+
+    existing = _existing_by_path(collection, section)
     files = sorted(
         path
         for path in section_root.rglob("*")
