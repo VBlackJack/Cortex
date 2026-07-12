@@ -19,6 +19,8 @@ from config import (
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
     KB_PATH,
+    MAX_PDF_SIZE_BYTES,
+    require_kb_path,
 )
 from chunker_utils import (
     ChunkResult,
@@ -28,9 +30,6 @@ from chunker_utils import (
     sha256_bytes,
     split_fixed_size,
 )
-
-MAX_PDF_SIZE_BYTES = 50_000_000
-
 
 def chunk_pdf_file(file_path: Path) -> ChunkResult:
     """Extract and chunk a PDF while hashing the exact bytes being parsed."""
@@ -60,8 +59,9 @@ def chunk_pdf_file(file_path: Path) -> ChunkResult:
     full_text = "\n".join(text for _, text in pages_text)
     file_hash = compute_hash(full_text)
     content_hash = sha256_bytes(raw_bytes)
-    section = get_section(file_path, KB_PATH)
-    rel_path = get_relative_path(file_path, KB_PATH)
+    kb_path = require_kb_path(KB_PATH)
+    section = get_section(file_path, kb_path)
+    rel_path = get_relative_path(file_path, kb_path)
     title = file_path.stem.replace("-", " ").replace("_", " ").title()
     chunks: list[dict[str, Any]] = []
 

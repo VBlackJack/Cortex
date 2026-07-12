@@ -10,7 +10,9 @@ from typing import Any
 
 import pytest
 
+import freshness
 import server
+from config import CortexConfigError
 from indexer import CortexSearchError
 
 
@@ -70,3 +72,64 @@ def test_cortex_search_formats_typed_query_error(
         "## Cortex search error\n\n"
         "Cortex search failed: database unavailable"
     )
+
+
+def test_sync_and_freshness_format_missing_kb_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    error = CortexConfigError(
+        "Missing required 'kb_path'. Run `python setup_config.py --init`."
+    )
+
+    def fail_sync(**_kwargs: object) -> dict[str, int]:
+        raise error
+
+    def fail_report(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise error
+
+    monkeypatch.setattr(server, "sync", fail_sync)
+    sync_response = server.cortex_sync()
+    monkeypatch.setattr(server, "get_collection", object)
+    monkeypatch.setattr(server, "cortex_freshness_report", fail_report)
+    freshness_response = server.cortex_freshness()
+
+    assert sync_response.startswith("## Cortex sync configuration error")
+    assert "setup_config.py --init" in sync_response
+    assert freshness_response == {"error": str(error)}
+
+
+@pytest.mark.asyncio
+async def test_server_lifespan_does_not_require_kb(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Collection:
+        def query(self, **_kwargs: object) -> dict[str, object]:
+            return {}
+
+    collection = Collection()
+    monkeypatch.setattr(server, "get_collection", lambda: collection)
+
+    async with server.app_lifespan(None) as state:
+        assert state == {"collection": collection}
+
+
+def test_cortex_search_uses_existing_index_without_kb(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(freshness, "KB_PATH", None)
+    monkeypatch.setattr(
+        server,
+        "search",
+        lambda **_kwargs: [
+            {
+                "text": "indexed content",
+                "metadata": {"path": "knowledge/note.md", "title": "Note"},
+                "distance": 0.1,
+            }
+        ],
+    )
+
+    response = server.cortex_search("query")
+
+    assert "indexed content" in response
+    assert "**Freshness:** unavailable" in response

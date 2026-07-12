@@ -7,7 +7,7 @@ Cortex est un serveur MCP (Model Context Protocol) qui expose une recherche sém
 ## Fonctionnement en bref
 
 ```
-%CORTEX_KB_PATH%        ← Export Confluence (fichiers .md)
+kb_path (TOML/env)      ← Export Confluence (fichiers .md)
       │
       ▼
   indexer.py            ← Découpe, hash, vectorise
@@ -36,13 +36,13 @@ install.bat
 Le script est **portable** : il fonctionne quel que soit l'emplacement où vous avez cloné Cortex (`%~dp0` interne). Il fait automatiquement :
 
 1. Détecte Python 3 dans le PATH
-2. Vérifie / configure `CORTEX_KB_PATH` (chemin vers votre base de connaissance markdown). S'il n'est pas défini, le script demande le chemin et le persiste via `setx`.
+2. Initialise `%APPDATA%\Cortex\config.toml` sans écraser une configuration existante.
 3. Installe / met à jour les dépendances pip
 4. Injecte l'entrée `cortex` dans `claude_desktop_config.json`
 5. Propose de vider la base vectorielle (utile si le modèle change)
 6. Valide l'installation
 
-Après l'installation : **redémarrer l'application Claude desktop** *et* ouvrir un nouveau terminal (pour que la variable d'environnement `CORTEX_KB_PATH` soit visible).
+Après l'installation : **redémarrer l'application Claude desktop**.
 
 ### Prérequis
 
@@ -58,7 +58,8 @@ Après l'installation : **redémarrer l'application Claude desktop** *et* ouvrir
 
 ```
 <install_dir>\         ← Peu importe où vous clonez Cortex
-├── config.py          ← Paramètres centraux (chemins, modèle, sections)
+├── config.py          ← Contrats produit et configuration résolue
+├── user_config.py     ← Chargement TOML strict et initialisation atomique
 ├── chunker.py         ← Découpe les .md en chunks (headers + taille fixe)
 ├── chunker_pdf.py     ← Découpe les .pdf en chunks (pdfplumber + taille fixe)
 ├── chunker_utils.py   ← Fonctions partagées (hash, split, paths)
@@ -81,29 +82,53 @@ Après l'installation : **redémarrer l'application Claude desktop** *et* ouvrir
 
 | Variable | Rôle | Défaut |
 |---|---|---|
-| `CORTEX_KB_PATH` | **(requis pour indexer)** racine absolue de votre base markdown | `G:\_DATA` |
+| `CORTEX_KB_PATH` | Surcharge optionnelle de `kb_path` | aucune |
+| `CORTEX_WRITE_LOCK_PATH` | Surcharge du chemin de verrou | à côté de l'installation |
+| `CORTEX_WRITE_LOCK_TIMEOUT_SECONDS` | Surcharge du timeout de verrou | `30` |
+| `CORTEX_MAX_MARKDOWN_FILE_SIZE_BYTES` | Surcharge de la limite Markdown | `1000000` |
 
-`CORTEX_KB_PATH` est défini automatiquement par `install.bat` au premier lancement (via `setx`). Pour le changer manuellement :
+La configuration utilisateur vit dans `%APPDATA%\Cortex\config.toml` avec
+`schema_version = 1`. Elle ne contient jamais de secret. La précédence est
+**variable d'environnement > fichier TOML > défaut produit**. Les variables
+d'environnement historiques restent donc compatibles, mais `install.bat` ne
+les crée plus sur une nouvelle installation.
 
-```bat
-setx CORTEX_KB_PATH "D:\nouveau\chemin\KB"
-:: puis ouvrir un nouveau terminal
+```toml
+schema_version = 1
+kb_path = "D:\\Knowledge"
+included_sections = ["knowledge", "operations", "projects", "sources", "_memory", "_drafts"]
+excluded_dirs = [".datacron", "_archive", "_trash", "_attachments", "zzz_Corbeille", "_inbox", "_journal"]
+exclude_files = ["00_INDEX.md"]
+max_markdown_file_size_bytes = 1000000
+max_pdf_size_bytes = 50000000
+write_lock_path = "D:\\Apps\\Cortex\\chroma_db.write.lock"
+write_lock_timeout_seconds = 30
 ```
 
-La recherche (`cortex_search`) continue de fonctionner même si `CORTEX_KB_PATH` n'est pas défini — seul l'indexer (`cortex_sync`) en a besoin.
+Créer le fichier manuellement ou lancer :
+
+```powershell
+python setup_config.py --init
+```
+
+`kb_path` est requis pour `cortex_sync` et `cortex_freshness`, sans valeur par
+défaut. La recherche continue de fonctionner sur l'index existant lorsqu'il
+est absent.
 
 ### Paramètres dans `config.py`
 
-Le reste est centralisé dans `config.py` :
+Les contrats d'index restent centralisés dans `config.py` et ne sont pas
+modifiables par utilisateur :
 
 ```python
 COLLECTION_NAME = "cortex"
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-CHUNK_SIZE      = 512   # taille max d'un chunk en caractères (~145 tokens FR)
-CHUNK_OVERLAP   = 64    # chevauchement entre chunks
-INCLUDED_SECTIONS = {"knowledge", "operations", "projects", "sources", "_memory", "_drafts"}
-EXCLUDED_DIRS = {".datacron", "_archive", "_trash", "_attachments", "zzz_Corbeille", "_inbox", "_journal"}
-EXCLUDE_FILES   = {"00_INDEX.md"}
+EMBEDDING_POOLING = "mean"
+CHUNK_SIZE = 512
+CHUNK_OVERLAP = 64
+CHUNKING_CONTRACT_VERSION = "v1"
+SEARCH_TOP_K_MIN = 1
+SEARCH_TOP_K_MAX = 10
 ```
 
 > `CHUNK_SIZE` est dimensionné pour rester sous la limite de 128 tokens du modèle MiniLM avec une marge de sécurité.
@@ -111,8 +136,8 @@ EXCLUDE_FILES   = {"00_INDEX.md"}
 
 ### Sections
 
-Les sections indexables sont définies par l'allowlist `INCLUDED_SECTIONS` de
-`config.py`. Un dossier de premier niveau absent de l'allowlist et de la
+Les sections indexables sont définies par `included_sections` dans
+`config.toml`. Un dossier de premier niveau absent de l'allowlist et de la
 denylist n'est jamais indexé automatiquement : `cortex_list_sections` le
 signale comme « out of policy » jusqu'à une décision explicite. La validation
 MCP est case-insensitive (`KNOWLEDGE` → `knowledge`).
@@ -121,8 +146,8 @@ Depuis Claude, l'outil MCP `cortex_list_sections` liste toutes les sections disp
 
 ### Ajouter une nouvelle section Confluence
 
-1. Exporter la section depuis Confluence vers `%CORTEX_KB_PATH%\<NomSection>\`.
-2. Ajouter son nom à `INCLUDED_SECTIONS` dans `config.py`.
+1. Exporter la section sous le dossier `kb_path` configuré.
+2. Ajouter son nom à `included_sections` dans `config.toml`.
 3. Lancer `sync.bat` (ou `cortex_sync` depuis Claude).
 
 Sans cet opt-in, le dossier reste visible comme « out of policy » mais n'est
@@ -196,7 +221,7 @@ reproduit et bloqué ; lecture non bloquée pendant qu'un écrivain détient le
 verrou ; écrivain tué brutalement (crash simulé) -> verrou libéré
 automatiquement, pas de deadlock permanent. Configurable via
 `CORTEX_WRITE_LOCK_PATH` et `CORTEX_WRITE_LOCK_TIMEOUT_SECONDS`
-(`config.py`, 30s par défaut).
+(`config.toml`, 30s par défaut).
 
 ---
 
@@ -274,14 +299,14 @@ réconciliation incrémentale.
 
 ### Pourquoi tout est portable ?
 
-Les chemins d'installation sont portables. `CORTEX_KB_PATH` reste configurable
-par environnement, avec le fallback historique absolu `G:\_DATA` si la variable
-n'est pas définie :
+Les chemins d'installation sont portables. `kb_path` est fourni par la
+configuration utilisateur ou `CORTEX_KB_PATH` ; aucune valeur propre à une
+machine n'est codée dans les sources :
 
 - `config.py` dérive `CHROMA_PATH` de `Path(__file__).parent` → la base vectorielle vit toujours à côté du code.
 - `install.bat` et `sync.bat` utilisent `%~dp0` → ils trouvent eux-mêmes leur dossier d'exécution.
 - `setup_config.py` détecte sa propre localisation pour patcher `claude_desktop_config.json`.
-- `CORTEX_KB_PATH` est lu depuis l'environnement → un seul `setx` à faire au premier install, jamais à modifier dans le code.
+- `%APPDATA%\Cortex\config.toml` sépare les choix utilisateur du code livré.
 
 Conséquence : tu peux cloner Cortex dans n'importe quel dossier sur n'importe quelle machine, lancer `install.bat`, et c'est opérationnel.
 
@@ -296,6 +321,7 @@ fastembed==0.8.0
 pydantic==2.12.5
 pdfplumber==0.11.9
 filelock==3.25.2
+tomli==2.2.1; python_version < "3.11"
 ```
 
 Installer / mettre à jour :
@@ -321,4 +347,6 @@ Les tests unitaires (`tests/test_chunker.py`) tournent toujours. Les tests d'int
 python setup_config.py --check
 ```
 
-Vérifie : Python accessible · packages importables · entrée `cortex` présente dans `claude_desktop_config.json` avec des chemins valides.
+Vérifie : Python accessible · packages importables · configuration utilisateur
+valide · entrée `cortex` présente dans `claude_desktop_config.json` avec des
+chemins valides.

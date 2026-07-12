@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import INCLUDED_SECTIONS, KB_PATH
+from config import INCLUDED_SECTIONS, KB_PATH, require_kb_path
 from indexer import get_collection
 from sync_hash_aware import (
     SyncCheckpoint,
@@ -35,7 +35,7 @@ def main() -> None:
     parser.add_argument("--verbose", action="store_true", help="Trace per-file progress to stderr")
     args = parser.parse_args()
 
-    root = Path(KB_PATH)
+    root = Path(require_kb_path(KB_PATH))
     if not root.is_dir():
         raise RuntimeError(f"KB_PATH is not a directory: {root}")
     sections = args.sections or sorted(INCLUDED_SECTIONS)

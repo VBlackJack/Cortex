@@ -20,6 +20,7 @@ from config import (
     FRESHNESS_CONTRACT_VERSION,
     KB_PATH,
     MAX_MARKDOWN_FILE_SIZE_BYTES,
+    require_kb_path,
 )
 from chunker_utils import (
     ChunkResult,
@@ -122,8 +123,9 @@ def chunk_markdown_file(file_path: Path) -> ChunkResult:
     file_hash = compute_hash(raw_content.replace("\r\n", "\n").replace("\r", "\n"))
     content_hash = sha256_bytes(raw_bytes)
     frontmatter, body = _parse_frontmatter(raw_content)
-    section = get_section(file_path, KB_PATH)
-    rel_path = get_relative_path(file_path, KB_PATH)
+    kb_path = require_kb_path(KB_PATH)
+    section = get_section(file_path, kb_path)
+    rel_path = get_relative_path(file_path, kb_path)
 
     title = frontmatter.get("title") or file_path.stem
 

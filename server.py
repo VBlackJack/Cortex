@@ -22,6 +22,7 @@ from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
+from config import CortexConfigError
 from freshness import annotate_search_hits, cortex_freshness_report
 from embedding_fingerprint import EmbeddingFingerprintMismatchError
 from indexer import (
@@ -90,7 +91,10 @@ def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> 
     Use this tool whenever the user asks about anything that may be documented
     in their local knowledge base. Supports French and English queries.
     """
-    section, err = _resolve_section(section)
+    try:
+        section, err = _resolve_section(section)
+    except CortexConfigError as exc:
+        return f"## Cortex search configuration error\n\n{exc}"
     if err:
         return err
 
@@ -142,12 +146,17 @@ def cortex_sync(section: Optional[str] = None) -> str:
     cortex_list_sections to see included and out-of-policy directories.
     Returns file/chunk publication, removal, skip and error counters.
     """
-    section, err = _resolve_section(section)
+    try:
+        section, err = _resolve_section(section)
+    except CortexConfigError as exc:
+        return f"## Cortex sync configuration error\n\n{exc}"
     if err:
         return err
 
     try:
         stats = sync(section=section, verbose=False)
+    except CortexConfigError as exc:
+        return f"## Cortex sync configuration error\n\n{exc}"
     except EmbeddingFingerprintMismatchError as exc:
         return f"## Cortex sync refused\n\n{exc}"
     except CortexWriteLockedError:
@@ -178,12 +187,15 @@ def cortex_list_sections() -> str:
     Use this when the user asks what sections exist, or before calling
     cortex_search/cortex_sync with a section filter.
     """
-    sections = discover_sections()
-    out_of_policy = discover_out_of_policy_sections()
+    try:
+        sections = discover_sections()
+        out_of_policy = discover_out_of_policy_sections()
+    except CortexConfigError as exc:
+        return f"## Cortex configuration error\n\n{exc}"
     if not sections and not out_of_policy:
         return (
-            "No sections found. Either CORTEX_KB_PATH is not set, "
-            "the directory does not exist, or it contains no subdirectories."
+            "No sections found. Check kb_path and included_sections in the "
+            "Cortex user configuration."
         )
     lines = ["## Cortex sections\n"]
     for s in sections:
@@ -201,18 +213,24 @@ def cortex_freshness(
     include_entries: bool = False,
 ) -> dict:
     """Report freshness read-only; include per-file entries only on request."""
-    section, err = _resolve_section(section)
+    try:
+        section, err = _resolve_section(section)
+    except CortexConfigError as exc:
+        return {"error": str(exc)}
     if err:
         return {"error": err}
     try:
         collection = get_collection()
     except EmbeddingFingerprintMismatchError as exc:
         return {"error": str(exc)}
-    return cortex_freshness_report(
-        collection,
-        section=section,
-        include_entries=include_entries,
-    )
+    try:
+        return cortex_freshness_report(
+            collection,
+            section=section,
+            include_entries=include_entries,
+        )
+    except CortexConfigError as exc:
+        return {"error": str(exc)}
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

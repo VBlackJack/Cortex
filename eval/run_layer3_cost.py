@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import KB_PATH  # noqa: E402
+from config import KB_PATH, require_kb_path  # noqa: E402
 from chunker import chunk_markdown_file  # noqa: E402
 from chunker_utils import is_excluded_path  # noqa: E402
 
@@ -31,7 +31,7 @@ CONFIG_FILE = STATE_DIR / "eval_config.json"
 def main() -> None:
     config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
     state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    root = Path(KB_PATH)
+    root = Path(require_kb_path(KB_PATH))
     section = config["section"]
 
     selective_paths = list(state["mutated"].keys())

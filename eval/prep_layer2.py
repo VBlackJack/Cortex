@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import KB_PATH  # noqa: E402
+from config import KB_PATH, require_kb_path  # noqa: E402
 from indexer import search  # noqa: E402
 from freshness import annotate_search_hits  # noqa: E402
 
@@ -73,7 +73,7 @@ def build_after(query: str, top_k: int, section: str, root: Path) -> str:
 
 def main() -> None:
     config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-    root = Path(KB_PATH)
+    root = Path(require_kb_path(KB_PATH))
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     top_k = config["layer2_top_k"]
 

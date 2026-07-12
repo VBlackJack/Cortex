@@ -269,6 +269,18 @@ def test_annotate_search_hits_missing_and_error(
     assert hits[2]["freshness"] == "error"
 
 
+def test_search_annotation_without_kb_keeps_hits_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(freshness, "KB_PATH", None)
+    hits = [{"text": "indexed content", "metadata": {"path": "knowledge/note.md"}}]
+
+    annotated = freshness.annotate_search_hits(hits)
+
+    assert annotated[0]["text"] == "indexed content"
+    assert annotated[0]["freshness"] == "unavailable"
+
+
 def test_annotate_search_hits_dedups_shared_source(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

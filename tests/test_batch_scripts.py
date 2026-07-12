@@ -51,3 +51,10 @@ def test_installer_enforces_python_310() -> None:
 
     assert "sys.version_info >= (3, 10)" in script
     assert "requires Python 3.10 or newer" in script
+
+
+def test_installer_initializes_missing_user_config() -> None:
+    script = INSTALL_BAT.read_text(encoding="utf-8")
+
+    assert 'if not exist "!CORTEX_CONFIG_FILE!"' in script
+    assert 'setup_config.py" --init' in script

@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import KB_PATH  # noqa: E402
+from config import KB_PATH, require_kb_path  # noqa: E402
 
 EVAL_DIR = Path(__file__).resolve().parent
 STATE_DIR = EVAL_DIR.parent / "local" / "eval-jalon4"
@@ -36,7 +36,7 @@ def main() -> None:
         raise SystemExit(f"No state file at {STATE_FILE} - nothing to restore.")
 
     state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    root = Path(KB_PATH)
+    root = Path(require_kb_path(KB_PATH))
     failures = []
 
     for rel_path, info in state["mutated"].items():

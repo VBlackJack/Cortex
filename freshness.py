@@ -19,6 +19,8 @@ from config import (
     FRESHNESS_CONTRACT_VERSION,
     INCLUDED_SECTIONS,
     KB_PATH,
+    CortexConfigError,
+    require_kb_path,
 )
 from chunker import chunk_markdown_file
 from chunker_pdf import chunk_pdf_file
@@ -62,7 +64,7 @@ def cortex_freshness_report(
 ) -> dict[str, Any]:
     """Compare live sources with index metadata without writing either system."""
     started = perf_counter()
-    root = Path(KB_PATH)
+    root = Path(require_kb_path(KB_PATH))
     indexed, invalid_paths = _indexed_metadata(collection, section)
     entries: list[dict[str, str]] = []
     seen_paths: set[str] = set()
@@ -264,7 +266,12 @@ def annotate_search_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
     degrades that hit's verdict to "missing"/"error" and the rest continue.
     Order and every existing key are preserved; only "freshness" is added.
     """
-    root = Path(KB_PATH)
+    try:
+        root = Path(require_kb_path(KB_PATH))
+    except CortexConfigError:
+        for hit in hits:
+            hit["freshness"] = "unavailable"
+        return hits
     verdict_cache: dict[str, str] = {}
     for hit in hits:
         metadata = hit.get("metadata") or {}

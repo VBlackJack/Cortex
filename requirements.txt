@@ -4,3 +4,4 @@ fastembed==0.8.0
 pydantic==2.12.5
 pdfplumber==0.11.9
 filelock==3.25.2
+tomli==2.2.1; python_version < "3.11"

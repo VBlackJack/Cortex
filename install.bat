@@ -55,6 +55,12 @@ echo.
 echo [2/6] Checking knowledge base path (CORTEX_KB_PATH)...
 echo.
 
+set "CORTEX_CONFIG_FILE=%APPDATA%\Cortex\config.toml"
+if exist "!CORTEX_CONFIG_FILE!" (
+    echo [OK]   Cortex user config found: !CORTEX_CONFIG_FILE!
+    goto user_config_ready
+)
+
 if defined CORTEX_KB_PATH (
     if exist "!CORTEX_KB_PATH!\" (
         echo [OK]   CORTEX_KB_PATH = !CORTEX_KB_PATH!
@@ -82,11 +88,12 @@ if not defined CORTEX_KB_PATH (
         exit /b 1
     )
 
-    setx CORTEX_KB_PATH "!KB_INPUT!" >nul
     set "CORTEX_KB_PATH=!KB_INPUT!"
-    echo [OK]   CORTEX_KB_PATH set to !KB_INPUT!
-    echo        ^(persisted via setx — available in any new terminal^)
+    echo [OK]   Knowledge base path selected: !KB_INPUT!
+    echo        ^(it will be stored in the per-user Cortex config^)
 )
+
+:user_config_ready
 echo.
 
 :: ── Step 3 : Install packages ────────────────────────────────────────────────
@@ -107,6 +114,16 @@ echo.
 :: ── Step 4 : Patch claude_desktop_config.json ────────────────────────────────
 echo [4/6] Patching Claude desktop config...
 echo.
+
+if not exist "!CORTEX_CONFIG_FILE!" (
+    "!PYTHON_EXE!" "%CORTEX_DIR%\setup_config.py" --init
+    if errorlevel 1 (
+        echo.
+        echo [FAIL] Could not initialize Cortex user config.
+        pause
+        exit /b 1
+    )
+)
 
 "!PYTHON_EXE!" "%CORTEX_DIR%\setup_config.py" --python "!PYTHON_EXE!"
 if errorlevel 1 (

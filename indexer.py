@@ -36,6 +36,7 @@ from config import (  # noqa: E402
     INCLUDED_SECTIONS,
     SEARCH_TOP_K_MAX,
     SEARCH_TOP_K_MIN,
+    require_kb_path,
 )
 from chunker_utils import (  # noqa: E402
     discover_out_of_policy_dirs,
@@ -112,7 +113,7 @@ def discover_sections() -> list[str]:
     drops, if a configured section is missing on disk - unlike the old
     KNOWN_SECTIONS list, whose staleness went unnoticed for months.
     """
-    kb_root = Path(KB_PATH)
+    kb_root = Path(require_kb_path(KB_PATH))
     sections = []
     for name in sorted(INCLUDED_SECTIONS):
         if (kb_root / name).is_dir():
@@ -126,7 +127,7 @@ def discover_out_of_policy_sections() -> list[str]:
     """Live top-level dirs present but outside the section policy (neither
     included nor structurally excluded) - never auto-indexed, surfaced so
     a genuinely new section is never a silent gap."""
-    return discover_out_of_policy_dirs(Path(KB_PATH))
+    return discover_out_of_policy_dirs(Path(require_kb_path(KB_PATH)))
 
 
 # ── Sync ──────────────────────────────────────────────────────────────────────
@@ -145,7 +146,7 @@ def sync(section: str = None, verbose: bool = True) -> dict:
 
 
 def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, int]:
-    kb_root = Path(KB_PATH)
+    kb_root = Path(require_kb_path(KB_PATH))
     stats = empty_sync_stats()
 
     if not kb_root.is_dir():
