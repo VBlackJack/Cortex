@@ -11,6 +11,8 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
 # Environment
 .env
@@ -31,11 +33,13 @@ Thumbs.db
 
 # Claude Code local settings
 .claude/
+CLAUDE.md
 
 # Test artifacts
 gemini_output.txt
 gemini_prompt.txt
 codex_task.md
+AUDIT.md
 
 # Local execution reports
 local/
