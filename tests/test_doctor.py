@@ -113,6 +113,33 @@ def _create_index(
     connection.close()
 
 
+def _create_lexical(path: Path, *, count: int = 1, version: str = "v1") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path)
+    connection.execute(
+        "CREATE VIRTUAL TABLE chunks USING fts5("
+        "id UNINDEXED, path UNINDEXED, section UNINDEXED, text)"
+    )
+    connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    connection.executemany(
+        "INSERT INTO meta VALUES (?, ?)",
+        [
+            ("schema_version", "1"),
+            ("contract_version", version),
+            ("source_collection", "cortex"),
+        ],
+    )
+    connection.executemany(
+        "INSERT INTO chunks VALUES (?, ?, ?, ?)",
+        [
+            (f"chunk-{index}", "knowledge/note.md", "knowledge", "body")
+            for index in range(count)
+        ],
+    )
+    connection.commit()
+    connection.close()
+
+
 def _ok_handshake(
     _python: str,
     _server: Path,
@@ -200,6 +227,35 @@ def test_python_too_old_is_fail(tmp_path: Path) -> None:
 
     assert _checks(report)["python.version"]["status"] == "FAIL"
     assert report["summary"]["exit_code"] == 1
+
+
+def test_doctor_lexical_absent_is_warn(tmp_path: Path) -> None:
+    report = run_doctor(_baseline(tmp_path))
+
+    check = _checks(report)["lexical.index"]
+    assert check["status"] == "WARN"
+    assert check["details"]["purge_scope"] is True
+
+
+def test_doctor_lexical_matching_is_ok(tmp_path: Path) -> None:
+    context = _baseline(tmp_path)
+    _create_lexical(tmp_path / "local" / "Cortex" / "lexical.db")
+
+    check = _checks(run_doctor(context))["lexical.index"]
+
+    assert check["status"] == "OK"
+    assert check["details"]["count"] == 1
+    assert check["details"]["read_only"] is True
+
+
+def test_doctor_lexical_desynchronized_is_warn(tmp_path: Path) -> None:
+    context = _baseline(tmp_path)
+    _create_lexical(tmp_path / "local" / "Cortex" / "lexical.db", count=2)
+
+    check = _checks(run_doctor(context))["lexical.index"]
+
+    assert check["status"] == "WARN"
+    assert check["details"]["synchronized"] is False
 
 
 def test_invalid_config_is_typed_fail(tmp_path: Path) -> None:

@@ -73,6 +73,7 @@ class RuntimeContracts:
 
     collection_name: str
     fingerprint: Mapping[str, str]
+    lexical_contract_version: str = "v1"
 
 
 PackageFinder = Callable[[str], object | None]
@@ -130,12 +131,13 @@ def default_context(
 
 
 def _default_contracts() -> RuntimeContracts:
-    from config import COLLECTION_NAME
+    from config import COLLECTION_NAME, LEXICAL_INDEX_CONTRACT_VERSION
     from embedding_fingerprint import current_embedding_fingerprint
 
     return RuntimeContracts(
         collection_name=COLLECTION_NAME,
         fingerprint=current_embedding_fingerprint(),
+        lexical_contract_version=LEXICAL_INDEX_CONTRACT_VERSION,
     )
 
 
@@ -324,6 +326,14 @@ def _open_index_read_only(sqlite_path: Path) -> sqlite3.Connection:
     return connection
 
 
+def _open_lexical_read_only(sqlite_path: Path) -> sqlite3.Connection:
+    """Open read-only while allowing SQLite to observe an existing WAL file."""
+    uri = sqlite_path.resolve().as_uri() + "?mode=ro"
+    connection = sqlite3.connect(uri, uri=True)
+    connection.execute("PRAGMA query_only = ON")
+    return connection
+
+
 def _inspect_index(
     index_path: Path,
     contracts: RuntimeContracts,
@@ -501,6 +511,59 @@ def _freshness_check(
         entries_included=False,
         read_only=True,
     )
+
+
+def _inspect_lexical_index(
+    path: Path,
+    *,
+    expected_contract_version: str,
+    chroma_count: int | None,
+) -> list[DiagnosticCheck]:
+    """Inspect the derived FTS5 index without creating or repairing it."""
+    if not path.is_file():
+        return [
+            _check(
+                "lexical.index",
+                "WARN",
+                "Lexical index is absent; next sync will rebuild it",
+                path=str(path),
+                purge_scope=True,
+            )
+        ]
+    try:
+        with closing(_open_lexical_read_only(path)) as connection:
+            metadata = dict(connection.execute("SELECT key, value FROM meta"))
+            count = int(connection.execute("SELECT COUNT(*) FROM chunks").fetchone()[0])
+    except (OSError, sqlite3.Error) as exc:
+        return [
+            _check(
+                "lexical.index",
+                "FAIL",
+                f"Could not inspect lexical index read-only: {exc}",
+                path=str(path),
+            )
+        ]
+    compatible = metadata.get("contract_version") == expected_contract_version
+    synchronized = chroma_count is not None and count == chroma_count
+    status = "OK" if compatible and synchronized else "WARN"
+    return [
+        _check(
+            "lexical.index",
+            status,
+            "Lexical index matches Chroma"
+            if status == "OK"
+            else "Lexical index requires a sync rebuild",
+            path=str(path),
+            count=count,
+            chroma_count=chroma_count,
+            contract_version=metadata.get("contract_version", "<missing>"),
+            expected_contract_version=expected_contract_version,
+            compatible=compatible,
+            synchronized=synchronized,
+            read_only=True,
+            purge_scope=True,
+        )
+    ]
 
 
 def _default_lock_probe(path: Path) -> tuple[str, int | None, str | None]:
@@ -948,6 +1011,7 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
                 _check("index.chunks", "SKIP", "Skipped because config is invalid"),
                 _check("index.fingerprint", "SKIP", "Skipped because config is invalid"),
                 _check("freshness.summary", "SKIP", "Skipped because config is invalid"),
+                _check("lexical.index", "SKIP", "Skipped because config is invalid"),
             ]
         )
         operational.extend(
@@ -970,12 +1034,29 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
                 contracts = contracts_provider()
                 inspected, index_metadata = _inspect_index(Path(config.chroma_path), contracts)
                 index_checks.extend(inspected)
+                chunk_check = next(
+                    (check for check in inspected if check.id == "index.chunks"),
+                    None,
+                )
+                chroma_count = (
+                    int(chunk_check.details["count"])
+                    if chunk_check is not None and "count" in chunk_check.details
+                    else None
+                )
+                index_checks.extend(
+                    _inspect_lexical_index(
+                        Path(config.chroma_path).parent / "lexical.db",
+                        expected_contract_version=contracts.lexical_contract_version,
+                        chroma_count=chroma_count,
+                    )
+                )
             except Exception as exc:  # noqa: BLE001 -- report a failed diagnostic, never crash.
                 index_checks.extend(
                     [
                         _check("index.present", "FAIL", f"Index inspection failed: {exc}"),
                         _check("index.chunks", "SKIP", "Index inspection failed"),
                         _check("index.fingerprint", "SKIP", "Index inspection failed"),
+                        _check("lexical.index", "SKIP", "Index inspection failed"),
                     ]
                 )
         else:
@@ -984,6 +1065,7 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
                     _check("index.present", "SKIP", f"Skipped: migration state is {state}"),
                     _check("index.chunks", "SKIP", f"Skipped: migration state is {state}"),
                     _check("index.fingerprint", "SKIP", f"Skipped: migration state is {state}"),
+                    _check("lexical.index", "SKIP", f"Skipped: migration state is {state}"),
                 ]
             )
         if kb_accessible and index_metadata is not None:

@@ -21,6 +21,7 @@ from config import (
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
 )
+from lexical_index import LexicalIndex
 from write_lock import chroma_write_lock
 
 _LOG = logging.getLogger("cortex.sync")
@@ -212,11 +213,17 @@ def sync_section(
     section: str,
     checkpoint: SyncCheckpoint | None = None,
     verbose: bool = False,
+    lexical_index: LexicalIndex | None = None,
 ) -> dict[str, int]:
     """Reconcile one section under the exclusive Chroma write lock."""
     with chroma_write_lock():
         return _sync_section_locked(
-            collection, root, section, checkpoint=checkpoint, verbose=verbose
+            collection,
+            root,
+            section,
+            checkpoint=checkpoint,
+            verbose=verbose,
+            lexical_index=lexical_index,
         )
 
 
@@ -226,6 +233,7 @@ def _sync_section_locked(
     section: str,
     checkpoint: SyncCheckpoint | None = None,
     verbose: bool = False,
+    lexical_index: LexicalIndex | None = None,
 ) -> dict[str, int]:
     """Reconcile live, excluded and removed paths for one section."""
     stats = empty_sync_stats()
@@ -276,6 +284,13 @@ def _sync_section_locked(
             stats["published_files"] += 1
             stats["added_chunks"] += added
             stats["deleted_chunks"] += deleted
+            if lexical_index is not None:
+                try:
+                    lexical_index.replace_file(result.chunks)
+                except Exception:  # noqa: BLE001 -- Chroma remains authoritative.
+                    stats["errors"] += 1
+                    _LOG.exception("lexical_publish_error path=%s", rel_path)
+                    continue
             if checkpoint:
                 checkpoint.mark_completed(rel_path)
             continue
@@ -294,6 +309,13 @@ def _sync_section_locked(
                 _LOG.info(
                     "file_removed path=%s removed_reason=%s", rel_path, result.status
                 )
+                if lexical_index is not None:
+                    try:
+                        lexical_index.delete_path(rel_path)
+                    except Exception:  # noqa: BLE001 -- Chroma remains authoritative.
+                        stats["errors"] += 1
+                        _LOG.exception("lexical_remove_error path=%s", rel_path)
+                        continue
             else:
                 stats["skipped_files"] += 1
             if checkpoint:
@@ -318,6 +340,13 @@ def _sync_section_locked(
             continue
         stats["removed_files"] += 1
         _LOG.info("file_removed path=%s removed_reason=absent_or_excluded", rel_path)
+        if lexical_index is not None:
+            try:
+                lexical_index.delete_path(rel_path)
+            except Exception:  # noqa: BLE001 -- Chroma remains authoritative.
+                stats["errors"] += 1
+                _LOG.exception("lexical_reconcile_remove_error path=%s", rel_path)
+                continue
         if checkpoint:
             checkpoint.mark_completed(f"removed:absent_or_excluded:{rel_path}")
 

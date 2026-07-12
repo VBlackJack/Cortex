@@ -269,3 +269,40 @@ def test_complete_hash_and_chunking_version_is_skipped(
 
     assert stats["skipped_files"] == 1
     assert collection.upsert_calls == 0
+
+
+def test_lexical_failure_is_reported_after_chroma_publish(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "kb"
+    section = root / "knowledge"
+    section.mkdir(parents=True)
+    source = section / "note.md"
+    source.write_text("source present", encoding="utf-8")
+    current = _chunks(content_hash="1" * 64)
+    collection = Collection()
+
+    class FailingLexical:
+        def replace_file(self, _chunks: list[dict[str, Any]]) -> None:
+            raise RuntimeError("sqlite failed")
+
+        def delete_path(self, _path: str) -> None:
+            return None
+
+    monkeypatch.setitem(
+        sync_hash_aware.CHUNKERS,
+        ".md",
+        lambda _path: ChunkResult(status="ok", chunks=current),
+    )
+
+    stats = _sync_section_locked(
+        collection,
+        root,
+        "knowledge",
+        lexical_index=FailingLexical(),  # type: ignore[arg-type]
+    )
+
+    assert stats["published_files"] == 1
+    assert stats["errors"] == 1
+    assert set(collection.rows) == {current[0]["id"]}

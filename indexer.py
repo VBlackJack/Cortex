@@ -47,6 +47,7 @@ from config import (  # noqa: E402
 )
 from data_home import ensure_index_location  # noqa: E402
 from embedding_fingerprint import get_validated_collection  # noqa: E402
+from lexical_index import prepare_lexical_index  # noqa: E402
 from sync_hash_aware import empty_sync_stats, merge_sync_stats, sync_section  # noqa: E402
 from write_lock import chroma_write_lock  # noqa: E402
 
@@ -162,6 +163,15 @@ def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, 
 
     client = get_client()
     collection = get_collection(client)
+    lexical_index = None
+    try:
+        lexical_index = prepare_lexical_index(
+            collection,
+            Path(CHROMA_PATH).parent / "lexical.db",
+        )
+    except Exception as exc:  # noqa: BLE001 -- vector index remains authoritative.
+        stats["errors"] += 1
+        log.exception("lexical_prepare_error reason=%s", exc)
 
     section_names = [section] if section else sorted(INCLUDED_SECTIONS)
     folders = [kb_root / name for name in section_names]
@@ -177,6 +187,7 @@ def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, 
             sec_name,
             checkpoint=None,
             verbose=verbose,
+            lexical_index=lexical_index,
         )
         merge_sync_stats(stats, section_stats)
 
