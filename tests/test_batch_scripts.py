@@ -1,0 +1,45 @@
+# Copyright 2026 Julien Bombled
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+"""Static contract tests for Windows batch orchestration."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+
+SYNC_BAT = Path(__file__).resolve().parents[1] / "sync.bat"
+
+
+def _sync_script() -> str:
+    return SYNC_BAT.read_text(encoding="utf-8")
+
+
+def test_section_discovery_keeps_stderr_and_fails_when_empty() -> None:
+    script = _sync_script()
+    discovery_line = next(
+        line for line in script.splitlines() if "from indexer import discover_sections" in line
+    )
+
+    assert "2>nul" not in discovery_line
+    assert "if errorlevel 1" in script
+    assert "if !COUNT! EQU 0" in script
+    assert "No synchronization was attempted" in script
+
+
+def test_dead_section_fallback_is_absent() -> None:
+    script = _sync_script()
+
+    for legacy_section in ("Adsec", "Ansible", "Zabbix", "Books"):
+        assert f"echo {legacy_section}" not in script
+
+
+def test_section_failures_control_banner_and_exit_code() -> None:
+    script = _sync_script()
+
+    assert "set /a FAILURES=0" in script
+    assert "set /a FAILURES+=1" in script
+    assert "if !FAILURES! GTR 0" in script
+    assert "Sync completed with !FAILURES! failed section(s)." in script
+    assert "endlocal & exit /b !EXIT_CODE!" in script
