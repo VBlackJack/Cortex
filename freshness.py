@@ -56,7 +56,9 @@ def read_markdown_snapshot(path: Path, kb_root: Path) -> FileSnapshot:
 
 
 def cortex_freshness_report(
-    collection: Any, section: str | None = None
+    collection: Any,
+    section: str | None = None,
+    include_entries: bool = True,
 ) -> dict[str, Any]:
     """Compare live sources with index metadata without writing either system."""
     started = perf_counter()
@@ -69,7 +71,12 @@ def cortex_freshness_report(
         entries.append({"path": path, "status": "error", "reason": reason})
 
     if not root.is_dir():
-        return _report(entries, started, scope_error="KB_PATH is not a directory")
+        return _report(
+            entries,
+            started,
+            scope_error="KB_PATH is not a directory",
+            include_entries=include_entries,
+        )
 
     for excluded in _discover_excluded(root, section):
         rel_path = excluded.relative_to(root).as_posix()
@@ -97,7 +104,12 @@ def cortex_freshness_report(
         )
 
     out_of_policy = discover_out_of_policy_dirs(root)
-    return _report(entries, started, out_of_policy_dirs=out_of_policy)
+    return _report(
+        entries,
+        started,
+        out_of_policy_dirs=out_of_policy,
+        include_entries=include_entries,
+    )
 
 
 def _source_scan_bases(root: Path, section: str | None) -> list[Path]:
@@ -282,6 +294,7 @@ def _report(
     started: float,
     scope_error: str | None = None,
     out_of_policy_dirs: list[str] | None = None,
+    include_entries: bool = True,
 ) -> dict[str, Any]:
     entries.sort(key=lambda item: item["path"])
     summary: dict[str, int] = defaultdict(int)
@@ -298,9 +311,10 @@ def _report(
             "pdf": "supported_by_contract_v1",
         },
         "summary": dict(sorted(summary.items())),
-        "entries": entries,
         "duration_ms": round((perf_counter() - started) * 1000, 3),
     }
+    if include_entries:
+        report["entries"] = entries
     if scope_error:
         report["error"] = scope_error
     _LOG.info(

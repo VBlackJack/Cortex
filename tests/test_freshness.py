@@ -149,6 +149,27 @@ def test_no_chunks_is_distinct_from_unindexed(
     assert statuses["_drafts/real-draft.md"] == "unindexed"
 
 
+def test_summary_mode_omits_per_file_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    section = root / "knowledge"
+    section.mkdir(parents=True)
+    (section / "note.md").write_bytes(
+        b"# Note\nThis body is long enough to be an unindexed source.\n"
+    )
+    monkeypatch.setattr(freshness, "KB_PATH", str(root))
+
+    report = freshness.cortex_freshness_report(
+        FakeCollection([]),
+        section="knowledge",
+        include_entries=False,
+    )
+
+    assert report["summary"] == {"unindexed": 1}
+    assert "entries" not in report
+
+
 def test_classify_hash_fresh_stale_unknown() -> None:
     coherent_meta = [
         {

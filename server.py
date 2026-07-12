@@ -187,8 +187,11 @@ def cortex_list_sections() -> str:
 
 
 @mcp.tool()
-def cortex_freshness(section: Optional[str] = None) -> dict:
-    """Report source freshness without changing the ChromaDB index."""
+def cortex_freshness(
+    section: Optional[str] = None,
+    include_entries: bool = False,
+) -> dict:
+    """Report freshness read-only; include per-file entries only on request."""
     section, err = _resolve_section(section)
     if err:
         return {"error": err}
@@ -196,7 +199,11 @@ def cortex_freshness(section: Optional[str] = None) -> dict:
         collection = get_collection()
     except EmbeddingFingerprintMismatchError as exc:
         return {"error": str(exc)}
-    return cortex_freshness_report(collection, section=section)
+    return cortex_freshness_report(
+        collection,
+        section=section,
+        include_entries=include_entries,
+    )
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
