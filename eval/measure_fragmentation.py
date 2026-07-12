@@ -15,7 +15,7 @@ import argparse
 import json
 import statistics
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -24,6 +24,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import config  # noqa: E402
 from chroma_client import create_persistent_client, iter_collection_pages  # noqa: E402
+from chunker import (  # noqa: E402
+    _merge_small_header_sections,
+    _parse_frontmatter,
+    _split_by_headers,
+)
+from chunker_utils import split_fixed_size  # noqa: E402
 
 EVAL_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT_DIR = EVAL_DIR.parent / "local" / "eval-jalon4"
@@ -73,6 +79,89 @@ def safe_source_size(kb_root: Path, relative_path: str) -> tuple[int | None, str
         return None, f"{type(exc).__name__}: {exc}"
 
 
+def classify_markdown_small_chunks(
+    source_path: Path,
+    indexed_chunks: list[tuple[int, str, dict[str, Any]]],
+) -> Counter[str]:
+    """Classify small Markdown chunks by replaying the exact v2 split locally."""
+    targeted_count = sum(len(text) < MIN_CHUNK_CHARS for _index, text, _meta in indexed_chunks)
+    try:
+        raw_content = source_path.read_bytes().decode("utf-8", errors="strict")
+    except (OSError, UnicodeDecodeError):
+        return Counter({"unclassified": targeted_count})
+
+    _frontmatter, body = _parse_frontmatter(raw_content)
+    expected: list[tuple[str, str]] = []
+    for _header, exact_group in _merge_small_header_sections(_split_by_headers(body)):
+        sub_chunks = split_fixed_size(exact_group, config.CHUNK_SIZE, config.CHUNK_OVERLAP)
+        for position, text in enumerate(sub_chunks):
+            if len(sub_chunks) == 1:
+                kind = "whole_section"
+            elif position == len(sub_chunks) - 1:
+                kind = "split_tail"
+            else:
+                kind = "split_body"
+            expected.append((text, kind))
+
+    actual_texts = [text for _index, text, _meta in indexed_chunks]
+    if actual_texts != [text for text, _kind in expected]:
+        return Counter({"unclassified": targeted_count})
+    return Counter(
+        kind
+        for (text, kind) in expected
+        if len(text) < MIN_CHUNK_CHARS
+    )
+
+
+def classify_pdf_small_chunks(
+    indexed_chunks: list[tuple[int, str, dict[str, Any]]],
+) -> Counter[str]:
+    """Treat a PDF page as a section and distinguish whole pages from split tails."""
+    page_chunks: dict[int, list[tuple[int, str]]] = defaultdict(list)
+    unclassified = 0
+    for chunk_index, text, metadata in indexed_chunks:
+        page = metadata.get("page")
+        if isinstance(page, int):
+            page_chunks[page].append((chunk_index, text))
+        elif len(text) < MIN_CHUNK_CHARS:
+            unclassified += 1
+
+    result: Counter[str] = Counter({"unclassified": unclassified})
+    for chunks in page_chunks.values():
+        chunks.sort()
+        for position, (_chunk_index, text) in enumerate(chunks):
+            if len(text) >= MIN_CHUNK_CHARS:
+                continue
+            if len(chunks) == 1:
+                result["whole_section"] += 1
+            elif position == len(chunks) - 1:
+                result["split_tail"] += 1
+            else:
+                result["unclassified"] += 1
+    return result
+
+
+def classify_small_chunks(
+    kb_root: Path,
+    relative_path: str,
+    indexed_chunks: list[tuple[int, str, dict[str, Any]]],
+) -> Counter[str]:
+    """Classify targeted small chunks for one multi-chunk source file."""
+    targeted_count = sum(len(text) < MIN_CHUNK_CHARS for _index, text, _meta in indexed_chunks)
+    source_path = (kb_root / Path(relative_path)).resolve()
+    try:
+        source_path.relative_to(kb_root)
+    except ValueError:
+        return Counter({"unclassified": targeted_count})
+
+    suffix = source_path.suffix.lower()
+    if suffix == ".md":
+        return classify_markdown_small_chunks(source_path, indexed_chunks)
+    if suffix == ".pdf":
+        return classify_pdf_small_chunks(indexed_chunks)
+    return Counter({"unclassified": targeted_count})
+
+
 def measure(
     collection: Any,
     *,
@@ -81,7 +170,9 @@ def measure(
     page_size: int,
 ) -> dict[str, Any]:
     """Aggregate fragmentation metrics from paged collection reads."""
-    path_lengths: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
+    path_chunks: dict[str, dict[str, list[tuple[int, str, dict[str, Any]]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     malformed_records = 0
 
     for page in iter_collection_pages(
@@ -102,11 +193,21 @@ def measure(
                 continue
             if selected_sections is not None and section not in selected_sections:
                 continue
-            path_lengths[section][relative_path].append(len(document))
+            chunk_index = metadata.get("chunk_index")
+            if not isinstance(chunk_index, int):
+                malformed_records += 1
+                continue
+            path_chunks[section][relative_path].append((chunk_index, document, metadata))
 
     section_results: dict[str, dict[str, Any]] = {}
-    for section in sorted(path_lengths):
-        section_path_lengths = path_lengths[section]
+    for section in sorted(path_chunks):
+        section_path_chunks = path_chunks[section]
+        for chunks in section_path_chunks.values():
+            chunks.sort(key=lambda chunk: chunk[0])
+        section_path_lengths = {
+            path: [len(text) for _index, text, _metadata in chunks]
+            for path, chunks in section_path_chunks.items()
+        }
         lengths = [
             length
             for file_lengths in section_path_lengths.values()
@@ -131,7 +232,14 @@ def measure(
             for file_lengths in section_path_lengths.values()
             if len(file_lengths) > 1
         )
+        diagnostic: Counter[str] = Counter()
+        for relative_path, indexed_chunks in section_path_chunks.items():
+            if len(indexed_chunks) > 1:
+                diagnostic.update(
+                    classify_small_chunks(kb_root, relative_path, indexed_chunks)
+                )
         chunk_count = len(lengths)
+        diagnosed_count = sum(diagnostic.values())
         section_results[section] = {
             "chunk_count": chunk_count,
             "indexed_file_count": len(section_path_lengths),
@@ -145,6 +253,24 @@ def measure(
             )
             if chunk_count
             else 0.0,
+            "small_chunk_diagnostic": {
+                "whole_section_count": diagnostic["whole_section"],
+                "split_tail_count": diagnostic["split_tail"],
+                "unclassified_count": (
+                    diagnostic["unclassified"] + diagnostic["split_body"]
+                ),
+                "whole_section_pct_of_small": round(
+                    100 * diagnostic["whole_section"] / diagnosed_count, 3
+                )
+                if diagnosed_count
+                else 0.0,
+                "split_tail_pct_of_small": round(
+                    100 * diagnostic["split_tail"] / diagnosed_count, 3
+                )
+                if diagnosed_count
+                else 0.0,
+                "note": "For PDFs, one page is treated as one section.",
+            },
             "missing_source_file_count": len(missing_sources),
             "missing_source_files": missing_sources,
         }
