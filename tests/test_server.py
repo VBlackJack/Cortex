@@ -108,9 +108,17 @@ async def test_server_lifespan_does_not_require_kb(
 
     collection = Collection()
     monkeypatch.setattr(server, "get_collection", lambda: collection)
+    warmups = {"reranker": 0}
+
+    def warmup() -> None:
+        warmups["reranker"] += 1
+        return None
+
+    monkeypatch.setattr(server, "warmup_reranker", warmup)
 
     async with server.app_lifespan(None) as state:
         assert state == {"collection": collection}
+    assert warmups == {"reranker": 1}
 
 
 def test_cortex_search_uses_existing_index_without_kb(

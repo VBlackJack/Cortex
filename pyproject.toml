@@ -40,6 +40,7 @@ py-modules = [
   "freshness",
   "indexer",
   "lexical_index",
+  "reranker",
   "server",
   "setup_config",
   "sync_hash_aware",

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import importlib.util
 import json
 import os
@@ -14,6 +15,8 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
+import time
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -82,6 +85,7 @@ Runner = Callable[..., subprocess.CompletedProcess[str]]
 HandshakeProbe = Callable[[str, Path, Mapping[str, str], float], DiagnosticCheck]
 ContractsProvider = Callable[[], RuntimeContracts]
 LockProbe = Callable[[Path], tuple[str, int | None, str | None]]
+RerankerProbe = Callable[[], DiagnosticCheck]
 
 
 @dataclass
@@ -100,6 +104,7 @@ class DoctorContext:
     handshake_probe: HandshakeProbe | None = None
     contracts_provider: ContractsProvider | None = None
     lock_probe: LockProbe | None = None
+    reranker_probe: RerankerProbe | None = None
     handshake_timeout_seconds: float = DEFAULT_HANDSHAKE_TIMEOUT_SECONDS
     error_line_limit: int = DEFAULT_ERROR_LINE_LIMIT
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
@@ -127,6 +132,7 @@ def default_context(
         home=user_home,
         python_exe=python_exe or sys.executable,
         python_version=(sys.version_info.major, sys.version_info.minor, sys.version_info.micro),
+        reranker_probe=_default_reranker_probe,
     )
 
 
@@ -150,6 +156,95 @@ def _check(
     if status not in DOCTOR_STATUSES:
         raise ValueError(f"Unsupported doctor status: {status}")
     return DiagnosticCheck(check_id, status, message, details)
+
+
+def _default_reranker_probe() -> DiagnosticCheck:
+    """Probe only an already cached reranker without network or filesystem writes."""
+    from fastembed.rerank.cross_encoder import TextCrossEncoder
+
+    from config import RERANKER_MODEL, SEARCH_RERANK_CANDIDATES
+
+    cache_root = Path(tempfile.gettempdir()) / "fastembed_cache"
+    model_cache = cache_root / f"models--{RERANKER_MODEL.replace('/', '--')}"
+    if not model_cache.is_dir():
+        return _check(
+            "reranker.runtime",
+            "WARN",
+            "Configured reranker is not present in the fastembed cache",
+            model=RERANKER_MODEL,
+            cache_path=str(model_cache),
+            cached=False,
+            read_only=True,
+        )
+    model: Any = None
+    try:
+        model = TextCrossEncoder(
+            RERANKER_MODEL,
+            cache_dir=str(cache_root),
+            threads=None,
+            cuda=False,
+            local_files_only=True,
+        )
+        started = time.perf_counter()
+        scores = list(
+            model.rerank(
+                "cortex doctor reranker probe",
+                ["cortex diagnostic document"] * SEARCH_RERANK_CANDIDATES,
+                batch_size=SEARCH_RERANK_CANDIDATES,
+            )
+        )
+        latency_ms = (time.perf_counter() - started) * 1000
+        if len(scores) != SEARCH_RERANK_CANDIDATES:
+            raise ValueError(
+                f"reranker returned {len(scores)} scores for "
+                f"{SEARCH_RERANK_CANDIDATES} documents"
+            )
+    except Exception as exc:  # noqa: BLE001 -- diagnostic must remain honest and total.
+        return _check(
+            "reranker.runtime",
+            "UNKNOWN",
+            f"Cached reranker could not be probed read-only: {exc}",
+            model=RERANKER_MODEL,
+            cache_path=str(model_cache),
+            cached=True,
+            read_only=True,
+        )
+    finally:
+        del model
+        gc.collect()
+    within_budget = latency_ms <= 250.0
+    return _check(
+        "reranker.runtime",
+        "OK" if within_budget else "WARN",
+        "Cached reranker loaded and completed a read-only batch probe",
+        model=RERANKER_MODEL,
+        cache_path=str(model_cache),
+        cached=True,
+        candidate_count=SEARCH_RERANK_CANDIDATES,
+        latency_ms=round(latency_ms, 3),
+        budget_ms=250.0,
+        within_budget=within_budget,
+        read_only=True,
+    )
+
+
+def _reranker_check(context: DoctorContext) -> DiagnosticCheck:
+    if context.reranker_probe is None:
+        return _check(
+            "reranker.runtime",
+            "UNKNOWN",
+            "Reranker health was not probed in this diagnostic context",
+            read_only=True,
+        )
+    try:
+        return context.reranker_probe()
+    except Exception as exc:  # noqa: BLE001 -- external probe must not crash doctor.
+        return _check(
+            "reranker.runtime",
+            "UNKNOWN",
+            f"Reranker health is not sondable: {exc}",
+            read_only=True,
+        )
 
 
 def _system_checks(context: DoctorContext) -> list[DiagnosticCheck]:
@@ -1092,6 +1187,7 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
             ]
         )
 
+    index_checks.append(_reranker_check(current))
     clients = _client_checks(current)
     handshake_allowed = Path(current.python_exe).is_file() and (
         current.script_dir / "server.py"

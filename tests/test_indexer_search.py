@@ -144,6 +144,72 @@ def test_hybrid_search_uses_twenty_candidates_and_bounds_final_top_k(
     assert collection.n_results == [20]
 
 
+def test_hybrid_search_exposes_rerank_mode_and_bounds_final_top_k(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class HybridCollection(Collection):
+        def query(self, *, n_results: int, **_kwargs: object) -> dict[str, Any]:
+            self.n_results.append(n_results)
+            ids = [f"v{index}" for index in range(n_results)]
+            return {
+                "ids": [ids],
+                "documents": [[f"vector {index}" for index in range(n_results)]],
+                "metadatas": [[{"path": f"knowledge/v{index}.md"} for index in range(n_results)]],
+                "distances": [[index / 100 for index in range(n_results)]],
+            }
+
+    collection = HybridCollection()
+    monkeypatch.setattr(indexer, "get_collection", lambda: collection)
+    monkeypatch.setattr(indexer, "LexicalIndex", lambda: Lexical())
+
+    observed: list[int] = []
+
+    def rerank(
+        _query: str, hits: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], None]:
+        observed.append(len(hits))
+        reranked = [dict(hit, rerank_score=1.0) for hit in reversed(hits[:10])]
+        return reranked, None
+
+    monkeypatch.setattr(indexer, "rerank_fused_hits", rerank)
+
+    results = indexer.search("query", top_k=99)
+
+    assert results.mode == "hybrid+rerank"
+    assert len(results) == 10
+    assert observed == [20]
+    assert collection.n_results == [20]
+    assert all("rerank_score" in hit and "rrf_score" in hit for hit in results)
+
+
+def test_reranker_failure_exposes_hybrid_fallback_and_preserves_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class HybridCollection(Collection):
+        def query(self, *, n_results: int, **_kwargs: object) -> dict[str, Any]:
+            ids = [f"v{index}" for index in range(n_results)]
+            return {
+                "ids": [ids],
+                "documents": [[f"vector {index}" for index in range(n_results)]],
+                "metadatas": [[{"path": f"knowledge/v{index}.md"} for index in range(n_results)]],
+                "distances": [[index / 100 for index in range(n_results)]],
+            }
+
+    monkeypatch.setattr(indexer, "get_collection", HybridCollection)
+    monkeypatch.setattr(indexer, "LexicalIndex", lambda: Lexical())
+    monkeypatch.setattr(
+        indexer,
+        "rerank_fused_hits",
+        lambda _query, hits: (hits, "reranker query failed: ONNX unavailable"),
+    )
+
+    results = indexer.search("query", top_k=5)
+
+    assert results.mode == "hybrid"
+    assert "ONNX unavailable" in str(results.fallback_reason)
+    assert [hit["id"] for hit in results] == [f"v{index}" for index in range(5)]
+
+
 @pytest.mark.parametrize(
     ("lexical", "reason"),
     [

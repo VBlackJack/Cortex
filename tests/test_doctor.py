@@ -258,6 +258,35 @@ def test_doctor_lexical_desynchronized_is_warn(tmp_path: Path) -> None:
     assert check["details"]["synchronized"] is False
 
 
+def test_doctor_reranker_probe_is_reported(tmp_path: Path) -> None:
+    context = _baseline(tmp_path)
+    context.reranker_probe = lambda: DiagnosticCheck(
+        "reranker.runtime",
+        "OK",
+        "cached reranker probe passed",
+        {"latency_ms": 125.0, "read_only": True},
+    )
+
+    check = _checks(run_doctor(context))["reranker.runtime"]
+
+    assert check["status"] == "OK"
+    assert check["details"] == {"latency_ms": 125.0, "read_only": True}
+
+
+def test_doctor_unprobeable_reranker_is_unknown(tmp_path: Path) -> None:
+    context = _baseline(tmp_path)
+
+    def fail_probe() -> DiagnosticCheck:
+        raise OSError("cache locked")
+
+    context.reranker_probe = fail_probe
+
+    check = _checks(run_doctor(context))["reranker.runtime"]
+
+    assert check["status"] == "UNKNOWN"
+    assert "cache locked" in check["message"]
+
+
 def test_invalid_config_is_typed_fail(tmp_path: Path) -> None:
     context = _context(tmp_path)
     context.config_path.parent.mkdir(parents=True)

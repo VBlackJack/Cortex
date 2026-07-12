@@ -35,6 +35,7 @@ from indexer import (
     search,
     sync,
 )
+from reranker import warmup_reranker
 from write_lock import CortexWriteLockedError
 
 _LOG = logging.getLogger("cortex.server")
@@ -61,6 +62,9 @@ async def app_lifespan(app: Any) -> AsyncIterator[dict[str, Any]]:
         collection.query(query_texts=["warmup"], n_results=1)
     except Exception as exc:  # noqa: BLE001 -- warmup failure must not prevent startup.
         _LOG.warning("embedding_warmup_failed error=%s", exc)
+    reranker_failure = warmup_reranker()
+    if reranker_failure is not None:
+        _LOG.warning("reranker_warmup_degraded reason=%s", reranker_failure)
     yield {"collection": collection}
 
 

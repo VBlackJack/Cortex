@@ -53,6 +53,7 @@ from config import (  # noqa: E402
 from data_home import ensure_index_location  # noqa: E402
 from embedding_fingerprint import get_validated_collection  # noqa: E402
 from lexical_index import LexicalIndex, prepare_lexical_index  # noqa: E402
+from reranker import rerank_fused_hits, warmup_reranker  # noqa: E402
 from sync_hash_aware import empty_sync_stats, merge_sync_stats, sync_section  # noqa: E402
 from write_lock import chroma_write_lock  # noqa: E402
 
@@ -350,7 +351,15 @@ def search(
         SEARCH_HYBRID_CANDIDATES,
     )
     fused = reciprocal_rank_fusion(vector_hits, lexical_hits)
-    return SearchResults(fused[:bounded_top_k], mode="hybrid")
+    reranked, rerank_failure = rerank_fused_hits(query, fused)
+    if rerank_failure is not None:
+        log.warning("search_mode_hybrid reason=%s", rerank_failure)
+        return SearchResults(
+            fused[:bounded_top_k],
+            mode="hybrid",
+            fallback_reason=rerank_failure,
+        )
+    return SearchResults(reranked[:bounded_top_k], mode="hybrid+rerank")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -373,6 +382,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.search:
+        warmup_reranker()
         hits = search(args.search, section=args.section, top_k=args.top_k)
         for i, h in enumerate(hits, 1):
             meta = h["metadata"]
