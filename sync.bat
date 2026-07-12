@@ -91,4 +91,4 @@ if !FAILURES! GTR 0 (
 )
 echo.
 pause >nul
-endlocal & exit /b !EXIT_CODE!
+endlocal & exit /b %EXIT_CODE%

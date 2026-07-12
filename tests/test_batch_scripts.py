@@ -43,7 +43,7 @@ def test_section_failures_control_banner_and_exit_code() -> None:
     assert "set /a FAILURES+=1" in script
     assert "if !FAILURES! GTR 0" in script
     assert "Sync completed with !FAILURES! failed section(s)." in script
-    assert "endlocal & exit /b !EXIT_CODE!" in script
+    assert "endlocal & exit /b %EXIT_CODE%" in script
 
 
 def test_installer_enforces_python_310() -> None:
