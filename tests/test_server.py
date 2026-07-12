@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 import server
+from indexer import CortexSearchError
 
 
 def test_cortex_freshness_defaults_to_summary(
@@ -53,3 +54,19 @@ def test_cortex_freshness_details_are_explicit_and_section_scoped(
     )
 
     assert response["entries"] == [{"path": "knowledge/note.md"}]
+
+
+def test_cortex_search_formats_typed_query_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_search(**_kwargs: object) -> list[dict[str, object]]:
+        raise CortexSearchError("Cortex search failed: database unavailable")
+
+    monkeypatch.setattr(server, "search", fail_search)
+
+    response = server.cortex_search("query")
+
+    assert response == (
+        "## Cortex search error\n\n"
+        "Cortex search failed: database unavailable"
+    )

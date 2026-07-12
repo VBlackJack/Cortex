@@ -23,7 +23,14 @@ from mcp.server.fastmcp import FastMCP
 
 from freshness import annotate_search_hits, cortex_freshness_report
 from embedding_fingerprint import EmbeddingFingerprintMismatchError
-from indexer import discover_out_of_policy_sections, discover_sections, get_collection, search, sync
+from indexer import (
+    CortexSearchError,
+    discover_out_of_policy_sections,
+    discover_sections,
+    get_collection,
+    search,
+    sync,
+)
 from write_lock import CortexWriteLockedError
 
 _LOG = logging.getLogger("cortex.server")
@@ -90,6 +97,8 @@ def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> 
         hits = search(query=query, section=section, top_k=top_k)
     except EmbeddingFingerprintMismatchError as exc:
         return f"## Cortex search refused\n\n{exc}"
+    except CortexSearchError as exc:
+        return f"## Cortex search error\n\n{exc}"
 
     if not hits:
         return "No results found."

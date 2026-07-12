@@ -34,6 +34,8 @@ from config import (  # noqa: E402
     CHROMA_PATH,
     EMBEDDING_MODEL,
     INCLUDED_SECTIONS,
+    SEARCH_TOP_K_MAX,
+    SEARCH_TOP_K_MIN,
 )
 from chunker_utils import (  # noqa: E402
     discover_out_of_policy_dirs,
@@ -188,19 +190,25 @@ def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, 
 # ── Search ────────────────────────────────────────────────────────────────────
 
 
+class CortexSearchError(RuntimeError):
+    """Raised when Chroma cannot execute a semantic query."""
+
+
 def search(query: str, section: str = None, top_k: int = 5) -> list[dict]:
     """Return top_k results as list of {text, metadata, distance}."""
     collection = get_collection()
     where = {"section": section} if section else None
+    bounded_top_k = max(SEARCH_TOP_K_MIN, min(top_k, SEARCH_TOP_K_MAX))
     try:
         results = collection.query(
             query_texts=[query],
-            n_results=top_k,
+            n_results=bounded_top_k,
             where=where,
             include=["documents", "metadatas", "distances"],
         )
     except Exception as e:
-        return [{"text": f"Search error: {e}", "metadata": {}, "distance": 1.0}]
+        log.error("search_query_error section=%s reason=%s", section, e)
+        raise CortexSearchError(f"Cortex search failed: {e}") from e
 
     hits = []
     docs = results.get("documents", [[]])[0]
