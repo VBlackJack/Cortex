@@ -20,6 +20,7 @@ from chunker_utils import (
     split_fixed_size,
 )
 from config import (
+    CHUNK_MIN_CHARS,
     CHUNK_OVERLAP,
     CHUNK_SIZE,
     CHUNKING_CONTRACT_VERSION,
@@ -87,6 +88,45 @@ def _split_by_headers(content: str) -> list[tuple[str, str]]:
     return parts
 
 
+def _merged_header(sections: list[tuple[str, str]]) -> str:
+    """Join distinct non-empty headers in source order, within metadata limits."""
+    headers: list[str] = []
+    seen: set[str] = set()
+    for header, _span in sections:
+        if header and header not in seen:
+            headers.append(header)
+            seen.add(header)
+    return " | ".join(headers)[:300]
+
+
+def _merge_small_header_sections(
+    sections: list[tuple[str, str]],
+) -> list[tuple[str, str]]:
+    """Greedily merge adjacent exact spans under the v2 minimum chunk size."""
+    groups: list[list[tuple[str, str]]] = []
+    pending: list[tuple[str, str]] = []
+    pending_chars = 0
+
+    for section in sections:
+        pending.append(section)
+        pending_chars += len(section[1])
+        if pending_chars >= CHUNK_MIN_CHARS:
+            groups.append(pending)
+            pending = []
+            pending_chars = 0
+
+    if pending:
+        if groups:
+            groups[-1].extend(pending)
+        else:
+            groups.append(pending)
+
+    return [
+        (_merged_header(group), "".join(span for _header, span in group))
+        for group in groups
+    ]
+
+
 def chunk_markdown_file(file_path: Path) -> ChunkResult:
     """
     Chunk a single markdown file into searchable pieces with metadata.
@@ -131,7 +171,7 @@ def chunk_markdown_file(file_path: Path) -> ChunkResult:
     if len(body.strip()) < 20:
         return ChunkResult(status="empty")
 
-    header_sections = _split_by_headers(body)
+    header_sections = _merge_small_header_sections(_split_by_headers(body))
     chunks = []
     chunk_index = 0
 

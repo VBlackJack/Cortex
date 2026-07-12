@@ -16,12 +16,14 @@ import pytest
 from chunker import (
     MAX_CHARS,
     MAX_FILE_SIZE_BYTES,
+    _merge_small_header_sections,
     _parse_frontmatter,
     _split_by_headers,
     _split_fixed_size,
     chunk_markdown_file,
 )
 from chunker_utils import split_fixed_size, split_fixed_size_spans
+from config import CHUNK_MIN_CHARS, CHUNK_OVERLAP, CHUNK_SIZE
 
 # ── _split_fixed_size ─────────────────────────────────────────────────────────
 
@@ -159,6 +161,80 @@ def test_split_by_headers_preserves_preamble_and_whitespace() -> None:
     assert "".join(text for _, text in parts) == content
 
 
+# ── v2 header-section merge ──────────────────────────────────────────────────
+
+
+def test_merge_small_sections(tmp_path: Path) -> None:
+    source = tmp_path / "small-sections.md"
+    body = "".join(
+        f"## Section {index}\n" + (character * 66) + "\n"
+        for index, character in enumerate("abcd", start=1)
+    )
+    source.write_text(body, encoding="utf-8")
+
+    chunks = chunk_markdown_file(source).chunks
+
+    assert len(chunks) == 1
+    assert len(chunks[0]["text"]) >= CHUNK_MIN_CHARS
+
+
+def test_large_section_still_split(tmp_path: Path) -> None:
+    source = tmp_path / "large-section.md"
+    body = "# Large\n" + ("large section sentence. " * 100)
+    source.write_bytes(body.encode())
+
+    actual = [chunk["text"] for chunk in chunk_markdown_file(source).chunks]
+
+    assert actual == split_fixed_size(body, CHUNK_SIZE, CHUNK_OVERLAP)
+
+
+def test_lossless_reconstruction() -> None:
+    body = " preamble \n\n# One\n body \n## Two\n tail \n"
+
+    groups = _merge_small_header_sections(_split_by_headers(body))
+
+    assert "".join(span for _header, span in groups) == body
+
+
+def test_single_tiny_file(tmp_path: Path) -> None:
+    source = tmp_path / "tiny-valid.md"
+    body = "## Tiny\n" + ("x" * 80)
+    source.write_bytes(body.encode())
+
+    chunks = chunk_markdown_file(source).chunks
+
+    assert len(chunks) == 1
+    assert chunks[0]["text"] == body
+
+
+def test_trailing_remainder_merged() -> None:
+    first = ("# First", "x" * CHUNK_MIN_CHARS)
+    remainder = ("## Tail", "tail")
+
+    groups = _merge_small_header_sections([first, remainder])
+
+    assert groups == [("# First | ## Tail", first[1] + remainder[1])]
+
+
+def test_merged_header_metadata() -> None:
+    first_header = "## " + ("a" * 160)
+    second_header = "## " + ("b" * 160)
+    sections = [
+        (first_header, "x" * 100),
+        (first_header, "y" * 100),
+        (second_header, "z" * 100),
+    ]
+
+    first_run = _merge_small_header_sections(sections)
+    second_run = _merge_small_header_sections(sections)
+
+    assert first_run == second_run
+    assert len(first_run) == 1
+    assert len(first_run[0][0]) == 300
+    assert first_run[0][0].startswith(first_header + " | " + second_header[:20])
+    assert first_run[0][0].count(first_header) == 1
+
+
 # ── chunk_markdown_file ───────────────────────────────────────────────────────
 
 
@@ -201,7 +277,7 @@ def test_chunk_markdown_file_valid(tmp_path: Path):
     assert len(meta["content_hash"]) == 64
     assert meta["contract_id"] == "freshness-contract-v1"
     assert meta["content_hash_contract_version"] == "v1"
-    assert meta["chunking_contract_version"] == "v1"
+    assert meta["chunking_contract_version"] == "v2"
     assert meta["expected_chunk_count"] == len(chunks)
     assert meta["content_hash"] in first["id"]
     assert "chunk_index" in meta
@@ -235,12 +311,26 @@ def test_chunk_markdown_content_hash_is_independent_of_chunking(
     } == {expected}
 
 
+def test_ids_carry_v2(tmp_path: Path) -> None:
+    source = tmp_path / "versioned.md"
+    source.write_text("# Versioned\n" + ("content " * 60), encoding="utf-8")
+
+    chunks = chunk_markdown_file(source).chunks
+
+    assert chunks
+    for chunk in chunks:
+        assert "::v2::" in chunk["id"]
+        assert chunk["metadata"]["chunking_contract_version"] == "v2"
+        v1_id = chunk["id"].replace("::v2::", "::v1::")
+        assert v1_id != chunk["id"]
+
+
 def test_pdf_chunker_uses_shared_fixed_size_splitter() -> None:
     pdf_chunker = importlib.import_module("chunker_pdf")
     assert getattr(pdf_chunker, "split_fixed_size") is split_fixed_size
 
 
-def test_pdf_chunker_hashes_the_exact_parsed_snapshot(
+def test_pdf_emits_v2_unchanged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     pdf_chunker = importlib.import_module("chunker_pdf")
@@ -270,8 +360,12 @@ def test_pdf_chunker_hashes_the_exact_parsed_snapshot(
     result = pdf_chunker.chunk_pdf_file(source)
 
     assert result.status == "ok"
+    assert len(result.chunks) == 1
+    assert result.chunks[0]["text"] == "Extracted PDF content long enough to be indexed."
+    assert result.chunks[0]["metadata"]["header"] == "Page 1"
     assert result.chunks[0]["metadata"]["content_hash"] == hashlib.sha256(raw).hexdigest()
-    assert result.chunks[0]["metadata"]["chunking_contract_version"] == "v1"
+    assert result.chunks[0]["metadata"]["chunking_contract_version"] == "v2"
+    assert "::v2::" in result.chunks[0]["id"]
 
 
 def test_pdf_chunker_reports_extraction_error(
