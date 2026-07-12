@@ -85,7 +85,7 @@ echo.
 echo [3/6] Installing / upgrading required packages...
 echo.
 
-"!PYTHON_EXE!" -m pip install --upgrade mcp[cli] chromadb fastembed pydantic
+"!PYTHON_EXE!" -m pip install --upgrade -r "%CORTEX_DIR%\requirements.txt"
 if errorlevel 1 (
     echo.
     echo [FAIL] pip install failed. Check your internet connection and try again.
