@@ -11,6 +11,7 @@ from collections.abc import Iterable, Sequence
 import pytest
 
 import reranker
+from config import SEARCH_RERANK_CANDIDATES, SEARCH_TOP_K_MAX
 
 
 class FakeCrossEncoder:
@@ -47,6 +48,10 @@ def _hits(count: int) -> list[dict[str, object]]:
         {"id": f"c{index}", "text": f"document {index}", "rrf_score": 1 / (61 + index)}
         for index in range(count)
     ]
+
+
+def test_rerank_candidate_budget_covers_maximum_top_k() -> None:
+    assert SEARCH_RERANK_CANDIDATES >= SEARCH_TOP_K_MAX
 
 
 def test_rerank_exact_order_tie_break_scores_and_single_batch(
