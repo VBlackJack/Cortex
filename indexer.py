@@ -32,13 +32,13 @@ from fastembed import TextEmbedding  # noqa: E402
 from config import (  # noqa: E402
     KB_PATH,
     CHROMA_PATH,
-    COLLECTION_NAME,
     EMBEDDING_MODEL,
     INCLUDED_SECTIONS,
 )
 from chunker_utils import (  # noqa: E402
     discover_out_of_policy_dirs,
 )
+from embedding_fingerprint import get_validated_collection  # noqa: E402
 from sync_hash_aware import empty_sync_stats, merge_sync_stats, sync_section  # noqa: E402
 from write_lock import chroma_write_lock  # noqa: E402
 
@@ -71,6 +71,20 @@ class FastEmbedFunction(EmbeddingFunction):
         embeddings = list(self._model.embed(input))
         return [e.tolist() for e in embeddings]
 
+    @staticmethod
+    def name() -> str:
+        """Return the stable Chroma identifier for Cortex's embedding adapter."""
+        return "cortex-fastembed"
+
+    def get_config(self) -> dict[str, str]:
+        """Return the serializable configuration associated with name()."""
+        return {"model_name": self._model_name}
+
+    @staticmethod
+    def build_from_config(config: dict[str, str]) -> "FastEmbedFunction":
+        """Reconstruct the adapter from a persisted Chroma configuration."""
+        return FastEmbedFunction(model_name=config["model_name"])
+
 
 def get_embedding_function() -> FastEmbedFunction:
     return FastEmbedFunction(model_name=EMBEDDING_MODEL)
@@ -86,11 +100,7 @@ def get_client() -> chromadb.PersistentClient:
 def get_collection(client=None):
     if client is None:
         client = get_client()
-    return client.get_or_create_collection(
-        name=COLLECTION_NAME,
-        embedding_function=get_embedding_function(),
-        metadata={"hnsw:space": "cosine"},
-    )
+    return get_validated_collection(client, get_embedding_function())
 
 
 def discover_sections() -> list[str]:

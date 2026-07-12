@@ -23,8 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import chromadb
 
-from config import CHROMA_PATH, COLLECTION_NAME
-from indexer import get_embedding_function
+from config import CHROMA_PATH
+from indexer import get_collection
 from write_lock import chroma_write_lock
 
 BATCH_SIZE = 100
@@ -75,11 +75,7 @@ def main() -> None:
             raise RuntimeError(f"{len(missing_doc)} rows have no document text, e.g. {missing_doc[:5]}")
 
         client = chromadb.PersistentClient(path=str(rebuild_path))
-        collection = client.get_or_create_collection(
-            name=COLLECTION_NAME,
-            embedding_function=get_embedding_function(),
-            metadata={"hnsw:space": "cosine"},
-        )
+        collection = get_collection(client)
 
         print("[upsert] publishing into fresh collection ...", flush=True)
         for start in range(0, len(rows), BATCH_SIZE):

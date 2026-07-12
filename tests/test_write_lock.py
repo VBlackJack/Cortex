@@ -163,12 +163,12 @@ def test_crash_staleness_auto_release(tmp_path: Path) -> None:
     proc_victim.kill()  # hard kill, no finally/cleanup runs - simulates a crash
     proc_victim.wait(timeout=5)
 
-    t0 = time.perf_counter()
     result = _run_worker(db_path, lock_path, "next", 4, 0, timeout_seconds=3)
-    elapsed = time.perf_counter() - t0
 
-    assert result.stdout.strip().splitlines()[-1].startswith("OK")
-    assert elapsed < 2.0  # acquired promptly, did not wait out the 3s timeout
+    outcome = result.stdout.strip().splitlines()[-1]
+    assert outcome.startswith("OK")
+    lock_wait_seconds = float(outcome.split(":")[2])
+    assert lock_wait_seconds < 0.5  # OS lock released promptly after hard kill
 
     import chromadb
     client = chromadb.PersistentClient(path=str(db_path))

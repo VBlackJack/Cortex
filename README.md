@@ -230,6 +230,17 @@ python indexer.py --search "OSCARE" --top-k 10
 
 PyTorch + sentence-transformers détectait le GPU pendant l'initialisation et causait un **BSOD (dxgkrnl.sys)**. Le modèle ONNX via `fastembed` tourne entièrement sur CPU, utilise ~150 Mo de RAM, et ne touche pas au GPU.
 
+### Pourquoi un fingerprint d'embedding ?
+
+L'index et les requêtes doivent utiliser exactement le même espace vectoriel.
+Cortex stocke donc dans les métadonnées Chroma le modèle, la version de
+`fastembed` et le pooling (`mean`, contrat explicite depuis le correctif
+qdrant/fastembed#436 actif en v0.6.0 pour ce modèle). Au démarrage, avant une
+recherche et avant toute écriture, Cortex refuse l'accès si une valeur diffère
+et indique la procédure de reconstruction. L'index historique attesté le
+2026-07-12 est migré une seule fois vers le fingerprint
+`fastembed=0.8.0 / pooling=mean`.
+
 ### Pourquoi un sync section par section ?
 
 Chaque section est un processus Python indépendant dans `sync.bat`. Cela limite la RAM à ~300 Mo par processus (contre un pic unique si tout est en mémoire) et permet de reprendre facilement en cas d'erreur.

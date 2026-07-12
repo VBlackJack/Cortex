@@ -12,6 +12,7 @@ Exposes three tools to Claude:
 """
 
 import os
+import logging
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""  # force CPU, avoid GPU driver issues
 
@@ -21,8 +22,11 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 from freshness import annotate_search_hits, cortex_freshness_report
+from embedding_fingerprint import EmbeddingFingerprintMismatchError
 from indexer import discover_out_of_policy_sections, discover_sections, get_collection, search, sync
 from write_lock import CortexWriteLockedError
+
+_LOG = logging.getLogger("cortex.server")
 
 
 # ── Lifespan: warm up the model at startup ────────────────────────────────────
@@ -31,7 +35,11 @@ from write_lock import CortexWriteLockedError
 @asynccontextmanager
 async def app_lifespan(app):
     """Load the collection and warm up the embedding model before first request."""
-    collection = get_collection()
+    try:
+        collection = get_collection()
+    except EmbeddingFingerprintMismatchError:
+        _LOG.critical("server_start_refused_incompatible_embedding", exc_info=True)
+        raise
     try:
         collection.query(query_texts=["warmup"], n_results=1)
     except Exception:
@@ -78,7 +86,10 @@ def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> 
     if err:
         return err
 
-    hits = search(query=query, section=section, top_k=top_k)
+    try:
+        hits = search(query=query, section=section, top_k=top_k)
+    except EmbeddingFingerprintMismatchError as exc:
+        return f"## Cortex search refused\n\n{exc}"
 
     if not hits:
         return "No results found."
@@ -127,6 +138,8 @@ def cortex_sync(section: Optional[str] = None) -> str:
 
     try:
         stats = sync(section=section, verbose=False)
+    except EmbeddingFingerprintMismatchError as exc:
+        return f"## Cortex sync refused\n\n{exc}"
     except CortexWriteLockedError:
         return (
             "## Cortex sync locked\n\n"
@@ -179,7 +192,11 @@ def cortex_freshness(section: Optional[str] = None) -> dict:
     section, err = _resolve_section(section)
     if err:
         return {"error": err}
-    return cortex_freshness_report(get_collection(), section=section)
+    try:
+        collection = get_collection()
+    except EmbeddingFingerprintMismatchError as exc:
+        return {"error": str(exc)}
+    return cortex_freshness_report(collection, section=section)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

@@ -12,6 +12,19 @@ KB_PATH = os.environ.get("CORTEX_KB_PATH", r"G:\_DATA").strip('"')
 CHROMA_PATH = str(_SCRIPT_DIR / "chroma_db")
 COLLECTION_NAME = "cortex"
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+# FastEmbed has used mean pooling for this model since v0.6.0
+# (qdrant/fastembed#436). FastEmbed exposes no reliable pooling introspection,
+# so this explicit value is part of Cortex's persisted embedding contract.
+EMBEDDING_POOLING = "mean"
+
+# One-time migration baseline for the unstamped index whose construction was
+# attested on 2026-07-12. Keep these literals independent from the runtime
+# settings above: changing the runtime contract must never rewrite history.
+LEGACY_INDEX_EMBEDDING_MODEL = (
+    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+)
+LEGACY_INDEX_FASTEMBED_VERSION = "0.8.0"
+LEGACY_INDEX_EMBEDDING_POOLING = "mean"
 
 # Chunk sizes (characters)
 CHUNK_SIZE = 512

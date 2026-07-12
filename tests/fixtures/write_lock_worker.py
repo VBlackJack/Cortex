@@ -37,7 +37,9 @@ def main() -> None:
         time.sleep(extra_delay)
 
     try:
+        lock_started = time.perf_counter()
         with chroma_write_lock():
+            lock_wait_seconds = time.perf_counter() - lock_started
             if hold_seconds:
                 time.sleep(hold_seconds)
             client = chromadb.PersistentClient(path=db_path)
@@ -48,7 +50,7 @@ def main() -> None:
                 documents=[f"dummy doc {i} from {tag}" for i in range(doc_count)],
                 metadatas=[{"tag": tag} for _ in range(doc_count)],
             )
-        print(f"OK:{tag}")
+        print(f"OK:{tag}:{lock_wait_seconds:.6f}")
     except CortexWriteLockedError:
         print(f"LOCKED:{tag}")
 
