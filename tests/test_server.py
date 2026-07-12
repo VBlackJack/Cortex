@@ -13,7 +13,7 @@ import pytest
 import freshness
 import server
 from config import CortexConfigError
-from indexer import CortexSearchError
+from indexer import CortexSearchError, SearchResults
 
 
 def test_cortex_freshness_defaults_to_summary(
@@ -133,3 +133,56 @@ def test_cortex_search_uses_existing_index_without_kb(
 
     assert "indexed content" in response
     assert "**Freshness:** unavailable" in response
+
+
+def test_cortex_search_reports_hybrid_mode_and_lexical_only_hit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(freshness, "KB_PATH", None)
+    monkeypatch.setattr(
+        server,
+        "search",
+        lambda **_kwargs: SearchResults(
+            [
+                {
+                    "id": "lexical",
+                    "text": "exact lexical content",
+                    "metadata": {"path": "knowledge/exact.md", "section": "knowledge"},
+                    "lexical_only": True,
+                }
+            ],
+            mode="hybrid",
+        ),
+    )
+
+    response = server.cortex_search("exact")
+
+    assert "**Mode:** hybrid" in response
+    assert "**Relevance:** lexical-only" in response
+
+
+def test_cortex_search_reports_vector_fallback_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(freshness, "KB_PATH", None)
+    monkeypatch.setattr(
+        server,
+        "search",
+        lambda **_kwargs: SearchResults(
+            [
+                {
+                    "id": "vector",
+                    "text": "vector content",
+                    "metadata": {"path": "knowledge/vector.md"},
+                    "distance": 0.2,
+                }
+            ],
+            mode="vector-only",
+            fallback_reason="lexical index absent; run cortex sync",
+        ),
+    )
+
+    response = server.cortex_search("query")
+
+    assert "**Mode:** vector-only" in response
+    assert "**Fallback reason:** lexical index absent; run cortex sync" in response

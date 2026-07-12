@@ -44,7 +44,7 @@ def build_before(query: str, top_k: int, section: str) -> str:
 
 def build_after(query: str, top_k: int, section: str, root: Path) -> str:
     hits = search(query=query, section=section, top_k=top_k)
-    hits = annotate_search_hits(hits)
+    annotate_search_hits(hits)
     lines = []
     live_shown: set[str] = set()
     for h in hits:

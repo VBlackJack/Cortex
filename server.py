@@ -116,17 +116,25 @@ def cortex_search(query: str, section: str | None = None, top_k: int = 5) -> str
         return f"## Cortex search error\n\n{exc}"
 
     if not hits:
-        return "No results found."
+        mode = getattr(hits, "mode", "vector-only")
+        reason = getattr(hits, "fallback_reason", None)
+        suffix = f" ({reason})" if reason else ""
+        return f"No results found.\n\nMode: {mode}{suffix}"
 
-    hits = annotate_search_hits(hits)
+    annotate_search_hits(hits)
 
-    lines = [f"## Cortex search: `{query}`\n"]
+    mode = getattr(hits, "mode", "vector-only")
+    fallback_reason = getattr(hits, "fallback_reason", None)
+    lines = [f"## Cortex search: `{query}`\n", f"**Mode:** {mode}"]
+    if fallback_reason:
+        lines.append(f"**Fallback reason:** {fallback_reason}")
+    lines.append("")
     for i, hit in enumerate(hits, 1):
         meta = hit.get("metadata", {})
         title = meta.get("title") or meta.get("path", "Unknown")
         header = meta.get("header", "")
         sec = meta.get("section", "")
-        dist = hit.get("distance", 1.0)
+        dist = hit.get("distance")
         text = hit.get("text", "")
         freshness = hit.get("freshness", "unknown")
 
@@ -135,7 +143,10 @@ def cortex_search(query: str, section: str | None = None, top_k: int = 5) -> str
             lines.append(f"**Section:** {sec} › {header}")
         else:
             lines.append(f"**Section:** {sec}")
-        lines.append(f"**Relevance:** {1 - dist:.0%}")
+        if dist is not None:
+            lines.append(f"**Relevance:** {1 - dist:.0%}")
+        elif hit.get("lexical_only"):
+            lines.append("**Relevance:** lexical-only")
         lines.append(f"**Freshness:** {freshness}")
         lines.append("")
         lines.append(text)
