@@ -111,8 +111,8 @@ echo.
 echo [OK]   Packages installed.
 echo.
 
-:: ── Step 4 : Patch claude_desktop_config.json ────────────────────────────────
-echo [4/6] Patching Claude desktop config...
+:: ── Step 4 : Register detected MCP clients ──────────────────────────────────
+echo [4/6] Register Cortex with detected AI clients?
 echo.
 
 if not exist "!CORTEX_CONFIG_FILE!" (
@@ -125,12 +125,21 @@ if not exist "!CORTEX_CONFIG_FILE!" (
     )
 )
 
-"!PYTHON_EXE!" "%CORTEX_DIR%\setup_config.py" --python "!PYTHON_EXE!"
-if errorlevel 1 (
-    echo.
-    echo [FAIL] Could not patch claude_desktop_config.json.
-    pause
-    exit /b 1
+echo        Supported clients: Claude Desktop, Claude Code, Codex and Gemini.
+echo        Existing client settings are backed up and preserved.
+set "CLIENT_CHECK_ARGS="
+set /p REGISTER_CLIENTS="        Register detected clients? [Y/n] : "
+if /i "!REGISTER_CLIENTS!"=="n" (
+    echo [OK]   Client registration skipped by user.
+    set "CLIENT_CHECK_ARGS=--clients none"
+) else (
+    "!PYTHON_EXE!" "%CORTEX_DIR%\setup_config.py" --python "!PYTHON_EXE!"
+    if errorlevel 1 (
+        echo.
+        echo [FAIL] Could not register Cortex with the selected clients.
+        pause
+        exit /b 1
+    )
 )
 echo.
 
@@ -161,7 +170,7 @@ echo.
 echo [6/6] Validating installation...
 echo.
 
-"!PYTHON_EXE!" "%CORTEX_DIR%\setup_config.py" --python "!PYTHON_EXE!" --check
+"!PYTHON_EXE!" "%CORTEX_DIR%\setup_config.py" --python "!PYTHON_EXE!" --check !CLIENT_CHECK_ARGS!
 if errorlevel 1 (
     echo.
     echo [WARN] Validation reported issues — see above.
@@ -174,9 +183,9 @@ echo ============================================================
 echo   Cortex is installed!
 echo.
 echo   Next steps:
-echo     1. Restart the Claude desktop app
+echo     1. Restart the AI clients registered above
 echo     2. Run sync.bat to index your knowledge base
-echo        (or use the cortex_sync tool inside Claude)
+echo        (or use the cortex_sync tool inside an MCP client)
 echo ============================================================
 echo.
 pause

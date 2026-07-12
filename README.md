@@ -1,6 +1,6 @@
 # Cortex — RAG MCP pour base de connaissance Confluence
 
-Cortex est un serveur MCP (Model Context Protocol) qui expose une recherche sémantique sur une base de connaissance exportée depuis Confluence. Il permet à Claude d'interroger la documentation interne sans consommer de fenêtre de contexte.
+Cortex est un serveur MCP (Model Context Protocol) qui expose une recherche sémantique sur une base de connaissance locale. Il permet à Claude, Codex et Gemini d'interroger la documentation interne sans consommer inutilement leur fenêtre de contexte.
 
 ---
 
@@ -19,7 +19,7 @@ kb_path (TOML/env)      ← Export Confluence (fichiers .md)
   server.py             ← Serveur MCP (FastMCP)
       │
       ▼
-  Claude desktop app    ← recherche / sync / sections / fraîcheur
+  Clients MCP           ← Claude / Codex / Gemini
 ```
 
 La recherche est **sémantique** (par sens, pas par mot-clé) grâce au modèle ONNX multilingue `paraphrase-multilingual-MiniLM-L12-v2`. Les requêtes en **français et en anglais** fonctionnent.
@@ -38,19 +38,59 @@ Le script est **portable** : il fonctionne quel que soit l'emplacement où vous 
 1. Détecte Python 3 dans le PATH
 2. Initialise `%APPDATA%\Cortex\config.toml` sans écraser une configuration existante.
 3. Installe / met à jour les dépendances pip
-4. Injecte l'entrée `cortex` dans `claude_desktop_config.json`
+4. Propose d'enregistrer Cortex dans les clients MCP détectés
 5. Propose de vider la base vectorielle (utile si le modèle change)
 6. Valide l'installation
 
-Après l'installation : **redémarrer l'application Claude desktop**.
+Après l'installation : **redémarrer les clients enregistrés**.
 
 ### Prérequis
 
 | Outil | Version minimale |
 |---|---|
 | Python | 3.10+ |
-| Claude desktop app | toute version supportant les MCP |
+| Client | Claude Desktop/Code, Codex ou Gemini avec support MCP |
 | Espace disque | ~500 Mo (modèle + index) |
+
+### Connecter Claude / Codex / Gemini
+
+`setup_config.py` détecte les clients installés, affiche un récapitulatif puis
+enregistre le serveur MCP `cortex`. Une configuration JSON ou TOML invalide
+fait échouer l'opération avant toute écriture. Chaque fichier modifié reçoit
+une sauvegarde horodatée et est remplacé atomiquement ; les autres réglages et
+serveurs MCP sont conservés.
+
+| Client | Configuration utilisateur | Entrée Cortex |
+|---|---|---|
+| Claude Desktop | `%APPDATA%\Claude\claude_desktop_config.json` | `mcpServers.cortex` |
+| Claude Code | Gérée par `claude mcp add --scope user` | jamais écrite directement par Cortex |
+| Codex CLI et extension IDE | `~/.codex/config.toml` | `[mcp_servers.cortex]` |
+| Gemini CLI et Gemini Code Assist (mode agent VS Code) | `~/.gemini/settings.json` | `mcpServers.cortex` |
+
+Ces emplacements et formats suivent les documentations officielles de
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code/mcp),
+[Codex](https://developers.openai.com/codex/mcp/),
+[Gemini CLI](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html)
+et [Gemini Code Assist](https://docs.cloud.google.com/gemini/docs/codeassist/use-agentic-chat-pair-programmer).
+
+```powershell
+# Tous les clients détectés (comportement par défaut)
+python setup_config.py
+
+# Toutes les cibles connues ; les clients absents sont signalés SKIP
+python setup_config.py --clients all
+
+# Sélection explicite
+python setup_config.py --clients claude-desktop,codex,gemini
+
+# Validation sans écriture : entrée, exécutable Python et server.py
+python setup_config.py --check --clients all
+```
+
+Chaque client lance son propre processus `server.py`, soit environ 150 Mo de
+RAM par client actif. Les lectures simultanées sont sûres. Toutes les écritures
+sur l'index sont sérialisées entre processus par le write lock Cortex déjà
+testé en conditions multi-processus.
 
 ---
 
@@ -67,7 +107,7 @@ Après l'installation : **redémarrer l'application Claude desktop**.
 ├── server.py          ← Serveur MCP FastMCP (4 outils Cortex)
 ├── sync.bat           ← Lance le sync section par section (portable, %~dp0)
 ├── install.bat        ← Installation / réinstallation en un clic (portable)
-├── setup_config.py    ← Helper : patch claude_desktop_config.json + validation
+├── setup_config.py    ← Enregistrement multi-client sûr + validation
 ├── requirements.txt   ← Dépendances pip
 ├── conftest.py        ← Bootstrap pytest (sys.path)
 ├── tests\             ← Tests unitaires (chunker) + intégration (search)
@@ -174,7 +214,7 @@ fichiers supprimés, vidés ou devenus exclus sont retirés de l'index.
 python indexer.py operations
 ```
 
-### Depuis Claude (via MCP)
+### Depuis un client MCP
 
 ```
 cortex_sync                    # toutes les sections
@@ -183,9 +223,9 @@ cortex_sync section="operations"  # une seule section
 
 ### Repartir de zéro (modèle changé, index corrompu)
 
-1. Quitter l'application Claude desktop
+1. Quitter tous les clients MCP connectés à Cortex
 2. Supprimer le dossier `chroma_db\` (à côté du code)
-3. Relancer Claude desktop
+3. Relancer les clients MCP
 4. Lancer `sync.bat`
 
 ### Écriture concurrente (single-writer) - protocole manuel retiré
@@ -227,9 +267,9 @@ automatiquement, pas de deadlock permanent. Configurable via
 
 ## Recherche
 
-### Depuis Claude
+### Depuis un client MCP
 
-Claude appelle automatiquement `cortex_search` quand une question porte sur la documentation interne. Il est aussi possible de le demander explicitement :
+Le client peut appeler automatiquement `cortex_search` quand une question porte sur la documentation interne. Il est aussi possible de le demander explicitement :
 
 > *« Cherche dans Cortex comment configurer les alertes Zabbix »*
 
@@ -248,7 +288,7 @@ python indexer.py --search "OSCARE" --top-k 10
 
 ---
 
-## Outils MCP exposés à Claude
+## Outils MCP exposés aux clients
 
 | Outil | Description |
 |---|---|
@@ -305,7 +345,7 @@ machine n'est codée dans les sources :
 
 - `config.py` dérive `CHROMA_PATH` de `Path(__file__).parent` → la base vectorielle vit toujours à côté du code.
 - `install.bat` et `sync.bat` utilisent `%~dp0` → ils trouvent eux-mêmes leur dossier d'exécution.
-- `setup_config.py` détecte sa propre localisation pour patcher `claude_desktop_config.json`.
+- `setup_config.py` détecte sa propre localisation pour enregistrer le serveur dans chaque client.
 - `%APPDATA%\Cortex\config.toml` sépare les choix utilisateur du code livré.
 
 Conséquence : tu peux cloner Cortex dans n'importe quel dossier sur n'importe quelle machine, lancer `install.bat`, et c'est opérationnel.
@@ -348,5 +388,6 @@ python setup_config.py --check
 ```
 
 Vérifie : Python accessible · packages importables · configuration utilisateur
-valide · entrée `cortex` présente dans `claude_desktop_config.json` avec des
-chemins valides.
+valide · entrée `cortex` présente pour chaque client sélectionné · exécutable
+Python et `server.py` accessibles. La sortie est qualifiée par client avec
+`[OK]`, `[SKIP not installed]` ou `[FAIL]`.

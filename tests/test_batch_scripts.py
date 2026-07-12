@@ -58,3 +58,12 @@ def test_installer_initializes_missing_user_config() -> None:
 
     assert 'if not exist "!CORTEX_CONFIG_FILE!"' in script
     assert 'setup_config.py" --init' in script
+
+
+def test_installer_proposes_detected_client_registration() -> None:
+    script = INSTALL_BAT.read_text(encoding="utf-8")
+
+    assert "Register Cortex with detected AI clients?" in script
+    assert "Register detected clients? [Y/n]" in script
+    assert "Claude Desktop, Claude Code, Codex and Gemini" in script
+    assert 'set "CLIENT_CHECK_ARGS=--clients none"' in script
