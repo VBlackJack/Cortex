@@ -19,7 +19,7 @@ Cortex est un serveur MCP (Model Context Protocol) qui expose une recherche sém
   server.py             ← Serveur MCP (FastMCP)
       │
       ▼
-  Claude desktop app    ← cortex_search / cortex_sync
+  Claude desktop app    ← recherche / sync / sections / fraîcheur
 ```
 
 La recherche est **sémantique** (par sens, pas par mot-clé) grâce au modèle ONNX multilingue `paraphrase-multilingual-MiniLM-L12-v2`. Les requêtes en **français et en anglais** fonctionnent.
@@ -48,7 +48,7 @@ Après l'installation : **redémarrer l'application Claude desktop** *et* ouvrir
 
 | Outil | Version minimale |
 |---|---|
-| Python | 3.9+ |
+| Python | 3.10+ |
 | Claude desktop app | toute version supportant les MCP |
 | Espace disque | ~500 Mo (modèle + index) |
 
@@ -63,7 +63,7 @@ Après l'installation : **redémarrer l'application Claude desktop** *et* ouvrir
 ├── chunker_pdf.py     ← Découpe les .pdf en chunks (pdfplumber + taille fixe)
 ├── chunker_utils.py   ← Fonctions partagées (hash, split, paths)
 ├── indexer.py         ← Sync incrémentale vers ChromaDB
-├── server.py          ← Serveur MCP FastMCP (cortex_search, cortex_sync, cortex_list_sections)
+├── server.py          ← Serveur MCP FastMCP (4 outils Cortex)
 ├── sync.bat           ← Lance le sync section par section (portable, %~dp0)
 ├── install.bat        ← Installation / réinstallation en un clic (portable)
 ├── setup_config.py    ← Helper : patch claude_desktop_config.json + validation
@@ -101,7 +101,8 @@ COLLECTION_NAME = "cortex"
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 CHUNK_SIZE      = 512   # taille max d'un chunk en caractères (~145 tokens FR)
 CHUNK_OVERLAP   = 64    # chevauchement entre chunks
-EXCLUDE_DIRS    = {"_attachments", "zzz_Corbeille"}
+INCLUDED_SECTIONS = {"knowledge", "operations", "projects", "sources", "_memory", "_drafts"}
+EXCLUDED_DIRS = {".datacron", "_archive", "_trash", "_attachments", "zzz_Corbeille", "_inbox", "_journal"}
 EXCLUDE_FILES   = {"00_INDEX.md"}
 ```
 
@@ -110,16 +111,22 @@ EXCLUDE_FILES   = {"00_INDEX.md"}
 
 ### Sections
 
-Les sections sont **auto-découvertes** : `config.py` contient une liste `KNOWN_SECTIONS` qui sert de base, mais tout sous-dossier supplémentaire de `CORTEX_KB_PATH` est aussi détecté automatiquement. La validation de section dans les outils MCP est **case-insensitive** (`zabbix` → `Zabbix`).
+Les sections indexables sont définies par l'allowlist `INCLUDED_SECTIONS` de
+`config.py`. Un dossier de premier niveau absent de l'allowlist et de la
+denylist n'est jamais indexé automatiquement : `cortex_list_sections` le
+signale comme « out of policy » jusqu'à une décision explicite. La validation
+MCP est case-insensitive (`KNOWLEDGE` → `knowledge`).
 
 Depuis Claude, l'outil MCP `cortex_list_sections` liste toutes les sections disponibles.
 
 ### Ajouter une nouvelle section Confluence
 
-1. Exporter la section depuis Confluence vers `%CORTEX_KB_PATH%\<NomSection>\`
-2. Lancer `sync.bat` (ou `cortex_sync` depuis Claude)
+1. Exporter la section depuis Confluence vers `%CORTEX_KB_PATH%\<NomSection>\`.
+2. Ajouter son nom à `INCLUDED_SECTIONS` dans `config.py`.
+3. Lancer `sync.bat` (ou `cortex_sync` depuis Claude).
 
-C'est tout — pas besoin de modifier le code, la nouvelle section est détectée automatiquement.
+Sans cet opt-in, le dossier reste visible comme « out of policy » mais n'est
+jamais envoyé au modèle d'embedding.
 
 ---
 
@@ -132,19 +139,21 @@ C'est tout — pas besoin de modifier le code, la nouvelle section est détecté
 sync.bat
 ```
 
-Le sync est **incrémental** : seuls les fichiers nouveaux ou modifiés (détectés par hash MD5) sont retraités. Les fichiers supprimés sont retirés de l'index.
+Le sync est **incrémental** : seuls les fichiers nouveaux ou modifiés
+(détectés par SHA-256 et version du contrat de chunking) sont retraités. Les
+fichiers supprimés, vidés ou devenus exclus sont retirés de l'index.
 
 ### Sync d'une seule section
 
 ```powershell
-python indexer.py Zabbix
+python indexer.py operations
 ```
 
 ### Depuis Claude (via MCP)
 
 ```
 cortex_sync                    # toutes les sections
-cortex_sync section="Zabbix"  # une seule section
+cortex_sync section="operations"  # une seule section
 ```
 
 ### Repartir de zéro (modèle changé, index corrompu)
@@ -206,7 +215,7 @@ Claude appelle automatiquement `cortex_search` quand une question porte sur la d
 python indexer.py --search "alertes zabbix"
 
 # Recherche dans une section (la section est positionnelle)
-python indexer.py Ansible --search "deploy ansible"
+python indexer.py knowledge --search "procédure de déploiement"
 
 # Nombre de résultats
 python indexer.py --search "OSCARE" --top-k 10
@@ -220,7 +229,8 @@ python indexer.py --search "OSCARE" --top-k 10
 |---|---|
 | `cortex_search` | Recherche sémantique. Paramètres : `query`, `section` (optionnel), `top_k` (1-10) |
 | `cortex_sync` | Déclenche un sync incrémental. Paramètre : `section` (optionnel) |
-| `cortex_list_sections` | Liste les sections détectées sous `CORTEX_KB_PATH` |
+| `cortex_list_sections` | Liste les sections incluses et les dossiers « out of policy » |
+| `cortex_freshness` | Résumé de fraîcheur par défaut. Paramètres : `section` (optionnel), `include_entries` (`false` par défaut) |
 
 ---
 
@@ -247,7 +257,9 @@ Chaque section est un processus Python indépendant dans `sync.bat`. Cela limite
 
 ### Pourquoi l'index incrémental est scopé par section ?
 
-Sans scoping, un sync de la section `Zabbix` voyait les fichiers d'`Ansible` comme « supprimés » et les effaçait. Le hash comparison et les suppressions sont maintenant limités à la section en cours.
+Sans scoping, un sync de la section `operations` pouvait voir les fichiers de
+`knowledge` comme « supprimés » et les effacer. La comparaison et les
+suppressions sont maintenant limitées à la section en cours.
 
 ### Pourquoi 512 caractères par chunk ?
 
@@ -255,11 +267,16 @@ Le modèle `paraphrase-multilingual-MiniLM-L12-v2` tronque toute entrée à **12
 
 ### Pourquoi les chemins en metadata sont relatifs ?
 
-Le `path` stocké dans chaque chunk est relatif à `CORTEX_KB_PATH` (ex. `Zabbix\Zabbix - Architecture.md`). Cela rend l'index portable d'une machine à l'autre tant que l'arborescence sous le KB est identique, et c'est aussi la clé utilisée pour le diff incrémental dans `sync()`.
+Le `path` stocké dans chaque chunk est relatif à `CORTEX_KB_PATH` (ex.
+`operations/architecture.md`). Cela rend l'index portable d'une machine à
+l'autre tant que l'arborescence sous le KB est identique, et sert aussi à la
+réconciliation incrémentale.
 
 ### Pourquoi tout est portable ?
 
-Aucun chemin absolu n'est codé en dur dans le projet :
+Les chemins d'installation sont portables. `CORTEX_KB_PATH` reste configurable
+par environnement, avec le fallback historique absolu `G:\_DATA` si la variable
+n'est pas définie :
 
 - `config.py` dérive `CHROMA_PATH` de `Path(__file__).parent` → la base vectorielle vit toujours à côté du code.
 - `install.bat` et `sync.bat` utilisent `%~dp0` → ils trouvent eux-mêmes leur dossier d'exécution.
@@ -273,12 +290,12 @@ Conséquence : tu peux cloner Cortex dans n'importe quel dossier sur n'importe q
 ## Dépendances
 
 ```
-mcp[cli]       ← Framework MCP (FastMCP)
-chromadb       ← Base vectorielle locale
-fastembed      ← Embeddings ONNX sans PyTorch
-pydantic       ← Validation des paramètres MCP
-pdfplumber     ← Extraction texte des PDFs natifs
-pytest         ← Tests unitaires (dev only)
+mcp[cli]==1.27.0
+chromadb==1.5.7
+fastembed==0.8.0
+pydantic==2.12.5
+pdfplumber==0.11.9
+filelock==3.25.2
 ```
 
 Installer / mettre à jour :

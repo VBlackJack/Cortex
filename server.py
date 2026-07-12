@@ -5,10 +5,11 @@
 
 """
 server.py — Cortex MCP server
-Exposes three tools to Claude:
+Exposes four tools to Claude:
   - cortex_search         : semantic search in the knowledge base
   - cortex_sync           : incremental sync of the knowledge base
   - cortex_list_sections  : list available sections
+  - cortex_freshness      : read-only index freshness summary/details
 """
 
 import os
@@ -137,8 +138,8 @@ def cortex_sync(section: Optional[str] = None) -> str:
     """
     Trigger an incremental sync of the knowledge base index.
     If section is provided, only that section is synced.
-    Sections are auto-discovered from the knowledge base root — use
-    cortex_list_sections to see what is available.
+    Sections are selected by the configured allowlist — use
+    cortex_list_sections to see included and out-of-policy directories.
     Returns file/chunk publication, removal, skip and error counters.
     """
     section, err = _resolve_section(section)
@@ -173,8 +174,7 @@ def cortex_sync(section: Optional[str] = None) -> str:
 @mcp.tool()
 def cortex_list_sections() -> str:
     """
-    List all sections currently available in the knowledge base.
-    A section is a first-level directory under the knowledge base root.
+    List included sections and first-level directories requiring policy opt-in.
     Use this when the user asks what sections exist, or before calling
     cortex_search/cortex_sync with a section filter.
     """
