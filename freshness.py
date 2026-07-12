@@ -61,6 +61,7 @@ def cortex_freshness_report(
     collection: Any,
     section: str | None = None,
     include_entries: bool = True,
+    emit_log: bool = True,
 ) -> dict[str, Any]:
     """Compare live sources with index metadata without writing either system."""
     started = perf_counter()
@@ -78,6 +79,7 @@ def cortex_freshness_report(
             started,
             scope_error="KB_PATH is not a directory",
             include_entries=include_entries,
+            emit_log=emit_log,
         )
 
     for excluded in _discover_excluded(root, section):
@@ -111,6 +113,7 @@ def cortex_freshness_report(
         started,
         out_of_policy_dirs=out_of_policy,
         include_entries=include_entries,
+        emit_log=emit_log,
     )
 
 
@@ -302,6 +305,7 @@ def _report(
     scope_error: str | None = None,
     out_of_policy_dirs: list[str] | None = None,
     include_entries: bool = True,
+    emit_log: bool = True,
 ) -> dict[str, Any]:
     entries.sort(key=lambda item: item["path"])
     summary: dict[str, int] = defaultdict(int)
@@ -324,9 +328,10 @@ def _report(
         report["entries"] = entries
     if scope_error:
         report["error"] = scope_error
-    _LOG.info(
-        "freshness_report section_entries=%d summary=%s",
-        len(entries),
-        report["summary"],
-    )
+    if emit_log:
+        _LOG.info(
+            "freshness_report section_entries=%d summary=%s",
+            len(entries),
+            report["summary"],
+        )
     return report

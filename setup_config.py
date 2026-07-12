@@ -40,23 +40,13 @@ from data_home import (
     migration_state,
     move_legacy_index,
 )
+from dependencies import REQUIRED_PACKAGES
 
 logger = logging.getLogger("cortex.setup")
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 SERVER_PY = SCRIPT_DIR / "server.py"
 CORTEX_CONFIG_PATH = user_config_path()
-REQUIRED_PACKAGES = [
-    "mcp",
-    "chromadb",
-    "fastembed",
-    "pydantic",
-    "pdfplumber",
-    "filelock",
-]
-if sys.version_info < (3, 11):
-    REQUIRED_PACKAGES.append("tomli")
-
 CLIENT_NAMES = ("claude-desktop", "claude-code", "codex", "gemini")
 _TABLE_HEADER_RE = re.compile(r"^\s*\[\s*([^\]]+)\s*\]\s*(?:#.*)?$")
 _TOML_ASSIGNMENT_RE = re.compile(r"^(\s*)(command|args)(\s*=).*$")
@@ -733,10 +723,33 @@ def main() -> None:
         action="store_true",
         help="Offer migration of a legacy repository-local Chroma index",
     )
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="Run layered strictly read-only support diagnostics",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the doctor report as stable JSON",
+    )
     args = parser.parse_args()
     python_exe = args.python or detect_python()
 
     try:
+        if args.json and not args.doctor:
+            parser.error("--json requires --doctor")
+        if args.doctor:
+            from doctor import default_context, render_json, render_text, run_doctor
+
+            context = default_context(
+                script_dir=SCRIPT_DIR,
+                config_path=CORTEX_CONFIG_PATH,
+                python_exe=python_exe,
+            )
+            report = run_doctor(context)
+            print(render_json(report) if args.json else render_text(report))
+            raise SystemExit(report["summary"]["exit_code"])
         if args.init:
             init_user_config()
             raise SystemExit(0)

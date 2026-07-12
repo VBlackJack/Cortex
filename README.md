@@ -428,6 +428,40 @@ Les tests unitaires (`tests/test_chunker.py`) tournent toujours. Les tests d'int
 
 ---
 
+## Cortex Doctor
+
+Le premier outil à lancer pour un diagnostic support est strictement
+**read-only** : il ne répare, ne crée et n'écrit rien, pas même un log
+applicatif. L'index est inspecté via SQLite `mode=ro&immutable=1` plutôt que par
+`PersistentClient`.
+
+```powershell
+# Rapport lisible à copier-coller
+python setup_config.py --doctor
+
+# Schéma JSON stable (schema_version = 1)
+python setup_config.py --doctor --json
+```
+
+Le rapport couvre Python et les dépendances, la configuration et `kb_path`,
+l'état de migration, le nombre de chunks, le fingerprint, la fraîcheur en mode
+summary, le write lock, les dernières erreurs de sync, puis chaque client par
+couches : binaire, extension VS Code éventuelle, entrée MCP, chemins et
+authentification. `UNKNOWN` signifie toujours « non sondable automatiquement »
+et fournit l'action manuelle à effectuer ; il n'est jamais présenté comme OK.
+
+Un seul handshake global lance réellement `server.py`, envoie MCP
+`initialize`, vérifie la réponse puis termine le processus avec un timeout de
+20 secondes. Le serveur utilise pour cette sonde un lifespan diagnostique qui
+n'ouvre pas Chroma — `PersistentClient` modifierait SQLite à la simple
+ouverture — puisque l'index a déjà été contrôlé séparément en lecture seule.
+
+Le code de sortie vaut `0` lorsqu'il n'existe aucun `[FAIL]`. Les statuts
+`[WARN]`, `[UNKNOWN]`, `[INFO]` et `[SKIP]` restent informatifs. Le lot 3'c
+exposera la même logique importable sous la commande `cortex doctor`.
+
+---
+
 ## Validation post-installation
 
 ```powershell

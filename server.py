@@ -45,6 +45,12 @@ _LOG = logging.getLogger("cortex.server")
 @asynccontextmanager
 async def app_lifespan(app):
     """Load the collection and warm up the embedding model before first request."""
+    if os.environ.get("CORTEX_DOCTOR_READ_ONLY") == "1":
+        # PersistentClient mutates SQLite even when only opened. Doctor checks
+        # index health separately through immutable read-only SQLite, so this
+        # real MCP initialize path must not open Chroma.
+        yield {"doctor_read_only": True}
+        return
     try:
         collection = get_collection()
     except (EmbeddingFingerprintMismatchError, CortexDataHomeError):
@@ -241,7 +247,8 @@ def cortex_freshness(
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    from cortex_logging import configure_logging
+    if os.environ.get("CORTEX_DOCTOR_READ_ONLY") != "1":
+        from cortex_logging import configure_logging
 
-    configure_logging()
+        configure_logging()
     mcp.run()
