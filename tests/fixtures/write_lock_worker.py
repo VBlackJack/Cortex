@@ -22,8 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import chromadb  # noqa: E402
-
+from chroma_client import create_persistent_client  # noqa: E402
 from write_lock import CortexWriteLockedError, chroma_write_lock  # noqa: E402
 
 
@@ -42,7 +41,7 @@ def main() -> None:
             lock_wait_seconds = time.perf_counter() - lock_started
             if hold_seconds:
                 time.sleep(hold_seconds)
-            client = chromadb.PersistentClient(path=db_path)
+            client = create_persistent_client(db_path)
             collection = client.get_or_create_collection(name="test")
             collection.upsert(
                 ids=[f"{tag}-{i}" for i in range(doc_count)],

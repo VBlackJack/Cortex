@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Iterator
 
 import filelock
@@ -51,6 +52,7 @@ def chroma_write_lock() -> Iterator[None]:
     not acquired within CORTEX_WRITE_LOCK_TIMEOUT_SECONDS. Never waits
     unbounded.
     """
+    Path(CORTEX_WRITE_LOCK_PATH).parent.mkdir(parents=True, exist_ok=True)
     try:
         with _LOCK.acquire(timeout=CORTEX_WRITE_LOCK_TIMEOUT_SECONDS):
             yield

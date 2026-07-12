@@ -13,6 +13,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from indexer import get_collection
+from config import CHROMA_PATH, LEGACY_CHROMA_PATH
+from cortex_logging import configure_logging
+from data_home import ensure_index_location
 from write_lock import chroma_write_lock
 
 REPORT = Path("local/b2-missing-report.json")
@@ -21,11 +24,14 @@ BATCH_SIZE = 500
 
 
 def main() -> None:
+    configure_logging()
     report = json.loads(REPORT.read_text(encoding="utf-8"))
     approved = {item["path"] for item in report["missing"]}
     completed = set()
     if CHECKPOINT.exists():
         completed = set(json.loads(CHECKPOINT.read_text(encoding="utf-8"))["completed"])
+
+    ensure_index_location(Path(LEGACY_CHROMA_PATH), Path(CHROMA_PATH))
 
     # Chroma write lock covers the read (collection.get) through the delete
     # loop: the read decides what to delete, so both must be inside the same

@@ -13,7 +13,7 @@ kb_path (TOML/env)      ← Export Confluence (fichiers .md)
   indexer.py            ← Découpe, hash, vectorise
       │
       ▼
-  chroma_db\            ← Base vectorielle locale (ChromaDB)
+  %LOCALAPPDATA%\Cortex\chroma_db\  ← Base vectorielle locale (ChromaDB)
       │
       ▼
   server.py             ← Serveur MCP (FastMCP)
@@ -111,7 +111,7 @@ testé en conditions multi-processus.
 ├── requirements.txt   ← Dépendances pip
 ├── conftest.py        ← Bootstrap pytest (sys.path)
 ├── tests\             ← Tests unitaires (chunker) + intégration (search)
-└── chroma_db\         ← Base vectorielle persistante (générée, ne pas commiter)
+└── chroma_db\         ← Ancien emplacement, migré vers le data home utilisateur
 ```
 
 ---
@@ -133,15 +133,22 @@ La configuration utilisateur vit dans `%APPDATA%\Cortex\config.toml` avec
 d'environnement historiques restent donc compatibles, mais `install.bat` ne
 les crée plus sur une nouvelle installation.
 
+Le lot data home étend volontairement le schéma v1 sans passage en v2 :
+`chroma_path` est une nouvelle clé **optionnelle**, donc tout fichier v1
+existant reste valide. Par défaut, la configuration légère reste roaming dans
+`%APPDATA%\Cortex`, tandis que l'index, le verrou et les logs volumineux vivent
+localement dans `%LOCALAPPDATA%\Cortex`.
+
 ```toml
 schema_version = 1
 kb_path = "D:\\Knowledge"
+chroma_path = "C:\\Users\\me\\AppData\\Local\\Cortex\\chroma_db"
 included_sections = ["knowledge", "operations", "projects", "sources", "_memory", "_drafts"]
 excluded_dirs = [".datacron", "_archive", "_trash", "_attachments", "zzz_Corbeille", "_inbox", "_journal"]
 exclude_files = ["00_INDEX.md"]
 max_markdown_file_size_bytes = 1000000
 max_pdf_size_bytes = 50000000
-write_lock_path = "D:\\Apps\\Cortex\\chroma_db.write.lock"
+write_lock_path = "C:\\Users\\me\\AppData\\Local\\Cortex\\chroma_db.write.lock"
 write_lock_timeout_seconds = 30
 ```
 
@@ -154,6 +161,28 @@ python setup_config.py --init
 `kb_path` est requis pour `cortex_sync` et `cortex_freshness`, sans valeur par
 défaut. La recherche continue de fonctionner sur l'index existant lorsqu'il
 est absent.
+
+`chroma_path` et `write_lock_path` peuvent être omis pour utiliser le data home
+local, ou définis explicitement pour un besoin d'exploitation particulier.
+
+### Migration de l'ancien index
+
+Si `chroma_db` existe encore à côté du code et que la cible du data home
+n'existe pas, `setup_config.py` propose son déplacement :
+
+```powershell
+python setup_config.py --migrate-data
+```
+
+Le déplacement utilise un renommage atomique et ne crée jamais de copie
+silencieuse. Si source et cible sont sur des volumes différents, Cortex refuse
+le fallback copie : fermer tous les clients, déplacer le dossier manuellement,
+ou configurer temporairement `chroma_path` sur le volume source. Si l'ancien et
+le nouvel index existent simultanément, Cortex refuse de choisir ou de les
+fusionner. Le fingerprint est contenu dans le dossier déplacé ; le write lock
+utilise le data home par défaut, tandis qu'une surcharge explicite existante
+reste strictement respectée. Pour rollback, fermer les clients et redéplacer
+le dossier dans l'autre sens.
 
 ### Paramètres dans `config.py`
 
@@ -224,7 +253,7 @@ cortex_sync section="operations"  # une seule section
 ### Repartir de zéro (modèle changé, index corrompu)
 
 1. Quitter tous les clients MCP connectés à Cortex
-2. Supprimer le dossier `chroma_db\` (à côté du code)
+2. Supprimer le dossier `%LOCALAPPDATA%\Cortex\chroma_db\` (ou le `chroma_path` configuré)
 3. Relancer les clients MCP
 4. Lancer `sync.bat`
 
@@ -262,6 +291,14 @@ verrou ; écrivain tué brutalement (crash simulé) -> verrou libéré
 automatiquement, pas de deadlock permanent. Configurable via
 `CORTEX_WRITE_LOCK_PATH` et `CORTEX_WRITE_LOCK_TIMEOUT_SECONDS`
 (`config.toml`, 30s par défaut).
+
+### Logs locaux bornés
+
+Chaque processus Cortex conserve la sortie stderr attendue par les clients MCP
+et écrit en plus dans `%LOCALAPPDATA%\Cortex\logs\cortex.log`. La rotation est
+bornée à 5 Mo par fichier et 5 sauvegardes. Les logs ne contiennent jamais le
+texte des documents ou des chunks : uniquement chemins, statuts, erreurs et
+compteurs opérationnels.
 
 ---
 
@@ -305,6 +342,16 @@ python indexer.py --search "OSCARE" --top-k 10
 
 PyTorch + sentence-transformers détectait le GPU pendant l'initialisation et causait un **BSOD (dxgkrnl.sys)**. Le modèle ONNX via `fastembed` tourne entièrement sur CPU, utilise ~150 Mo de RAM, et ne touche pas au GPU.
 
+### Aucun flux sortant de données
+
+Tous les clients Chroma sont construits avec
+`Settings(anonymized_telemetry=False)` : aucune télémétrie Chroma/PostHog n'est
+émise. L'indexation et la recherche n'initient aucun flux réseau sortant depuis
+Cortex. Les clients MCP restent des produits distincts : selon leur politique,
+ils peuvent transmettre au modèle les résultats d'outils qu'ils ont demandés.
+L'installation des dépendances et le premier téléchargement du modèle restent
+naturellement des opérations réseau, sans transmission du contenu de la base.
+
 ### Pourquoi un fingerprint d'embedding ?
 
 L'index et les requêtes doivent utiliser exactement le même espace vectoriel.
@@ -343,10 +390,10 @@ Les chemins d'installation sont portables. `kb_path` est fourni par la
 configuration utilisateur ou `CORTEX_KB_PATH` ; aucune valeur propre à une
 machine n'est codée dans les sources :
 
-- `config.py` dérive `CHROMA_PATH` de `Path(__file__).parent` → la base vectorielle vit toujours à côté du code.
+- `config.py` résout `CHROMA_PATH` vers `%LOCALAPPDATA%\Cortex\chroma_db` ou la surcharge utilisateur.
 - `install.bat` et `sync.bat` utilisent `%~dp0` → ils trouvent eux-mêmes leur dossier d'exécution.
 - `setup_config.py` détecte sa propre localisation pour enregistrer le serveur dans chaque client.
-- `%APPDATA%\Cortex\config.toml` sépare les choix utilisateur du code livré.
+- `%APPDATA%\Cortex\config.toml` sépare les choix roaming du code livré ; `%LOCALAPPDATA%\Cortex` contient les données propres au poste.
 
 Conséquence : tu peux cloner Cortex dans n'importe quel dossier sur n'importe quelle machine, lancer `install.bat`, et c'est opérationnel.
 
@@ -377,7 +424,7 @@ python -m pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-Les tests unitaires (`tests/test_chunker.py`) tournent toujours. Les tests d'intégration (`tests/test_search.py`) sont automatiquement skippés si `chroma_db/` n'existe pas encore.
+Les tests unitaires (`tests/test_chunker.py`) tournent toujours. Les tests d'intégration (`tests/test_search.py`) sont automatiquement skippés si le `chroma_path` résolu n'existe pas encore.
 
 ---
 
@@ -388,6 +435,7 @@ python setup_config.py --check
 ```
 
 Vérifie : Python accessible · packages importables · configuration utilisateur
-valide · entrée `cortex` présente pour chaque client sélectionné · exécutable
-Python et `server.py` accessibles. La sortie est qualifiée par client avec
-`[OK]`, `[SKIP not installed]` ou `[FAIL]`.
+valide · emplacement d'index unique ou migration requise · entrée `cortex`
+présente pour chaque client sélectionné · exécutable Python et `server.py`
+accessibles. La sortie est qualifiée par client avec `[OK]`,
+`[SKIP not installed]` ou `[FAIL]`.

@@ -91,6 +91,7 @@ def test_sync_excludes_datacron_via_is_excluded_path(
 
     monkeypatch.setattr(indexer, "KB_PATH", str(root))
     monkeypatch.setattr(indexer, "CHROMA_PATH", str(chroma_path))
+    monkeypatch.setattr(indexer, "LEGACY_CHROMA_PATH", str(chroma_path))
 
     stats = indexer._sync_locked(section=".datacron", verbose=False)
 

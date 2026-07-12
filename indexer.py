@@ -17,7 +17,7 @@ import warnings
 import argparse
 from pathlib import Path
 
-log = logging.getLogger("cortex")
+log = logging.getLogger("cortex.indexer")
 
 # Force CPU-only - avoid GPU driver crashes
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -34,14 +34,17 @@ from config import (  # noqa: E402
     CHROMA_PATH,
     EMBEDDING_MODEL,
     INCLUDED_SECTIONS,
+    LEGACY_CHROMA_PATH,
     SEARCH_TOP_K_MAX,
     SEARCH_TOP_K_MIN,
     require_kb_path,
 )
+from chroma_client import create_persistent_client  # noqa: E402
 from chunker_utils import (  # noqa: E402
     discover_out_of_policy_dirs,
 )
 from embedding_fingerprint import get_validated_collection  # noqa: E402
+from data_home import ensure_index_location  # noqa: E402
 from sync_hash_aware import empty_sync_stats, merge_sync_stats, sync_section  # noqa: E402
 from write_lock import chroma_write_lock  # noqa: E402
 
@@ -97,7 +100,8 @@ def get_embedding_function() -> FastEmbedFunction:
 
 
 def get_client() -> chromadb.PersistentClient:
-    return chromadb.PersistentClient(path=CHROMA_PATH)
+    ensure_index_location(Path(LEGACY_CHROMA_PATH), Path(CHROMA_PATH))
+    return create_persistent_client(CHROMA_PATH)
 
 
 def get_collection(client=None):
@@ -141,6 +145,7 @@ def sync(section: str = None, verbose: bool = True) -> dict:
     write_lock.chroma_write_lock(). Raises CortexWriteLockedError, without
     writing anything, if another writer already holds it.
     """
+    ensure_index_location(Path(LEGACY_CHROMA_PATH), Path(CHROMA_PATH))
     with chroma_write_lock():
         return _sync_locked(section, verbose)
 
@@ -223,11 +228,9 @@ def search(query: str, section: str = None, top_k: int = 5) -> list[dict]:
 # ── CLI entry point ───────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    from cortex_logging import configure_logging
+
+    configure_logging()
 
     parser = argparse.ArgumentParser(description="Cortex indexer")
     parser.add_argument(

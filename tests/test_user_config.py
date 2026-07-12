@@ -30,6 +30,7 @@ def test_environment_overrides_file_and_file_overrides_defaults(tmp_path: Path) 
         path,
         """
 kb_path = "from-file"
+chroma_path = "file-chroma"
 included_sections = ["custom"]
 excluded_dirs = ["archive"]
 exclude_files = ["index.md"]
@@ -52,6 +53,7 @@ write_lock_timeout_seconds = 7
     )
 
     assert config.kb_path == "from-env"
+    assert config.chroma_path == "file-chroma"
     assert config.included_sections == frozenset({"custom"})
     assert config.excluded_dirs == frozenset({"archive"})
     assert config.exclude_files == frozenset({"index.md"})
@@ -65,16 +67,29 @@ def test_env_only_without_file_is_valid(tmp_path: Path) -> None:
     config = load_user_config(
         path=tmp_path / "missing.toml",
         script_dir=tmp_path,
-        environ={"CORTEX_KB_PATH": "env-only"},
+        environ={
+            "CORTEX_KB_PATH": "env-only",
+            "LOCALAPPDATA": str(tmp_path / "local"),
+        },
     )
 
     assert require_kb_path(config.kb_path) == "env-only"
+    assert config.chroma_path == str(tmp_path / "local" / "Cortex" / "chroma_db")
+    assert config.write_lock_path == str(
+        tmp_path / "local" / "Cortex" / "chroma_db.write.lock"
+    )
     assert config.included_sections == user_config.DEFAULT_INCLUDED_SECTIONS
 
 
 def test_appdata_selects_per_user_config_path(tmp_path: Path) -> None:
     assert user_config.user_config_path({"APPDATA": str(tmp_path)}) == (
         tmp_path / "Cortex" / "config.toml"
+    )
+
+
+def test_localappdata_selects_non_roaming_data_home(tmp_path: Path) -> None:
+    assert user_config.local_data_home({"LOCALAPPDATA": str(tmp_path)}) == (
+        tmp_path / "Cortex"
     )
 
 

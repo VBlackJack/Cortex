@@ -33,6 +33,13 @@ from user_config import (
     user_config_path,
     write_user_config_atomic,
 )
+from data_home import (
+    CortexDataHomeError,
+    DataHomeConflictError,
+    ensure_index_location,
+    migration_state,
+    move_legacy_index,
+)
 
 logger = logging.getLogger("cortex.setup")
 
@@ -513,6 +520,48 @@ def init_user_config(
     return created
 
 
+def offer_legacy_data_migration(
+    *,
+    config_path: Path = CORTEX_CONFIG_PATH,
+    script_dir: Path = SCRIPT_DIR,
+    environ: Mapping[str, str] | None = None,
+    input_fn=input,
+) -> bool:
+    """Offer an explicit atomic move from the repository to the data home."""
+    config = load_user_config(
+        path=config_path,
+        environ=environ,
+        script_dir=script_dir,
+    )
+    legacy = Path(script_dir) / "chroma_db"
+    target = Path(config.chroma_path)
+    state = migration_state(legacy, target)
+    if state == "conflict":
+        raise DataHomeConflictError(
+            f"Both legacy index '{legacy}' and configured target '{target}' exist. "
+            "Migration aborted without changing either index."
+        )
+    if state != "required":
+        return False
+
+    print("\n=== Cortex data migration required ===")
+    print(f"  legacy index : {legacy}")
+    print(f"  data home    : {target}")
+    print("  action       : atomic move; no copy and no second active index")
+    answer = input_fn("Move the legacy index now? [y/N] : ").strip().lower()
+    if answer not in {"y", "yes"}:
+        print(
+            "[SKIP] Legacy index kept in place. Search and sync will refuse to "
+            "open a second index until migration is completed."
+        )
+        return False
+    moved = move_legacy_index(legacy, target)
+    if moved:
+        print(f"[OK] Moved Cortex index to {target}")
+        print(f"     Rollback: close all Cortex clients and move it back to {legacy}")
+    return moved
+
+
 def check_python(python_exe: str) -> bool:
     try:
         result = subprocess.run(
@@ -553,11 +602,17 @@ def check_user_config() -> bool:
     try:
         config = load_user_config(path=CORTEX_CONFIG_PATH, script_dir=SCRIPT_DIR)
         kb_path = require_kb_path(config.kb_path, config_path=CORTEX_CONFIG_PATH)
-    except CortexConfigError as exc:
+        ensure_index_location(
+            SCRIPT_DIR / "chroma_db",
+            Path(config.chroma_path),
+        )
+    except (CortexConfigError, CortexDataHomeError) as exc:
         print(f"[FAIL] Cortex user config: {exc}")
         return False
     print(f"[OK] Cortex user config: {CORTEX_CONFIG_PATH}")
     print(f"     kb_path: {kb_path}")
+    print(f"     chroma_path: {config.chroma_path}")
+    print(f"     write_lock_path: {config.write_lock_path}")
     return True
 
 
@@ -673,6 +728,11 @@ def main() -> None:
     parser.add_argument(
         "--init", action="store_true", help="Create per-user Cortex config"
     )
+    parser.add_argument(
+        "--migrate-data",
+        action="store_true",
+        help="Offer migration of a legacy repository-local Chroma index",
+    )
     args = parser.parse_args()
     python_exe = args.python or detect_python()
 
@@ -680,11 +740,15 @@ def main() -> None:
         if args.init:
             init_user_config()
             raise SystemExit(0)
+        if args.migrate_data:
+            offer_legacy_data_migration()
+            raise SystemExit(0)
         if args.check:
             raise SystemExit(run_check(python_exe, clients=args.clients))
+        offer_legacy_data_migration()
         results = register_clients(python_exe, clients=args.clients)
         raise SystemExit(0 if all(result.successful for result in results) else 1)
-    except (ClientConfigError, CortexConfigError) as exc:
+    except (ClientConfigError, CortexConfigError, CortexDataHomeError) as exc:
         print(f"[FAIL] {exc}")
         raise SystemExit(1) from exc
 

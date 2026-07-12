@@ -21,9 +21,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import chromadb
-
-from config import CHROMA_PATH
+from chroma_client import create_persistent_client
+from config import CHROMA_PATH, LEGACY_CHROMA_PATH
+from cortex_logging import configure_logging
+from data_home import ensure_index_location
 from indexer import get_collection
 from write_lock import chroma_write_lock
 
@@ -58,8 +59,10 @@ def _load_rows(sqlite_path: Path) -> list[dict]:
 
 
 def main() -> None:
+    configure_logging()
     source_sqlite = Path(CHROMA_PATH) / "chroma.sqlite3"
     rebuild_path = Path(CHROMA_PATH).parent / "chroma_db_rebuild"
+    ensure_index_location(Path(LEGACY_CHROMA_PATH), Path(CHROMA_PATH))
 
     # Chroma write lock covers the raw sqlite3 read of the LIVE db through
     # the upsert into the rebuild target: a concurrent live writer could
@@ -74,7 +77,7 @@ def main() -> None:
         if missing_doc:
             raise RuntimeError(f"{len(missing_doc)} rows have no document text, e.g. {missing_doc[:5]}")
 
-        client = chromadb.PersistentClient(path=str(rebuild_path))
+        client = create_persistent_client(rebuild_path)
         collection = get_collection(client)
 
         print("[upsert] publishing into fresh collection ...", flush=True)

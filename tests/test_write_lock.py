@@ -17,6 +17,8 @@ import sys
 import time
 from pathlib import Path
 
+from chroma_client import create_persistent_client
+
 WORKER = Path(__file__).parent / "fixtures" / "write_lock_worker.py"
 
 
@@ -81,8 +83,7 @@ def test_concurrent_writers_exactly_one_succeeds(tmp_path: Path) -> None:
     assert ok_count == 1
     assert locked_count == 1
 
-    import chromadb
-    client = chromadb.PersistentClient(path=str(db_path))
+    client = create_persistent_client(db_path)
     collection = client.get_or_create_collection(name="test")
     # exactly one writer's docs landed - never a partial mix from both
     assert collection.count() == 5
@@ -109,8 +110,7 @@ def test_respawn_simulation(tmp_path: Path) -> None:
     assert out_a.strip().splitlines()[-1].startswith("OK")
     assert result_b.stdout.strip().splitlines()[-1].startswith("LOCKED")
 
-    import chromadb
-    client = chromadb.PersistentClient(path=str(db_path))
+    client = create_persistent_client(db_path)
     collection = client.get_or_create_collection(name="test")
     assert collection.count() == 5  # only A's docs, B never wrote
 
@@ -133,9 +133,8 @@ def test_reads_during_write_not_blocked(tmp_path: Path) -> None:
     )
     time.sleep(0.5)  # writer is confirmed holding the lock by now
 
-    import chromadb
     t0 = time.perf_counter()
-    client = chromadb.PersistentClient(path=str(db_path))
+    client = create_persistent_client(db_path)
     collection = client.get_or_create_collection(name="test")
     count = collection.count()
     elapsed = time.perf_counter() - t0
@@ -170,7 +169,6 @@ def test_crash_staleness_auto_release(tmp_path: Path) -> None:
     lock_wait_seconds = float(outcome.split(":")[2])
     assert lock_wait_seconds < 0.5  # OS lock released promptly after hard kill
 
-    import chromadb
-    client = chromadb.PersistentClient(path=str(db_path))
+    client = create_persistent_client(db_path)
     collection = client.get_or_create_collection(name="test")
     assert collection.count() == 4  # victim never wrote anything (killed before its upsert)

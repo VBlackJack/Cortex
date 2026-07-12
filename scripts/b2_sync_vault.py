@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import INCLUDED_SECTIONS, KB_PATH, require_kb_path
+from cortex_logging import configure_logging
 from indexer import get_collection
 from sync_hash_aware import (
     SyncCheckpoint,
@@ -24,6 +25,7 @@ from write_lock import chroma_write_lock
 
 
 def main() -> None:
+    configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", default="local/b2-vault-checkpoint.json")
     parser.add_argument(

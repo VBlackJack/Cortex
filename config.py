@@ -6,7 +6,12 @@
 
 from pathlib import Path
 
-from user_config import CortexConfigError, load_user_config, require_kb_path
+from user_config import (
+    CortexConfigError,
+    load_user_config,
+    local_data_home,
+    require_kb_path,
+)
 
 _SCRIPT_DIR = Path(__file__).parent.resolve()
 _USER_CONFIG = load_user_config(script_dir=_SCRIPT_DIR)
@@ -14,6 +19,7 @@ _USER_CONFIG = load_user_config(script_dir=_SCRIPT_DIR)
 # Resolved per-user configuration. KB_PATH remains optional at import time so
 # the MCP server can search an existing index without source-vault access.
 KB_PATH = _USER_CONFIG.kb_path
+CHROMA_PATH = _USER_CONFIG.chroma_path
 INCLUDED_SECTIONS = _USER_CONFIG.included_sections
 EXCLUDED_DIRS = _USER_CONFIG.excluded_dirs
 EXCLUDE_FILES = _USER_CONFIG.exclude_files
@@ -21,10 +27,12 @@ MAX_MARKDOWN_FILE_SIZE_BYTES = _USER_CONFIG.max_markdown_file_size_bytes
 MAX_PDF_SIZE_BYTES = _USER_CONFIG.max_pdf_size_bytes
 CORTEX_WRITE_LOCK_PATH = _USER_CONFIG.write_lock_path
 CORTEX_WRITE_LOCK_TIMEOUT_SECONDS = _USER_CONFIG.write_lock_timeout_seconds
+CORTEX_DATA_HOME = str(local_data_home())
+CORTEX_LOG_DIR = str(Path(CORTEX_DATA_HOME) / "logs")
+LEGACY_CHROMA_PATH = str(_SCRIPT_DIR / "chroma_db")
 
 # Product contracts. Changing these values requires an explicit index contract
 # migration; they are intentionally not user-configurable.
-CHROMA_PATH = str(_SCRIPT_DIR / "chroma_db")
 COLLECTION_NAME = "cortex"
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 # Explicit contract: FastEmbed exposes no reliable pooling introspection.
@@ -47,12 +55,18 @@ FRESHNESS_CONTRACT_ID = "freshness-contract-v1"
 FRESHNESS_CONTRACT_VERSION = "v1"
 CHUNKING_CONTRACT_VERSION = "v1"
 
+LOG_FILE_NAME = "cortex.log"
+LOG_MAX_BYTES = 5_000_000
+LOG_BACKUP_COUNT = 5
+
 __all__ = [
     "CHROMA_PATH",
     "CHUNKING_CONTRACT_VERSION",
     "CHUNK_OVERLAP",
     "CHUNK_SIZE",
     "COLLECTION_NAME",
+    "CORTEX_DATA_HOME",
+    "CORTEX_LOG_DIR",
     "CORTEX_WRITE_LOCK_PATH",
     "CORTEX_WRITE_LOCK_TIMEOUT_SECONDS",
     "CortexConfigError",
@@ -67,6 +81,10 @@ __all__ = [
     "LEGACY_INDEX_EMBEDDING_MODEL",
     "LEGACY_INDEX_EMBEDDING_POOLING",
     "LEGACY_INDEX_FASTEMBED_VERSION",
+    "LEGACY_CHROMA_PATH",
+    "LOG_BACKUP_COUNT",
+    "LOG_FILE_NAME",
+    "LOG_MAX_BYTES",
     "MAX_MARKDOWN_FILE_SIZE_BYTES",
     "MAX_PDF_SIZE_BYTES",
     "SEARCH_TOP_K_MAX",

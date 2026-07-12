@@ -5,7 +5,7 @@
 
 """
 server.py — Cortex MCP server
-Exposes four tools to Claude:
+Exposes four tools to MCP clients:
   - cortex_search         : semantic search in the knowledge base
   - cortex_sync           : incremental sync of the knowledge base
   - cortex_list_sections  : list available sections
@@ -23,6 +23,7 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 from config import CortexConfigError
+from data_home import CortexDataHomeError
 from freshness import annotate_search_hits, cortex_freshness_report
 from embedding_fingerprint import EmbeddingFingerprintMismatchError
 from indexer import (
@@ -46,8 +47,8 @@ async def app_lifespan(app):
     """Load the collection and warm up the embedding model before first request."""
     try:
         collection = get_collection()
-    except EmbeddingFingerprintMismatchError:
-        _LOG.critical("server_start_refused_incompatible_embedding", exc_info=True)
+    except (EmbeddingFingerprintMismatchError, CortexDataHomeError):
+        _LOG.critical("server_start_refused_index_unavailable", exc_info=True)
         raise
     try:
         collection.query(query_texts=["warmup"], n_results=1)
@@ -102,6 +103,8 @@ def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> 
         hits = search(query=query, section=section, top_k=top_k)
     except EmbeddingFingerprintMismatchError as exc:
         return f"## Cortex search refused\n\n{exc}"
+    except CortexDataHomeError as exc:
+        return f"## Cortex data migration required\n\n{exc}"
     except CortexSearchError as exc:
         return f"## Cortex search error\n\n{exc}"
 
@@ -159,6 +162,8 @@ def cortex_sync(section: Optional[str] = None) -> str:
         return f"## Cortex sync configuration error\n\n{exc}"
     except EmbeddingFingerprintMismatchError as exc:
         return f"## Cortex sync refused\n\n{exc}"
+    except CortexDataHomeError as exc:
+        return f"## Cortex data migration required\n\n{exc}"
     except CortexWriteLockedError:
         return (
             "## Cortex sync locked\n\n"
@@ -221,7 +226,7 @@ def cortex_freshness(
         return {"error": err}
     try:
         collection = get_collection()
-    except EmbeddingFingerprintMismatchError as exc:
+    except (EmbeddingFingerprintMismatchError, CortexDataHomeError) as exc:
         return {"error": str(exc)}
     try:
         return cortex_freshness_report(
@@ -236,4 +241,7 @@ def cortex_freshness(
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    from cortex_logging import configure_logging
+
+    configure_logging()
     mcp.run()

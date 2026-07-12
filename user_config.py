@@ -41,6 +41,7 @@ DEFAULT_WRITE_LOCK_TIMEOUT_SECONDS = 30.0
 _ALLOWED_KEYS = {
     "schema_version",
     "kb_path",
+    "chroma_path",
     "included_sections",
     "excluded_dirs",
     "exclude_files",
@@ -61,6 +62,7 @@ class CortexUserConfig:
 
     schema_version: int
     kb_path: str | None
+    chroma_path: str
     included_sections: frozenset[str]
     excluded_dirs: frozenset[str]
     exclude_files: frozenset[str]
@@ -76,6 +78,22 @@ def user_config_path(environ: Mapping[str, str] | None = None) -> Path:
     appdata = values.get("APPDATA")
     base = Path(appdata) if appdata else Path.home() / ".config"
     return base / "Cortex" / "config.toml"
+
+
+def local_data_home(environ: Mapping[str, str] | None = None) -> Path:
+    """Return the non-roaming per-user home for Cortex's generated data."""
+    values = os.environ if environ is None else environ
+    local_appdata = values.get("LOCALAPPDATA")
+    if local_appdata:
+        return Path(local_appdata) / "Cortex"
+    user_profile = values.get("USERPROFILE")
+    if os.name == "nt" and user_profile:
+        return Path(user_profile) / "AppData" / "Local" / "Cortex"
+    xdg_data_home = values.get("XDG_DATA_HOME")
+    if xdg_data_home:
+        return Path(xdg_data_home) / "Cortex"
+    home = Path(values["HOME"]) if values.get("HOME") else Path.home()
+    return home / ".local" / "share" / "Cortex"
 
 
 def _error(message: str, path: Path) -> CortexConfigError:
@@ -189,11 +207,16 @@ def load_user_config(
     """Load strict TOML with environment > file > default precedence."""
     values = dict(os.environ if environ is None else environ)
     config_path = user_config_path(values) if path is None else Path(path)
-    install_dir = Path(__file__).parent.resolve() if script_dir is None else script_dir
     data = _read_toml(config_path)
+    data_home = local_data_home(values)
 
     kb_path = (
         _non_empty_string(data, "kb_path", config_path) if "kb_path" in data else None
+    )
+    chroma_path = (
+        _non_empty_string(data, "chroma_path", config_path)
+        if "chroma_path" in data
+        else str(data_home / "chroma_db")
     )
     included_sections = (
         _string_list(data, "included_sections", config_path)
@@ -220,11 +243,9 @@ def load_user_config(
         if "max_pdf_size_bytes" in data
         else DEFAULT_MAX_PDF_SIZE_BYTES
     )
-    write_lock_path = (
-        _non_empty_string(data, "write_lock_path", config_path)
-        if "write_lock_path" in data
-        else str(install_dir / "chroma_db.write.lock")
-    )
+    write_lock_path = str(data_home / "chroma_db.write.lock")
+    if "write_lock_path" in data:
+        write_lock_path = _non_empty_string(data, "write_lock_path", config_path)
     write_lock_timeout = (
         _positive_number(data, "write_lock_timeout_seconds", config_path)
         if "write_lock_timeout_seconds" in data
@@ -253,6 +274,7 @@ def load_user_config(
     return CortexUserConfig(
         schema_version=SCHEMA_VERSION,
         kb_path=kb_path,
+        chroma_path=chroma_path,
         included_sections=included_sections,
         excluded_dirs=excluded_dirs,
         exclude_files=exclude_files,
@@ -280,6 +302,7 @@ def render_user_config(config: CortexUserConfig) -> str:
     lines = [
         f"schema_version = {SCHEMA_VERSION}",
         f"kb_path = {json.dumps(require_kb_path(config.kb_path))}",
+        f"chroma_path = {json.dumps(config.chroma_path)}",
         "included_sections = " + json.dumps(sorted(config.included_sections)),
         "excluded_dirs = " + json.dumps(sorted(config.excluded_dirs)),
         "exclude_files = " + json.dumps(sorted(config.exclude_files)),
