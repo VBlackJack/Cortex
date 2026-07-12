@@ -12,6 +12,14 @@ from typing import Any
 
 import pdfplumber
 
+from chunker_utils import (
+    ChunkResult,
+    compute_hash,
+    get_relative_path,
+    get_section,
+    sha256_bytes,
+    split_fixed_size,
+)
 from config import (
     CHUNK_OVERLAP,
     CHUNK_SIZE,
@@ -22,14 +30,7 @@ from config import (
     MAX_PDF_SIZE_BYTES,
     require_kb_path,
 )
-from chunker_utils import (
-    ChunkResult,
-    compute_hash,
-    get_relative_path,
-    get_section,
-    sha256_bytes,
-    split_fixed_size,
-)
+
 
 def chunk_pdf_file(file_path: Path) -> ChunkResult:
     """Extract and chunk a PDF while hashing the exact bytes being parsed."""
@@ -50,7 +51,7 @@ def chunk_pdf_file(file_path: Path) -> ChunkResult:
                 text = page.extract_text()
                 if text and text.strip():
                     pages_text.append((page_num, text.strip()))
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- PDF backends expose no stable exception base.
         return ChunkResult(status="extraction_error", error=str(exc))
 
     if not pages_text:

@@ -16,13 +16,12 @@ import pytest
 from chunker import (
     MAX_CHARS,
     MAX_FILE_SIZE_BYTES,
-    _split_fixed_size,
     _parse_frontmatter,
     _split_by_headers,
+    _split_fixed_size,
     chunk_markdown_file,
 )
 from chunker_utils import split_fixed_size, split_fixed_size_spans
-
 
 # ── _split_fixed_size ─────────────────────────────────────────────────────────
 

@@ -22,8 +22,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import KB_PATH, require_kb_path  # noqa: E402
-from indexer import search  # noqa: E402
 from freshness import annotate_search_hits  # noqa: E402
+from indexer import search  # noqa: E402
 
 EVAL_DIR = Path(__file__).resolve().parent
 STATE_DIR = EVAL_DIR.parent / "local" / "eval-jalon4"
@@ -53,7 +53,10 @@ def build_after(query: str, top_k: int, section: str, root: Path) -> str:
         fresh = h.get("freshness")
         if fresh == "stale":
             if path in live_shown:
-                lines.append(f"--- source: {path} (freshness=STALE - live content already shown above for this source) ---")
+                lines.append(
+                    f"--- source: {path} (freshness=STALE - live content already "
+                    "shown above for this source) ---"
+                )
                 continue
             live_shown.add(path)
             live_path = root / path
@@ -61,10 +64,16 @@ def build_after(query: str, top_k: int, section: str, root: Path) -> str:
                 live_text = live_path.read_text(encoding="utf-8")
             except OSError:
                 live_text = "(live file unreadable)"
-            lines.append(f"--- source: {path} (freshness=STALE - embedded copy is outdated; showing LIVE file content instead) ---")
+            lines.append(
+                f"--- source: {path} (freshness=STALE - embedded copy is outdated; "
+                "showing LIVE file content instead) ---"
+            )
             lines.append(live_text)
         elif fresh == "missing":
-            lines.append(f"--- source: {path} (freshness=MISSING - the underlying file no longer exists on disk; do not cite its content as current) ---")
+            lines.append(
+                f"--- source: {path} (freshness=MISSING - the underlying file no longer "
+                "exists on disk; do not cite its content as current) ---"
+            )
         else:
             lines.append(f"--- source: {path} (freshness={fresh}) ---")
             lines.append(h.get("text", ""))
@@ -109,7 +118,10 @@ def main() -> None:
             "expected_token": task.get("expected_token"),
             "expected_substring": task.get("expected_substring"),
         })
-        print(f"[{task['id']}] before={len(before_ctx)} chars, after={len(after_ctx)} chars -> {task['path']}")
+        print(
+            f"[{task['id']}] before={len(before_ctx)} chars, "
+            f"after={len(after_ctx)} chars -> {task['path']}"
+        )
 
     manifest_path = OUT_DIR / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")

@@ -10,25 +10,24 @@ Splits .md files into semantically meaningful chunks with metadata.
 
 import re
 from pathlib import Path
-from typing import Any
 
+from chunker_utils import (
+    ChunkResult,
+    compute_hash,
+    get_relative_path,
+    get_section,
+    sha256_bytes,
+    split_fixed_size,
+)
 from config import (
-    CHUNK_SIZE,
     CHUNK_OVERLAP,
+    CHUNK_SIZE,
     CHUNKING_CONTRACT_VERSION,
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
     KB_PATH,
     MAX_MARKDOWN_FILE_SIZE_BYTES,
     require_kb_path,
-)
-from chunker_utils import (
-    ChunkResult,
-    compute_hash,
-    get_section,
-    get_relative_path,
-    sha256_bytes,
-    split_fixed_size,
 )
 
 MAX_CHARS = CHUNK_SIZE
@@ -169,5 +168,7 @@ def chunk_markdown_file(file_path: Path) -> ChunkResult:
         return ChunkResult(status="empty")
     expected_chunk_count = len(chunks)
     for chunk in chunks:
-        chunk["metadata"]["expected_chunk_count"] = expected_chunk_count
+        metadata = chunk["metadata"]
+        if isinstance(metadata, dict):
+            metadata["expected_chunk_count"] = expected_chunk_count
     return ChunkResult(status="ok", chunks=chunks)

@@ -18,6 +18,7 @@ from __future__ import annotations
 import sqlite3
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -31,24 +32,30 @@ from write_lock import chroma_write_lock
 BATCH_SIZE = 100
 
 
-def _load_rows(sqlite_path: Path) -> list[dict]:
+def _load_rows(sqlite_path: Path) -> list[dict[str, Any]]:
     con = sqlite3.connect(str(sqlite_path), timeout=5)
     cur = con.cursor()
     cur.execute(
         "select id, embedding_id from embeddings where segment_id = "
         "(select id from segments where scope = 'METADATA')"
     )
-    rows_by_id: dict[int, dict] = {
+    rows_by_id: dict[int, dict[str, Any]] = {
         row_id: {"embedding_id": embedding_id, "document": None, "metadata": {}}
         for row_id, embedding_id in cur.fetchall()
     }
 
-    cur.execute("select id, key, string_value, int_value, float_value, bool_value from embedding_metadata")
+    cur.execute(
+        "select id, key, string_value, int_value, float_value, bool_value "
+        "from embedding_metadata"
+    )
     for row_id, key, str_v, int_v, float_v, bool_v in cur.fetchall():
         entry = rows_by_id.get(row_id)
         if entry is None:
             continue
-        value = str_v if str_v is not None else int_v if int_v is not None else float_v if float_v is not None else bool_v
+        value = next(
+            (value for value in (str_v, int_v, float_v, bool_v) if value is not None),
+            None,
+        )
         if key == "chroma:document":
             entry["document"] = value
         else:
@@ -75,7 +82,9 @@ def main() -> None:
 
         missing_doc = [r["embedding_id"] for r in rows if not r["document"]]
         if missing_doc:
-            raise RuntimeError(f"{len(missing_doc)} rows have no document text, e.g. {missing_doc[:5]}")
+            raise RuntimeError(
+                f"{len(missing_doc)} rows have no document text, e.g. {missing_doc[:5]}"
+            )
 
         client = create_persistent_client(rebuild_path)
         collection = get_collection(client)
@@ -92,7 +101,10 @@ def main() -> None:
                 print(f"[upsert] {start}/{len(rows)}", flush=True)
 
         final_count = collection.count()
-        print(f"[done] rebuilt collection count={final_count} (source rows={len(rows)})", flush=True)
+        print(
+            f"[done] rebuilt collection count={final_count} (source rows={len(rows)})",
+            flush=True,
+        )
         if final_count != len(rows):
             raise RuntimeError(f"count mismatch: rebuilt={final_count} source={len(rows)}")
 

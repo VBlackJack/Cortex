@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 SYNC_BAT = Path(__file__).resolve().parents[1] / "sync.bat"
 INSTALL_BAT = Path(__file__).resolve().parents[1] / "install.bat"
 

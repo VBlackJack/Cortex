@@ -68,7 +68,7 @@ def main() -> None:
             marker = (
                 f"\n\n## Eval Canary (jalon4, temporary)\n"
                 f"CANARY_STATUS_TOKEN={token}\n"
-            ).encode("utf-8")
+            ).encode()
         else:
             marker = b"\n\n<!-- jalon4 layer1 drift marker -->\n"
 

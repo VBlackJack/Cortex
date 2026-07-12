@@ -11,10 +11,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-import freshness
 import pytest
-from config import FRESHNESS_CONTRACT_ID, FRESHNESS_CONTRACT_VERSION
+
+import freshness
 from chunker_utils import sha256_bytes
+from config import FRESHNESS_CONTRACT_ID, FRESHNESS_CONTRACT_VERSION
 
 
 class FakeCollection:

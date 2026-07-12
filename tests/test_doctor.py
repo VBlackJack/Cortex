@@ -424,6 +424,7 @@ def test_json_schema_is_stable_and_warn_unknown_do_not_break_exit(tmp_path: Path
     assert set(parsed) == {
         "schema_version",
         "tool",
+        "version",
         "read_only",
         "generated_at_utc",
         "summary",

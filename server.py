@@ -12,20 +12,21 @@ Exposes four tools to MCP clients:
   - cortex_freshness      : read-only index freshness summary/details
 """
 
-import os
 import logging
+import os
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""  # force CPU, avoid GPU driver issues
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from config import CortexConfigError
 from data_home import CortexDataHomeError
-from freshness import annotate_search_hits, cortex_freshness_report
 from embedding_fingerprint import EmbeddingFingerprintMismatchError
+from freshness import annotate_search_hits, cortex_freshness_report
 from indexer import (
     CortexSearchError,
     discover_out_of_policy_sections,
@@ -43,7 +44,7 @@ _LOG = logging.getLogger("cortex.server")
 
 
 @asynccontextmanager
-async def app_lifespan(app):
+async def app_lifespan(app: Any) -> AsyncIterator[dict[str, Any]]:
     """Load the collection and warm up the embedding model before first request."""
     if os.environ.get("CORTEX_DOCTOR_READ_ONLY") == "1":
         # PersistentClient mutates SQLite even when only opened. Doctor checks
@@ -58,8 +59,8 @@ async def app_lifespan(app):
         raise
     try:
         collection.query(query_texts=["warmup"], n_results=1)
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 -- warmup failure must not prevent startup.
+        _LOG.warning("embedding_warmup_failed error=%s", exc)
     yield {"collection": collection}
 
 
@@ -92,7 +93,7 @@ def _resolve_section(section: str | None) -> tuple[str | None, str | None]:
 
 
 @mcp.tool()
-def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> str:
+def cortex_search(query: str, section: str | None = None, top_k: int = 5) -> str:
     """
     Search the internal knowledge base using semantic similarity.
     Use this tool whenever the user asks about anything that may be documented
@@ -147,7 +148,7 @@ def cortex_search(query: str, section: Optional[str] = None, top_k: int = 5) -> 
 
 
 @mcp.tool()
-def cortex_sync(section: Optional[str] = None) -> str:
+def cortex_sync(section: str | None = None) -> str:
     """
     Trigger an incremental sync of the knowledge base index.
     If section is provided, only that section is synced.
@@ -220,9 +221,9 @@ def cortex_list_sections() -> str:
 
 @mcp.tool()
 def cortex_freshness(
-    section: Optional[str] = None,
+    section: str | None = None,
     include_entries: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Report freshness read-only; include per-file entries only on request."""
     try:
         section, err = _resolve_section(section)

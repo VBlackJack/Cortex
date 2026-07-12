@@ -18,9 +18,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import KB_PATH, require_kb_path  # noqa: E402
 from chunker import chunk_markdown_file  # noqa: E402
 from chunker_utils import is_excluded_path  # noqa: E402
+from config import KB_PATH, require_kb_path  # noqa: E402
 
 EVAL_DIR = Path(__file__).resolve().parent
 STATE_DIR = EVAL_DIR.parent / "local" / "eval-jalon4"
@@ -55,7 +55,7 @@ def main() -> None:
         full_chunks += len(result.chunks)
         full_bytes += path.stat().st_size
 
-    result = {
+    report = {
         "selective_files": len(selective_paths),
         "selective_chunks": selective_chunks,
         "selective_bytes": selective_bytes,
@@ -74,9 +74,9 @@ def main() -> None:
             "(only the M mutated files) vs a full section re-embed."
         ),
     }
-    print(json.dumps(result, indent=2))
+    print(json.dumps(report, indent=2))
     out_path = STATE_DIR / "layer3_cost.json"
-    out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    out_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"\nWritten to {out_path}")
 
 

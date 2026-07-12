@@ -13,6 +13,10 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
+from chroma_client import iter_collection_pages
+from chunker import chunk_markdown_file
+from chunker_pdf import chunk_pdf_file
+from chunker_utils import discover_out_of_policy_dirs, is_excluded_path, sha256_bytes
 from config import (
     EXCLUDED_DIRS,
     FRESHNESS_CONTRACT_ID,
@@ -22,9 +26,6 @@ from config import (
     CortexConfigError,
     require_kb_path,
 )
-from chunker import chunk_markdown_file
-from chunker_pdf import chunk_pdf_file
-from chunker_utils import discover_out_of_policy_dirs, is_excluded_path, sha256_bytes
 
 _LOG = logging.getLogger("cortex.freshness")
 _HASH_LENGTH = 64
@@ -176,18 +177,12 @@ def _indexed_metadata(
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str]]:
     indexed: dict[str, list[dict[str, Any]]] = defaultdict(list)
     invalid: dict[str, str] = {}
-    offset = 0
-    page_size = 5_000
-    while True:
-        result = collection.get(
-            where={"section": section} if section else None,
-            include=["metadatas"],
-            limit=page_size,
-            offset=offset,
-        )
+    for result in iter_collection_pages(
+        collection,
+        where={"section": section} if section else None,
+        include=["metadatas"],
+    ):
         metadatas = result.get("metadatas") or []
-        if not metadatas:
-            break
         for metadata in metadatas:
             if not metadata:
                 continue
@@ -197,9 +192,6 @@ def _indexed_metadata(
                 invalid[str(raw_path)] = "untrusted indexed path"
                 continue
             indexed[normalized].append(dict(metadata))
-        if len(metadatas) < page_size:
-            break
-        offset += page_size
     return indexed, invalid
 
 

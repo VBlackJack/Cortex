@@ -16,23 +16,17 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any
 
-try:
+if sys.version_info >= (3, 11):
     import tomllib
-except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10
-    import tomli as tomllib  # type: ignore[no-redef]
+else:  # pragma: no cover - exercised on Python 3.10
+    import tomli as tomllib
 
-from user_config import (
-    CortexConfigError,
-    load_user_config,
-    require_kb_path,
-    user_config_path,
-    write_user_config_atomic,
-)
 from data_home import (
     CortexDataHomeError,
     DataHomeConflictError,
@@ -41,6 +35,13 @@ from data_home import (
     move_legacy_index,
 )
 from dependencies import REQUIRED_PACKAGES
+from user_config import (
+    CortexConfigError,
+    load_user_config,
+    require_kb_path,
+    user_config_path,
+    write_user_config_atomic,
+)
 
 logger = logging.getLogger("cortex.setup")
 
@@ -487,7 +488,7 @@ def register_clients(
 def init_user_config(
     path: Path = CORTEX_CONFIG_PATH,
     environ: dict[str, str] | None = None,
-    input_fn=input,
+    input_fn: Callable[[str], str] = input,
 ) -> bool:
     """Create schema-v1 user config atomically without overwriting."""
     if path.exists():
@@ -515,7 +516,7 @@ def offer_legacy_data_migration(
     config_path: Path = CORTEX_CONFIG_PATH,
     script_dir: Path = SCRIPT_DIR,
     environ: Mapping[str, str] | None = None,
-    input_fn=input,
+    input_fn: Callable[[str], str] = input,
 ) -> bool:
     """Offer an explicit atomic move from the repository to the data home."""
     config = load_user_config(
@@ -562,7 +563,7 @@ def check_python(python_exe: str) -> bool:
             return False
         print(f"[OK] Python: {(result.stdout or result.stderr).strip()}")
         return True
-    except Exception as exc:
+    except (OSError, subprocess.SubprocessError) as exc:
         print(f"[FAIL] Python not found at {python_exe}: {exc}")
         return False
 
@@ -582,7 +583,7 @@ def check_packages(python_exe: str) -> bool:
             else:
                 print(f"[FAIL] Package {package} not importable: {result.stderr.strip()}")
                 ok = False
-        except Exception as exc:
+        except (OSError, subprocess.SubprocessError) as exc:
             print(f"[FAIL] Package {package}: {exc}")
             ok = False
     return ok
@@ -702,7 +703,7 @@ def run_check(
     return 1
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Cortex MCP setup helper")
     parser.add_argument(
         "--python", default=None, help="Python executable (default: current interpreter)"
@@ -733,23 +734,19 @@ def main() -> None:
         action="store_true",
         help="Emit the doctor report as stable JSON",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     python_exe = args.python or detect_python()
 
     try:
         if args.json and not args.doctor:
             parser.error("--json requires --doctor")
         if args.doctor:
-            from doctor import default_context, render_json, render_text, run_doctor
+            from doctor import main as doctor_main
 
-            context = default_context(
-                script_dir=SCRIPT_DIR,
-                config_path=CORTEX_CONFIG_PATH,
-                python_exe=python_exe,
-            )
-            report = run_doctor(context)
-            print(render_json(report) if args.json else render_text(report))
-            raise SystemExit(report["summary"]["exit_code"])
+            doctor_args = ["--python", python_exe]
+            if args.json:
+                doctor_args.append("--json")
+            raise SystemExit(doctor_main(doctor_args))
         if args.init:
             init_user_config()
             raise SystemExit(0)

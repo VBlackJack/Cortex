@@ -11,11 +11,13 @@ Usage:
   python indexer.py --search "query" [--section Zabbix] [--top-k 5]
 """
 
-import os
-import logging
-import warnings
 import argparse
+import logging
+import os
+import warnings
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, ClassVar
 
 log = logging.getLogger("cortex.indexer")
 
@@ -29,25 +31,24 @@ import chromadb  # noqa: E402
 from chromadb import EmbeddingFunction, Embeddings  # noqa: E402
 from fastembed import TextEmbedding  # noqa: E402
 
+from chroma_client import create_persistent_client  # noqa: E402
+from chunker_utils import (  # noqa: E402
+    discover_out_of_policy_dirs,
+)
 from config import (  # noqa: E402
-    KB_PATH,
     CHROMA_PATH,
     EMBEDDING_MODEL,
     INCLUDED_SECTIONS,
+    KB_PATH,
     LEGACY_CHROMA_PATH,
     SEARCH_TOP_K_MAX,
     SEARCH_TOP_K_MIN,
     require_kb_path,
 )
-from chroma_client import create_persistent_client  # noqa: E402
-from chunker_utils import (  # noqa: E402
-    discover_out_of_policy_dirs,
-)
-from embedding_fingerprint import get_validated_collection  # noqa: E402
 from data_home import ensure_index_location  # noqa: E402
+from embedding_fingerprint import get_validated_collection  # noqa: E402
 from sync_hash_aware import empty_sync_stats, merge_sync_stats, sync_section  # noqa: E402
 from write_lock import chroma_write_lock  # noqa: E402
-
 
 # ── Embedding function ────────────────────────────────────────────────────────
 
@@ -58,15 +59,15 @@ class FastEmbedFunction(EmbeddingFunction):
     Uses a module-level singleton to avoid reloading the model on every call.
     """
 
-    _instance = None
-    _initialized = False
+    _instance: ClassVar["FastEmbedFunction | None"] = None
+    _initialized: bool = False
 
-    def __new__(cls, model_name: str):
+    def __new__(cls, model_name: str) -> "FastEmbedFunction":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str) -> None:
         if self._initialized:
             return
         self._model = TextEmbedding(model_name=model_name)
@@ -104,7 +105,7 @@ def get_client() -> chromadb.PersistentClient:
     return create_persistent_client(CHROMA_PATH)
 
 
-def get_collection(client=None):
+def get_collection(client: Any | None = None) -> Any:
     if client is None:
         client = get_client()
     return get_validated_collection(client, get_embedding_function())
@@ -137,7 +138,7 @@ def discover_out_of_policy_sections() -> list[str]:
 # ── Sync ──────────────────────────────────────────────────────────────────────
 
 
-def sync(section: str = None, verbose: bool = True) -> dict:
+def sync(section: str | None = None, verbose: bool = True) -> dict[str, int]:
     """
     Incremental sync. If section is given, only process that section's folder.
     Returns file/chunk publication, removal, skip and error counters.
@@ -200,7 +201,9 @@ class CortexSearchError(RuntimeError):
     """Raised when Chroma cannot execute a semantic query."""
 
 
-def search(query: str, section: str = None, top_k: int = 5) -> list[dict]:
+def search(
+    query: str, section: str | None = None, top_k: int = 5
+) -> list[dict[str, Any]]:
     """Return top_k results as list of {text, metadata, distance}."""
     collection = get_collection()
     where = {"section": section} if section else None
@@ -216,7 +219,7 @@ def search(query: str, section: str = None, top_k: int = 5) -> list[dict]:
         log.error("search_query_error section=%s reason=%s", section, e)
         raise CortexSearchError(f"Cortex search failed: {e}") from e
 
-    hits = []
+    hits: list[dict[str, Any]] = []
     docs = results.get("documents", [[]])[0]
     metas = results.get("metadatas", [[]])[0]
     dists = results.get("distances", [[]])[0]
@@ -225,9 +228,8 @@ def search(query: str, section: str = None, top_k: int = 5) -> list[dict]:
     return hits
 
 
-# ── CLI entry point ───────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run sync or search from the clone-compatible command line."""
     from cortex_logging import configure_logging
 
     configure_logging()
@@ -243,7 +245,7 @@ if __name__ == "__main__":
         help="Run a search instead of syncing",
     )
     parser.add_argument("--top-k", type=int, default=5)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.search:
         hits = search(args.search, section=args.section, top_k=args.top_k)
@@ -257,3 +259,10 @@ if __name__ == "__main__":
             print(f"    {h['text'][:300]}...")
     else:
         sync(section=args.section, verbose=True)
+    return 0
+
+
+# ── CLI entry point ───────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -23,8 +23,8 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from indexer import search  # noqa: E402
 from freshness import annotate_search_hits  # noqa: E402
+from indexer import search  # noqa: E402
 
 EVAL_DIR = Path(__file__).resolve().parent
 STATE_DIR = EVAL_DIR.parent / "local" / "eval-jalon4"

@@ -20,8 +20,8 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from indexer import get_collection  # noqa: E402
 from freshness import cortex_freshness_report  # noqa: E402
+from indexer import get_collection  # noqa: E402
 
 EVAL_DIR = Path(__file__).resolve().parent
 STATE_DIR = EVAL_DIR.parent / "local" / "eval-jalon4"
@@ -67,7 +67,7 @@ def main() -> None:
     state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
     truth, excluded_pool = ground_truth(config, state)
 
-    collection = get_collection()  # type: ignore[no-untyped-call]  # legacy indexer.py, not touched by this lot
+    collection = get_collection()
     trials = config["trials_layer1"]
     trial_label_sets = []
 
@@ -86,9 +86,13 @@ def main() -> None:
     stale_metrics = prf(confusion(final_labels, truth, "stale"))
     missing_metrics = prf(confusion(final_labels, truth, "missing"))
 
+    freshness_entries = cortex_freshness_report(collection, section=config["section"])[
+        "entries"
+    ]
     untouched_pool = [
-        e["path"] for e in cortex_freshness_report(collection, section=config["section"])["entries"]
-        if e["path"] not in truth and e["path"] not in excluded_pool
+        entry["path"]
+        for entry in freshness_entries
+        if entry["path"] not in truth and entry["path"] not in excluded_pool
     ]
     false_stale = [p for p in untouched_pool if final_labels.get(p) == "stale"]
     false_stale_rate = len(false_stale) / len(untouched_pool) if untouched_pool else 0.0

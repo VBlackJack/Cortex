@@ -44,6 +44,17 @@ Le script est **portable** : il fonctionne quel que soit l'emplacement où vous 
 
 Après l'installation : **redémarrer les clients enregistrés**.
 
+Pour une installation comme outil utilisateur (sans dépendre du dossier du
+clone), le paquet expose la même logique sous une commande unique :
+
+```powershell
+python -m pip install -e .
+cortex doctor
+```
+
+Les scripts `.bat` restent pleinement pris en charge et `install.bat` ne
+requiert pas que le paquet Cortex soit installé.
+
 ### Prérequis
 
 | Outil | Version minimale |
@@ -108,7 +119,9 @@ testé en conditions multi-processus.
 ├── sync.bat           ← Lance le sync section par section (portable, %~dp0)
 ├── install.bat        ← Installation / réinstallation en un clic (portable)
 ├── setup_config.py    ← Enregistrement multi-client sûr + validation
-├── requirements.txt   ← Dépendances pip
+├── cli.py              ← Dispatcher des sous-commandes `cortex`
+├── pyproject.toml      ← Packaging et configuration des outils qualité
+├── requirements.txt   ← Source unique des dépendances runtime épinglées
 ├── conftest.py        ← Bootstrap pytest (sys.path)
 ├── tests\             ← Tests unitaires (chunker) + intégration (search)
 └── chroma_db\         ← Ancien emplacement, migré vers le data home utilisateur
@@ -416,6 +429,9 @@ Installer / mettre à jour :
 python -m pip install -r requirements.txt
 ```
 
+`requirements.txt` est la source unique des versions runtime : le build
+`pyproject.toml` le lit directement, et un test empêche toute divergence.
+
 ---
 
 ## Tests
@@ -425,6 +441,19 @@ python -m pytest tests/ -v
 ```
 
 Les tests unitaires (`tests/test_chunker.py`) tournent toujours. Les tests d'intégration (`tests/test_search.py`) sont automatiquement skippés si le `chroma_path` résolu n'existe pas encore.
+
+### Barrière qualité locale
+
+Installer les outils de développement puis activer les hooks bloquants :
+
+```powershell
+python -m pip install -e ".[dev]"
+pre-commit install
+pre-commit run --all-files
+```
+
+Chaque commit passe Ruff, mypy en mode strict et la suite pytest complète.
+La future CI rejouera ces mêmes hooks, sans configuration qualité parallèle.
 
 ---
 
@@ -438,6 +467,7 @@ applicatif. L'index est inspecté via SQLite `mode=ro&immutable=1` plutôt que p
 ```powershell
 # Rapport lisible à copier-coller
 python setup_config.py --doctor
+cortex doctor
 
 # Schéma JSON stable (schema_version = 1)
 python setup_config.py --doctor --json
@@ -457,8 +487,18 @@ n'ouvre pas Chroma — `PersistentClient` modifierait SQLite à la simple
 ouverture — puisque l'index a déjà été contrôlé séparément en lecture seule.
 
 Le code de sortie vaut `0` lorsqu'il n'existe aucun `[FAIL]`. Les statuts
-`[WARN]`, `[UNKNOWN]`, `[INFO]` et `[SKIP]` restent informatifs. Le lot 3'c
-exposera la même logique importable sous la commande `cortex doctor`.
+`[WARN]`, `[UNKNOWN]`, `[INFO]` et `[SKIP]` restent informatifs.
+
+Les sous-commandes installées sont des dispatchers minces vers les mêmes
+points d'entrée que les scripts historiques :
+
+```powershell
+cortex sync [section]
+cortex doctor [--json]
+cortex init
+cortex register [--clients all]
+cortex check [--clients all]
+```
 
 ---
 

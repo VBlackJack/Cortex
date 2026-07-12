@@ -106,7 +106,7 @@ def _stamp_legacy_collection(collection: Any) -> None:
             attested,
             expected,
         )
-        raise EmbeddingFingerprintMismatchError(expected, attested)
+        raise EmbeddingFingerprintMismatchError(expected, dict(attested))
     # Chroma forbids passing hnsw:space to modify(); the actual distance
     # configuration remains immutable in the collection schema.
     metadata = {

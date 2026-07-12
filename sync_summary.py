@@ -1,36 +1,35 @@
+# Copyright 2026 Julien Bombled
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
 """
 sync_summary.py - Print a summary of indexed chunks by section.
 Called by sync.bat after all sections are synced.
 """
 
-from indexer import get_collection, discover_sections
+from typing import Any
+
+from chroma_client import iter_collection_pages
+from indexer import discover_sections, get_collection
 
 BATCH_LIMIT = 10_000
 
 
-def count_section(collection, section: str) -> int:
+def count_section(collection: Any, section: str) -> int:
     """Count chunks for a section using batched queries to avoid SQL limits."""
     total = 0
-    offset = 0
-    while True:
-        try:
-            result = collection.get(
-                where={"section": section},
-                include=[],
-                limit=BATCH_LIMIT,
-                offset=offset,
-            )
-        except Exception:
-            break
+    for result in iter_collection_pages(
+        collection,
+        page_size=BATCH_LIMIT,
+        where={"section": section},
+        include=[],
+    ):
         batch_size = len(result.get("ids", []))
         total += batch_size
-        if batch_size < BATCH_LIMIT:
-            break
-        offset += BATCH_LIMIT
     return total
 
 
-def main():
+def main() -> None:
     collection = get_collection()
     total = collection.count()
     print(f"  Total chunks in DB: {total}")

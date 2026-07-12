@@ -16,7 +16,6 @@ from typing import Any, Literal
 
 from config import EXCLUDE_FILES, EXCLUDED_DIRS, INCLUDED_SECTIONS
 
-
 ChunkStatus = Literal[
     "ok",
     "empty",

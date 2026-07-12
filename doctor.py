@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 import os
@@ -14,13 +15,16 @@ import sqlite3
 import subprocess
 import sys
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any
 
+from _version import __version__
 from data_home import migration_state
 from dependencies import REQUIRED_PACKAGES
 from user_config import (
@@ -126,8 +130,8 @@ def default_context(
 
 
 def _default_contracts() -> RuntimeContracts:
-    from embedding_fingerprint import current_embedding_fingerprint
     from config import COLLECTION_NAME
+    from embedding_fingerprint import current_embedding_fingerprint
 
     return RuntimeContracts(
         collection_name=COLLECTION_NAME,
@@ -461,33 +465,31 @@ def _freshness_check(
     import chunker_utils
     import freshness
 
-    saved = {
-        "freshness.KB_PATH": freshness.KB_PATH,
-        "freshness.INCLUDED_SECTIONS": freshness.INCLUDED_SECTIONS,
-        "freshness.EXCLUDED_DIRS": freshness.EXCLUDED_DIRS,
-        "chunker_utils.INCLUDED_SECTIONS": chunker_utils.INCLUDED_SECTIONS,
-        "chunker_utils.EXCLUDED_DIRS": chunker_utils.EXCLUDED_DIRS,
-        "chunker_utils.EXCLUDE_FILES": chunker_utils.EXCLUDE_FILES,
+    freshness_values: dict[str, Any] = {
+        name: getattr(freshness, name)
+        for name in ("KB_PATH", "INCLUDED_SECTIONS", "EXCLUDED_DIRS")
+    }
+    chunker_values: dict[str, Any] = {
+        name: getattr(chunker_utils, name)
+        for name in ("INCLUDED_SECTIONS", "EXCLUDED_DIRS", "EXCLUDE_FILES")
     }
     try:
-        freshness.KB_PATH = config.kb_path
-        freshness.INCLUDED_SECTIONS = config.included_sections
-        freshness.EXCLUDED_DIRS = config.excluded_dirs
-        chunker_utils.INCLUDED_SECTIONS = config.included_sections
-        chunker_utils.EXCLUDED_DIRS = config.excluded_dirs
-        chunker_utils.EXCLUDE_FILES = config.exclude_files
+        setattr(freshness, "KB_PATH", config.kb_path)
+        setattr(freshness, "INCLUDED_SECTIONS", config.included_sections)
+        setattr(freshness, "EXCLUDED_DIRS", config.excluded_dirs)
+        setattr(chunker_utils, "INCLUDED_SECTIONS", config.included_sections)
+        setattr(chunker_utils, "EXCLUDED_DIRS", config.excluded_dirs)
+        setattr(chunker_utils, "EXCLUDE_FILES", config.exclude_files)
         report = freshness.cortex_freshness_report(
             _MetadataCollection(metadatas),
             include_entries=False,
             emit_log=False,
         )
     finally:
-        freshness.KB_PATH = saved["freshness.KB_PATH"]
-        freshness.INCLUDED_SECTIONS = saved["freshness.INCLUDED_SECTIONS"]
-        freshness.EXCLUDED_DIRS = saved["freshness.EXCLUDED_DIRS"]
-        chunker_utils.INCLUDED_SECTIONS = saved["chunker_utils.INCLUDED_SECTIONS"]
-        chunker_utils.EXCLUDED_DIRS = saved["chunker_utils.EXCLUDED_DIRS"]
-        chunker_utils.EXCLUDE_FILES = saved["chunker_utils.EXCLUDE_FILES"]
+        for name, value in freshness_values.items():
+            setattr(freshness, name, value)
+        for name, value in chunker_values.items():
+            setattr(chunker_utils, name, value)
     summary = report.get("summary", {})
     bad = sum(int(summary.get(key, 0)) for key in ("stale", "missing", "error"))
     status = "WARN" if bad else "OK"
@@ -528,10 +530,11 @@ def _default_lock_probe(path: Path) -> tuple[str, int | None, str | None]:
             import fcntl
 
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                flock = getattr(fcntl, "flock")
+                flock(fd, getattr(fcntl, "LOCK_EX") | getattr(fcntl, "LOCK_NB"))
             except BlockingIOError:
                 return "held", pid, None
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            flock(fd, getattr(fcntl, "LOCK_UN"))
     finally:
         os.close(fd)
     return "stale", pid, None
@@ -877,7 +880,7 @@ def _default_handshake_probe(
             f"MCP initialize timed out after {timeout:g}s",
             timeout_seconds=timeout,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- diagnostic boundaries must report all failures.
         return _check(
             "mcp.handshake",
             "FAIL",
@@ -967,7 +970,7 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
                 contracts = contracts_provider()
                 inspected, index_metadata = _inspect_index(Path(config.chroma_path), contracts)
                 index_checks.extend(inspected)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 -- report a failed diagnostic, never crash.
                 index_checks.extend(
                     [
                         _check("index.present", "FAIL", f"Index inspection failed: {exc}"),
@@ -986,7 +989,7 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
         if kb_accessible and index_metadata is not None:
             try:
                 index_checks.append(_freshness_check(config, index_metadata))
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 -- report a failed diagnostic, never crash.
                 index_checks.append(
                     _check("freshness.summary", "FAIL", f"Freshness summary failed: {exc}")
                 )
@@ -1035,6 +1038,7 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
     return {
         "schema_version": DOCTOR_SCHEMA_VERSION,
         "tool": "cortex doctor",
+        "version": __version__,
         "read_only": True,
         "generated_at_utc": current.now().astimezone(timezone.utc).isoformat(),
         "summary": summary,
@@ -1044,7 +1048,7 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
 
 def render_text(report: Mapping[str, Any]) -> str:
     """Render the stable report for copy/paste into a support ticket."""
-    lines = ["Cortex Doctor (strictly read-only)", ""]
+    lines = [f"Cortex Doctor v{report['version']} (strictly read-only)", ""]
     for section in report["sections"]:
         lines.append(f"## {section['title']}")
         for check in section["checks"]:
@@ -1064,3 +1068,18 @@ def render_text(report: Mapping[str, Any]) -> str:
 def render_json(report: Mapping[str, Any]) -> str:
     """Render the stable machine-readable schema."""
     return json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the standalone doctor command and return its support exit code."""
+    parser = argparse.ArgumentParser(prog="cortex doctor")
+    parser.add_argument("--json", action="store_true", help="Emit stable JSON")
+    parser.add_argument("--python", default=None, help="Python executable to inspect")
+    args = parser.parse_args(argv)
+    report = run_doctor(default_context(python_exe=args.python))
+    print(render_json(report) if args.json else render_text(report))
+    return int(report["summary"]["exit_code"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

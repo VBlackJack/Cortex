@@ -1,3 +1,7 @@
+# Copyright 2026 Julien Bombled
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
 """
 Pytest bootstrap: ensure the project root is on sys.path so tests can
 import `chunker`, `indexer`, `config` directly.

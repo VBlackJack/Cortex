@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
+from chroma_client import iter_collection_pages
 from chunker import chunk_markdown_file
 from chunker_pdf import chunk_pdf_file
 from chunker_utils import ChunkResult, is_excluded_path
@@ -170,14 +172,12 @@ def _existing_by_path(
     collection: Any, section: str
 ) -> dict[str, tuple[list[str], list[dict[str, Any]]]]:
     existing: dict[str, tuple[list[str], list[dict[str, Any]]]] = {}
-    offset = 0
-    while True:
-        page = collection.get(
-            where={"section": section},
-            include=["metadatas"],
-            limit=_PAGE_SIZE,
-            offset=offset,
-        )
+    for page in iter_collection_pages(
+        collection,
+        page_size=_PAGE_SIZE,
+        where={"section": section},
+        include=["metadatas"],
+    ):
         ids = page.get("ids", [])
         metadata = page.get("metadatas", []) or []
         for chunk_id, meta in zip(ids, metadata):
@@ -186,9 +186,6 @@ def _existing_by_path(
                 old_ids, old_metadata = existing.setdefault(path, ([], []))
                 old_ids.append(chunk_id)
                 old_metadata.append(meta)
-        if len(ids) < _PAGE_SIZE:
-            break
-        offset += _PAGE_SIZE
     return existing
 
 
@@ -272,7 +269,7 @@ def _sync_section_locked(
                 continue
             try:
                 added, deleted = sync_file(collection, result.chunks, old_ids)
-            except Exception:
+            except Exception:  # noqa: BLE001 -- preserve the old version on any backend failure.
                 stats["errors"] += 1
                 _LOG.exception("file_publish_error path=%s", rel_path)
                 continue
@@ -287,7 +284,7 @@ def _sync_section_locked(
             if old_ids:
                 try:
                     stats["deleted_chunks"] += _delete_ids(collection, old_ids)
-                except Exception:
+                except Exception:  # noqa: BLE001 -- reconciliation errors are isolated per file.
                     stats["errors"] += 1
                     _LOG.exception(
                         "file_remove_error path=%s reason=%s", rel_path, result.status
@@ -315,7 +312,7 @@ def _sync_section_locked(
         old_ids, _ = existing[rel_path]
         try:
             stats["deleted_chunks"] += _delete_ids(collection, old_ids)
-        except Exception:
+        except Exception:  # noqa: BLE001 -- reconciliation errors are isolated per file.
             stats["errors"] += 1
             _LOG.exception("file_reconcile_remove_error path=%s", rel_path)
             continue

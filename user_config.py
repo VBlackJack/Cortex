@@ -8,15 +8,17 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, cast
 
-try:
+if sys.version_info >= (3, 11):
     import tomllib
-except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10
-    import tomli as tomllib  # type: ignore[no-redef]
+else:  # pragma: no cover - exercised on Python 3.10
+    import tomli as tomllib
 
 SCHEMA_VERSION = 1
 DEFAULT_INCLUDED_SECTIONS = frozenset(
@@ -124,7 +126,7 @@ def _positive_int(data: dict[str, Any], key: str, path: Path) -> int:
     value = _require_exact_type(data, key, int, path)
     if value <= 0:
         raise _error(f"'{key}' must be greater than zero.", path)
-    return value
+    return cast(int, value)
 
 
 def _positive_number(data: dict[str, Any], key: str, path: Path) -> float:
@@ -135,7 +137,7 @@ def _positive_number(data: dict[str, Any], key: str, path: Path) -> float:
 
 
 def _non_empty_string(data: dict[str, Any], key: str, path: Path) -> str:
-    value = _require_exact_type(data, key, str, path).strip()
+    value = cast(str, _require_exact_type(data, key, str, path)).strip()
     if not value:
         raise _error(f"'{key}' must not be empty.", path)
     return value
@@ -165,7 +167,7 @@ def _read_toml(path: Path) -> dict[str, Any]:
         raise _error(
             f"Unsupported schema_version={version}; expected {SCHEMA_VERSION}.", path
         )
-    return data
+    return cast(dict[str, Any], data)
 
 
 def _environment_int(
