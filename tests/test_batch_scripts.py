@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 SYNC_BAT = Path(__file__).resolve().parents[1] / "sync.bat"
+INSTALL_BAT = Path(__file__).resolve().parents[1] / "install.bat"
 
 
 def _sync_script() -> str:
@@ -43,3 +44,10 @@ def test_section_failures_control_banner_and_exit_code() -> None:
     assert "if !FAILURES! GTR 0" in script
     assert "Sync completed with !FAILURES! failed section(s)." in script
     assert "endlocal & exit /b !EXIT_CODE!" in script
+
+
+def test_installer_enforces_python_310() -> None:
+    script = INSTALL_BAT.read_text(encoding="utf-8")
+
+    assert "sys.version_info >= (3, 10)" in script
+    assert "requires Python 3.10 or newer" in script

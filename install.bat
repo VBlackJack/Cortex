@@ -30,10 +30,18 @@ for %%C in (python python3) do (
     )
 )
 
-:: Check version >= 3.9
+:: Check version >= 3.10
 if "!PYTHON_EXE!"=="" (
     echo [FAIL] Python not found in PATH.
-    echo        Install Python 3.9+ from https://python.org and rerun this script.
+    echo        Install Python 3.10+ from https://python.org and rerun this script.
+    pause
+    exit /b 1
+)
+
+"!PYTHON_EXE!" -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
+if errorlevel 1 (
+    echo [FAIL] Cortex requires Python 3.10 or newer.
+    echo        Found: !PYTHON_EXE!
     pause
     exit /b 1
 )
