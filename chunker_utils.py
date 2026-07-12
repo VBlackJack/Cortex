@@ -90,7 +90,10 @@ def get_relative_path(file_path: Path, kb_path: str) -> str:
 
 
 def split_fixed_size_spans(
-    text: str, max_chars: int, overlap_chars: int
+    text: str,
+    max_chars: int,
+    overlap_chars: int,
+    min_tail_chars: int = 0,
 ) -> list[tuple[int, int]]:
     """Return lossless chunk spans with bounded late-boundary backoff."""
     if max_chars <= 0:
@@ -99,6 +102,8 @@ def split_fixed_size_spans(
         raise ValueError("overlap_chars must not be negative")
     if overlap_chars >= max_chars:
         raise ValueError("overlap_chars must be smaller than max_chars")
+    if min_tail_chars < 0:
+        raise ValueError("min_tail_chars must not be negative")
     if not text:
         return []
 
@@ -128,13 +133,39 @@ def split_fixed_size_spans(
             next_start = start + minimum_advance
         start = next_start
 
+    if len(spans) >= 2 and spans[-1][1] - spans[-1][0] < min_tail_chars:
+        prev_start = spans[-2][0]
+        total_end = spans[-1][1]
+        window = total_end - prev_start
+        mid = prev_start + (window + overlap_chars + 1) // 2
+
+        boundary_floor = mid - overlap_chars
+        split_pos = text.rfind("\n", boundary_floor, mid)
+        if split_pos < boundary_floor:
+            split_pos = text.rfind(". ", boundary_floor, mid)
+        if split_pos >= boundary_floor:
+            mid = split_pos + 1
+
+        spans[-2] = (prev_start, mid)
+        spans[-1] = (mid - overlap_chars, total_end)
+
     return spans
 
 
-def split_fixed_size(text: str, max_chars: int, overlap_chars: int) -> list[str]:
+def split_fixed_size(
+    text: str,
+    max_chars: int,
+    overlap_chars: int,
+    min_tail_chars: int = 0,
+) -> list[str]:
     """Split text with overlap while preserving lossless source spans."""
     chunks: list[str] = []
-    for start, end in split_fixed_size_spans(text, max_chars, overlap_chars):
+    for start, end in split_fixed_size_spans(
+        text,
+        max_chars,
+        overlap_chars,
+        min_tail_chars,
+    ):
         chunk = text[start:end].strip()
         if chunk:
             chunks.append(chunk)

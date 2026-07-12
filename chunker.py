@@ -102,7 +102,7 @@ def _merged_header(sections: list[tuple[str, str]]) -> str:
 def _merge_small_header_sections(
     sections: list[tuple[str, str]],
 ) -> list[tuple[str, str]]:
-    """Greedily merge adjacent exact spans under the v2 minimum chunk size."""
+    """Greedily merge adjacent exact spans under the minimum chunk size."""
     groups: list[list[tuple[str, str]]] = []
     pending: list[tuple[str, str]] = []
     pending_chars = 0
@@ -133,7 +133,7 @@ def chunk_markdown_file(file_path: Path) -> ChunkResult:
 
     Returns a typed result containing chunk dicts on success:
     {
-            "id": str,           # "relative/path.md::<hash>::v1::0"
+            "id": str,           # "relative/path.md::<hash>::v3::0"
         "text": str,         # chunk content
         "metadata": {
             "path": str,
@@ -176,7 +176,12 @@ def chunk_markdown_file(file_path: Path) -> ChunkResult:
     chunk_index = 0
 
     for header, exact_section in header_sections:
-        sub_chunks = split_fixed_size(exact_section, MAX_CHARS, OVERLAP_CHARS)
+        sub_chunks = split_fixed_size(
+            exact_section,
+            MAX_CHARS,
+            OVERLAP_CHARS,
+            CHUNK_MIN_CHARS,
+        )
 
         for sub_chunk in sub_chunks:
             if not sub_chunk.strip():

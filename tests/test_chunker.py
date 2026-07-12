@@ -107,6 +107,55 @@ def test_split_fixed_size_spans_reconstruct_exact_source() -> None:
     assert reconstructed == text
 
 
+def test_tail_rebalanced() -> None:
+    text = "x" * 600
+
+    spans = split_fixed_size_spans(
+        text,
+        max_chars=CHUNK_SIZE,
+        overlap_chars=CHUNK_OVERLAP,
+        min_tail_chars=CHUNK_MIN_CHARS,
+    )
+
+    assert spans == [(0, 332), (268, 600)]
+    assert all(288 <= end - start <= CHUNK_SIZE for start, end in spans)
+
+
+@pytest.mark.parametrize("text_length", [513, 536, 537, 600, 1024, 1537, 3000])
+def test_tail_rebalance_property(text_length: int) -> None:
+    text = "x" * text_length
+
+    spans = split_fixed_size_spans(
+        text,
+        max_chars=CHUNK_SIZE,
+        overlap_chars=CHUNK_OVERLAP,
+        min_tail_chars=CHUNK_MIN_CHARS,
+    )
+
+    assert spans[-1][1] - spans[-1][0] >= 250
+    assert all(end - start <= CHUNK_SIZE for start, end in spans)
+    reconstructed = ""
+    covered_end = 0
+    for start, end in spans:
+        reconstructed += text[max(start, covered_end) : end]
+        covered_end = max(covered_end, end)
+    assert reconstructed == text
+
+
+def test_min_tail_zero_preserves_v2_behavior() -> None:
+    text = "x" * 600
+
+    default_spans = split_fixed_size_spans(text, CHUNK_SIZE, CHUNK_OVERLAP)
+    explicit_zero_spans = split_fixed_size_spans(
+        text,
+        CHUNK_SIZE,
+        CHUNK_OVERLAP,
+        min_tail_chars=0,
+    )
+
+    assert default_spans == explicit_zero_spans == [(0, 512), (448, 600)]
+
+
 # ── _parse_frontmatter ────────────────────────────────────────────────────────
 
 
@@ -161,7 +210,7 @@ def test_split_by_headers_preserves_preamble_and_whitespace() -> None:
     assert "".join(text for _, text in parts) == content
 
 
-# ── v2 header-section merge ──────────────────────────────────────────────────
+# ── header-section merge ─────────────────────────────────────────────────────
 
 
 def test_merge_small_sections(tmp_path: Path) -> None:
@@ -185,7 +234,12 @@ def test_large_section_still_split(tmp_path: Path) -> None:
 
     actual = [chunk["text"] for chunk in chunk_markdown_file(source).chunks]
 
-    assert actual == split_fixed_size(body, CHUNK_SIZE, CHUNK_OVERLAP)
+    assert actual == split_fixed_size(
+        body,
+        CHUNK_SIZE,
+        CHUNK_OVERLAP,
+        CHUNK_MIN_CHARS,
+    )
 
 
 def test_lossless_reconstruction() -> None:
@@ -277,7 +331,7 @@ def test_chunk_markdown_file_valid(tmp_path: Path):
     assert len(meta["content_hash"]) == 64
     assert meta["contract_id"] == "freshness-contract-v1"
     assert meta["content_hash_contract_version"] == "v1"
-    assert meta["chunking_contract_version"] == "v2"
+    assert meta["chunking_contract_version"] == "v3"
     assert meta["expected_chunk_count"] == len(chunks)
     assert meta["content_hash"] in first["id"]
     assert "chunk_index" in meta
@@ -302,7 +356,7 @@ def test_chunk_markdown_content_hash_is_independent_of_chunking(
     original = chunk_markdown_file(f).chunks
     monkeypatch.setattr(
         "chunker.split_fixed_size",
-        lambda text, _size, _overlap: [text[:600], text[600:]],
+        lambda text, _size, _overlap, _min_tail: [text[:600], text[600:]],
     )
     changed_boundaries = chunk_markdown_file(f).chunks
     assert {chunk["metadata"]["content_hash"] for chunk in original} == {expected}
@@ -311,7 +365,7 @@ def test_chunk_markdown_content_hash_is_independent_of_chunking(
     } == {expected}
 
 
-def test_ids_carry_v2(tmp_path: Path) -> None:
+def test_ids_carry_v3(tmp_path: Path) -> None:
     source = tmp_path / "versioned.md"
     source.write_text("# Versioned\n" + ("content " * 60), encoding="utf-8")
 
@@ -319,10 +373,10 @@ def test_ids_carry_v2(tmp_path: Path) -> None:
 
     assert chunks
     for chunk in chunks:
-        assert "::v2::" in chunk["id"]
-        assert chunk["metadata"]["chunking_contract_version"] == "v2"
-        v1_id = chunk["id"].replace("::v2::", "::v1::")
-        assert v1_id != chunk["id"]
+        assert "::v3::" in chunk["id"]
+        assert chunk["metadata"]["chunking_contract_version"] == "v3"
+        v2_id = chunk["id"].replace("::v3::", "::v2::")
+        assert v2_id != chunk["id"]
 
 
 def test_pdf_chunker_uses_shared_fixed_size_splitter() -> None:
@@ -330,7 +384,7 @@ def test_pdf_chunker_uses_shared_fixed_size_splitter() -> None:
     assert getattr(pdf_chunker, "split_fixed_size") is split_fixed_size
 
 
-def test_pdf_emits_v2_unchanged(
+def test_pdf_emits_v3(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     pdf_chunker = importlib.import_module("chunker_pdf")
@@ -364,8 +418,38 @@ def test_pdf_emits_v2_unchanged(
     assert result.chunks[0]["text"] == "Extracted PDF content long enough to be indexed."
     assert result.chunks[0]["metadata"]["header"] == "Page 1"
     assert result.chunks[0]["metadata"]["content_hash"] == hashlib.sha256(raw).hexdigest()
-    assert result.chunks[0]["metadata"]["chunking_contract_version"] == "v2"
-    assert "::v2::" in result.chunks[0]["id"]
+    assert result.chunks[0]["metadata"]["chunking_contract_version"] == "v3"
+    assert "::v3::" in result.chunks[0]["id"]
+
+
+def test_pdf_tail_rebalanced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pdf_chunker = importlib.import_module("chunker_pdf")
+    source = tmp_path / "long-page.pdf"
+    source.write_bytes(b"fake-pdf-snapshot")
+
+    class Page:
+        def extract_text(self) -> str:
+            return "x" * 600
+
+    class Pdf:
+        pages = [Page()]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    monkeypatch.setattr(pdf_chunker.pdfplumber, "open", lambda _snapshot: Pdf())
+
+    result = pdf_chunker.chunk_pdf_file(source)
+    lengths = [len(chunk["text"]) for chunk in result.chunks]
+
+    assert result.status == "ok"
+    assert len(lengths) == 2
+    assert all(288 <= length <= CHUNK_SIZE for length in lengths)
 
 
 def test_pdf_chunker_reports_extraction_error(

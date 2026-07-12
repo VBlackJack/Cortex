@@ -166,11 +166,11 @@ def test_exact_expected_ids_remove_same_hash_orphans() -> None:
 def test_rechunking_same_bytes_replaces_old_chunking_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    old = _chunks(2, chunking_version="v1")
-    new = _chunks(3, chunking_version="v2")
+    old = _chunks(2, chunking_version="v2")
+    new = _chunks(3, chunking_version="v3")
     collection = Collection()
     collection.seed(old)
-    monkeypatch.setattr(sync_hash_aware, "CHUNKING_CONTRACT_VERSION", "v2")
+    monkeypatch.setattr(sync_hash_aware, "CHUNKING_CONTRACT_VERSION", "v3")
 
     sync_file(collection, new, list(collection.rows))
 

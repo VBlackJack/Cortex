@@ -21,6 +21,7 @@ from chunker_utils import (
     split_fixed_size,
 )
 from config import (
+    CHUNK_MIN_CHARS,
     CHUNK_OVERLAP,
     CHUNK_SIZE,
     CHUNKING_CONTRACT_VERSION,
@@ -67,7 +68,12 @@ def chunk_pdf_file(file_path: Path) -> ChunkResult:
     chunks: list[dict[str, Any]] = []
 
     for page_num, page_text in pages_text:
-        for segment in split_fixed_size(page_text, CHUNK_SIZE, CHUNK_OVERLAP):
+        for segment in split_fixed_size(
+            page_text,
+            CHUNK_SIZE,
+            CHUNK_OVERLAP,
+            CHUNK_MIN_CHARS,
+        ):
             if not segment.strip():
                 continue
             chunk_index = len(chunks)
