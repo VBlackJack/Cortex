@@ -22,6 +22,7 @@ EXCLUDE_FILES = {"00_INDEX.md"}
 
 FRESHNESS_CONTRACT_ID = "freshness-contract-v1"
 FRESHNESS_CONTRACT_VERSION = "v1"
+CHUNKING_CONTRACT_VERSION = "v1"
 
 # Single section policy - the one source of truth for what Cortex ever
 # indexes, consulted by discover_sections(), is_excluded_path(), the sync

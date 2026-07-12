@@ -12,9 +12,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import KB_PATH
-from indexer import discover_sections, get_collection
-from sync_hash_aware import SyncCheckpoint, sync_section
+from config import INCLUDED_SECTIONS, KB_PATH
+from indexer import get_collection
+from sync_hash_aware import (
+    SyncCheckpoint,
+    empty_sync_stats,
+    merge_sync_stats,
+    sync_section,
+)
 from write_lock import chroma_write_lock
 
 
@@ -31,13 +36,15 @@ def main() -> None:
     args = parser.parse_args()
 
     root = Path(KB_PATH)
-    sections = args.sections or discover_sections()
+    if not root.is_dir():
+        raise RuntimeError(f"KB_PATH is not a directory: {root}")
+    sections = args.sections or sorted(INCLUDED_SECTIONS)
     checkpoint = SyncCheckpoint(Path(args.checkpoint))
     print("[init] loading collection / embedding function ...", flush=True)
     collection = get_collection()
     print("[init] collection ready", flush=True)
 
-    totals = {"published": 0, "skipped": 0}
+    totals = empty_sync_stats()
     # Holds the write lock for the WHOLE multi-section run, not just each
     # section individually - closes the gap between sections where another
     # writer could otherwise slip in. sync_section() acquires the same lock
@@ -45,16 +52,12 @@ def main() -> None:
     # so this nests without deadlocking (see write_lock.py).
     with chroma_write_lock():
         for section in sections:
-            if not (root / section).is_dir():
-                print(f"[skip] {section}: folder not found", flush=True)
-                continue
             print(f"[sync] {section} ...", flush=True)
             stats = sync_section(collection, root, section, checkpoint, verbose=args.verbose)
-            totals["published"] += stats["published"]
-            totals["skipped"] += stats["skipped"]
-            print(f"[done] {section}: published={stats['published']} skipped={stats['skipped']}", flush=True)
+            merge_sync_stats(totals, stats)
+            print(f"[done] {section}: {stats}", flush=True)
 
-    print(f"TOTAL published={totals['published']} skipped={totals['skipped']}")
+    print(f"TOTAL {totals}")
 
 
 if __name__ == "__main__":

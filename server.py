@@ -119,7 +119,7 @@ def cortex_sync(section: Optional[str] = None) -> str:
     If section is provided, only that section is synced.
     Sections are auto-discovered from the knowledge base root — use
     cortex_list_sections to see what is available.
-    Returns a summary of what was added, deleted, and skipped.
+    Returns file/chunk publication, removal, skip and error counters.
     """
     section, err = _resolve_section(section)
     if err:
@@ -136,9 +136,11 @@ def cortex_sync(section: Optional[str] = None) -> str:
     sec_label = section or "all sections"
     return (
         f"## Cortex sync complete — {sec_label}\n\n"
-        f"- **Added:** {stats['added']} chunks\n"
-        f"- **Deleted:** {stats['deleted']} chunks\n"
-        f"- **Skipped:** {stats['skipped']} files (unchanged)\n"
+        f"- **Published files:** {stats['published_files']}\n"
+        f"- **Added chunks:** {stats['added_chunks']}\n"
+        f"- **Deleted chunks:** {stats['deleted_chunks']}\n"
+        f"- **Removed files:** {stats['removed_files']}\n"
+        f"- **Skipped files:** {stats['skipped_files']}\n"
         f"- **Errors:** {stats['errors']}\n"
     )
 

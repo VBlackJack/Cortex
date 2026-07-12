@@ -94,7 +94,7 @@ def test_sync_excludes_datacron_via_is_excluded_path(
 
     stats = indexer._sync_locked(section=".datacron", verbose=False)
 
-    assert stats["added"] == 0
+    assert stats["added_chunks"] == 0
     assert stats["errors"] == 0
 
     collection = indexer.get_collection()  # type: ignore[no-untyped-call]  # legacy indexer.py, not touched by this lot

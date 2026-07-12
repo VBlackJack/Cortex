@@ -1,75 +1,102 @@
-"""
-chunker_pdf.py - PDF chunker for native (non-scanned) PDF files.
-Extracts text page by page using pdfplumber, then splits into fixed-size chunks.
-"""
+# Copyright 2026 Julien Bombled
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+"""Chunk native PDF files from one immutable byte snapshot."""
 
+from __future__ import annotations
+
+from io import BytesIO
 from pathlib import Path
+from typing import Any
 
 import pdfplumber
 
-from config import KB_PATH, CHUNK_SIZE, CHUNK_OVERLAP
-from chunker_utils import compute_hash, get_section, get_relative_path, split_fixed_size
+from config import (
+    CHUNK_OVERLAP,
+    CHUNK_SIZE,
+    CHUNKING_CONTRACT_VERSION,
+    FRESHNESS_CONTRACT_ID,
+    FRESHNESS_CONTRACT_VERSION,
+    KB_PATH,
+)
+from chunker_utils import (
+    ChunkResult,
+    compute_hash,
+    get_relative_path,
+    get_section,
+    sha256_bytes,
+    split_fixed_size,
+)
 
-MAX_PDF_SIZE_BYTES = 50_000_000  # 50 MB - skip larger files
+MAX_PDF_SIZE_BYTES = 50_000_000
 
 
-# ── PDF chunker ──────────────────────────────────────────────────────────────
-
-def chunk_pdf_file(file_path: Path) -> list[dict]:
-    """
-    Extract text from a native PDF and return chunks with metadata.
-    Returns an empty list if the file is too large, scanned (no text), or unreadable.
-    """
+def chunk_pdf_file(file_path: Path) -> ChunkResult:
+    """Extract and chunk a PDF while hashing the exact bytes being parsed."""
     file_path = Path(file_path)
-
-    if file_path.stat().st_size > MAX_PDF_SIZE_BYTES:
-        return []
+    try:
+        if file_path.stat().st_size > MAX_PDF_SIZE_BYTES:
+            return ChunkResult(status="too_large")
+        raw_bytes = file_path.read_bytes()
+    except OSError as exc:
+        return ChunkResult(status="read_error", error=str(exc))
+    if len(raw_bytes) > MAX_PDF_SIZE_BYTES:
+        return ChunkResult(status="too_large")
 
     try:
-        pages_text = []
-        with pdfplumber.open(file_path) as pdf:
+        pages_text: list[tuple[int, str]] = []
+        with pdfplumber.open(BytesIO(raw_bytes)) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
                 text = page.extract_text()
                 if text and text.strip():
                     pages_text.append((page_num, text.strip()))
-    except Exception:
-        return []
+    except Exception as exc:
+        return ChunkResult(status="extraction_error", error=str(exc))
 
     if not pages_text:
-        return []  # scanned PDF or unreadable
+        return ChunkResult(status="empty")
 
-    # Hash the full extracted text to detect changes
-    full_text = "\n".join(t for _, t in pages_text)
+    full_text = "\n".join(text for _, text in pages_text)
     file_hash = compute_hash(full_text)
-
+    content_hash = sha256_bytes(raw_bytes)
     section = get_section(file_path, KB_PATH)
     rel_path = get_relative_path(file_path, KB_PATH)
-    # Build a readable title from the filename
     title = file_path.stem.replace("-", " ").replace("_", " ").title()
-
-    chunks = []
-    chunk_idx = 0
+    chunks: list[dict[str, Any]] = []
 
     for page_num, page_text in pages_text:
-        segments = split_fixed_size(page_text, CHUNK_SIZE, CHUNK_OVERLAP)
-        for segment in segments:
+        for segment in split_fixed_size(page_text, CHUNK_SIZE, CHUNK_OVERLAP):
             if not segment.strip():
                 continue
-            chunk_id = f"{rel_path}::{chunk_idx}"
-            chunks.append({
-                "id": chunk_id,
-                "text": segment,
-                "metadata": {
-                    "path":        rel_path,
-                    "section":     section,
-                    "title":       title,
-                    "header":      f"Page {page_num}",
-                    "chunk_index": chunk_idx,
-                    "file_hash":   file_hash,
-                    "format":      "pdf",
-                    "page":        page_num,
-                },
-            })
-            chunk_idx += 1
+            chunk_index = len(chunks)
+            chunks.append(
+                {
+                    "id": (
+                        f"{rel_path}::{content_hash}::"
+                        f"{CHUNKING_CONTRACT_VERSION}::{chunk_index}"
+                    ),
+                    "text": segment,
+                    "metadata": {
+                        "path": rel_path,
+                        "section": section,
+                        "title": title,
+                        "header": f"Page {page_num}",
+                        "chunk_index": chunk_index,
+                        "file_hash": file_hash,
+                        "content_hash": content_hash,
+                        "contract_id": FRESHNESS_CONTRACT_ID,
+                        "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+                        "chunking_contract_version": CHUNKING_CONTRACT_VERSION,
+                        "format": "pdf",
+                        "page": page_num,
+                    },
+                }
+            )
 
-    return chunks
+    if not chunks:
+        return ChunkResult(status="empty")
+    expected_chunk_count = len(chunks)
+    for chunk in chunks:
+        chunk["metadata"]["expected_chunk_count"] = expected_chunk_count
+    return ChunkResult(status="ok", chunks=chunks)

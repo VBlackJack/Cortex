@@ -201,6 +201,34 @@ def test_annotate_search_hits_fresh_and_stale(
     assert hits[0]["freshness"] == "stale"
 
 
+def test_pdf_freshness_hashes_bytes_without_utf8_decoding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    section = root / "knowledge"
+    section.mkdir(parents=True)
+    pdf = section / "binary.pdf"
+    pdf.write_bytes(b"%PDF-\xff\x00binary")
+    content_hash = sha256_bytes(pdf.read_bytes())
+    metadata = {
+        "path": "knowledge/binary.pdf",
+        "content_hash": content_hash,
+        "contract_id": FRESHNESS_CONTRACT_ID,
+        "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+    }
+    monkeypatch.setattr(freshness, "KB_PATH", str(root))
+
+    report = freshness.cortex_freshness_report(
+        FakeCollection([metadata]), section="knowledge"
+    )
+    hits = freshness.annotate_search_hits([{"metadata": metadata}])
+
+    assert report["entries"] == [
+        {"path": "knowledge/binary.pdf", "status": "fresh", "chunks": "1"}
+    ]
+    assert hits[0]["freshness"] == "fresh"
+
+
 def test_annotate_search_hits_missing_and_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -7,10 +7,32 @@
 chunker_utils.py - Shared utilities for markdown and PDF chunkers.
 """
 
+from __future__ import annotations
+
 import hashlib
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Literal
 
 from config import EXCLUDE_FILES, EXCLUDED_DIRS, INCLUDED_SECTIONS
+
+
+ChunkStatus = Literal[
+    "ok",
+    "empty",
+    "too_large",
+    "read_error",
+    "extraction_error",
+]
+
+
+@dataclass(frozen=True)
+class ChunkResult:
+    """Typed outcome of reading and chunking one source snapshot."""
+
+    status: ChunkStatus
+    chunks: list[dict[str, Any]] = field(default_factory=list)
+    error: str | None = None
 
 
 def is_excluded_path(rel_path: Path) -> bool:

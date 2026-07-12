@@ -21,6 +21,7 @@ from config import (
     KB_PATH,
 )
 from chunker import chunk_markdown_file
+from chunker_pdf import chunk_pdf_file
 from chunker_utils import discover_out_of_policy_dirs, is_excluded_path, sha256_bytes
 
 _LOG = logging.getLogger("cortex.freshness")
@@ -35,8 +36,8 @@ class FileSnapshot:
     content_hash: str
 
 
-def read_markdown_snapshot(path: Path, kb_root: Path) -> FileSnapshot:
-    """Read, contain, hash and strictly decode a Markdown file exactly once."""
+def read_source_snapshot(path: Path, kb_root: Path) -> FileSnapshot:
+    """Read, contain and hash one source, strictly decoding Markdown."""
     root = kb_root.resolve(strict=True)
     resolved = path.resolve(strict=True)
     try:
@@ -44,8 +45,14 @@ def read_markdown_snapshot(path: Path, kb_root: Path) -> FileSnapshot:
     except ValueError as exc:
         raise ValueError("source path escapes KB_PATH") from exc
     raw = resolved.read_bytes()
-    raw.decode("utf-8", errors="strict")
+    if resolved.suffix.lower() == ".md":
+        raw.decode("utf-8", errors="strict")
     return FileSnapshot(path=rel_path.as_posix(), content_hash=sha256_bytes(raw))
+
+
+def read_markdown_snapshot(path: Path, kb_root: Path) -> FileSnapshot:
+    """Backward-compatible strict Markdown snapshot helper."""
+    return read_source_snapshot(path, kb_root)
 
 
 def cortex_freshness_report(
@@ -70,15 +77,10 @@ def cortex_freshness_report(
         entries.append({"path": rel_path, "status": "excluded"})
 
     for source in _discover_sources(root, section):
-        if source.suffix.lower() == ".pdf":
-            entries.append(
-                {"path": source.relative_to(root).as_posix(), "status": "unsupported"}
-            )
-            continue
         rel_path = source.relative_to(root).as_posix()
         seen_paths.add(rel_path)
         try:
-            snapshot = read_markdown_snapshot(source, root)
+            snapshot = read_source_snapshot(source, root)
         except (OSError, UnicodeDecodeError, ValueError) as exc:
             entries.append({"path": rel_path, "status": "error", "reason": str(exc)})
             continue
@@ -87,7 +89,7 @@ def cortex_freshness_report(
     for rel_path, metadata in sorted(indexed.items()):
         if rel_path in seen_paths:
             continue
-        status = "unsupported" if rel_path.lower().endswith(".pdf") else "missing"
+        status = "missing"
         if is_excluded_path(Path(rel_path)):
             status = "excluded"
         entries.append(
@@ -224,12 +226,20 @@ def _classify_present(
     snapshot: FileSnapshot, metadata: list[dict[str, Any]], source: Path
 ) -> dict[str, str]:
     if not metadata:
-        # Mirror the sync side (sync_hash_aware.sync_section): a file that the
-        # chunker legitimately reduces to zero chunks (empty body, oversized,
-        # undecodable) is not a gap. Only a file the chunker would embed, but
-        # that has no stored chunks, is a real "unindexed" gap.
-        status = "unindexed" if chunk_markdown_file(source) else "no_chunks"
-        return {"path": snapshot.path, "status": status}
+        result = (
+            chunk_pdf_file(source)
+            if source.suffix.lower() == ".pdf"
+            else chunk_markdown_file(source)
+        )
+        if result.status == "ok":
+            return {"path": snapshot.path, "status": "unindexed"}
+        if result.status in {"empty", "too_large"}:
+            return {"path": snapshot.path, "status": "no_chunks"}
+        return {
+            "path": snapshot.path,
+            "status": "error",
+            "reason": result.error or result.status,
+        }
     status = classify_hash(snapshot.content_hash, metadata)
     return {"path": snapshot.path, "status": status, "chunks": str(len(metadata))}
 
@@ -285,7 +295,7 @@ def _report(
             "included_sections": sorted(INCLUDED_SECTIONS),
             "excluded_dirs": sorted(EXCLUDED_DIRS),
             "out_of_policy_dirs": sorted(out_of_policy_dirs or []),
-            "pdf": "unsupported_by_contract_v1",
+            "pdf": "supported_by_contract_v1",
         },
         "summary": dict(sorted(summary.items())),
         "entries": entries,

@@ -166,26 +166,30 @@ def test_split_by_headers_preserves_preamble_and_whitespace() -> None:
 def test_chunk_markdown_file_empty(tmp_path: Path):
     f = tmp_path / "empty.md"
     f.write_text("", encoding="utf-8")
-    assert chunk_markdown_file(f) == []
+    result = chunk_markdown_file(f)
+    assert result.status == "empty"
+    assert result.chunks == []
 
 
 def test_chunk_markdown_file_too_short(tmp_path: Path):
     f = tmp_path / "short.md"
     f.write_text("tiny", encoding="utf-8")
-    assert chunk_markdown_file(f) == []
+    assert chunk_markdown_file(f).status == "empty"
 
 
 def test_chunk_markdown_file_oversized(tmp_path: Path):
     f = tmp_path / "huge.md"
     f.write_text("x" * (MAX_FILE_SIZE_BYTES + 1), encoding="utf-8")
-    assert chunk_markdown_file(f) == []
+    assert chunk_markdown_file(f).status == "too_large"
 
 
 def test_chunk_markdown_file_valid(tmp_path: Path):
     f = tmp_path / "doc.md"
     body = "# Title\n\n" + ("Some real content. " * 30)
     f.write_text(body, encoding="utf-8")
-    chunks = chunk_markdown_file(f)
+    result = chunk_markdown_file(f)
+    assert result.status == "ok"
+    chunks = result.chunks
     assert len(chunks) >= 1
     first = chunks[0]
     assert "id" in first
@@ -198,6 +202,9 @@ def test_chunk_markdown_file_valid(tmp_path: Path):
     assert len(meta["content_hash"]) == 64
     assert meta["contract_id"] == "freshness-contract-v1"
     assert meta["content_hash_contract_version"] == "v1"
+    assert meta["chunking_contract_version"] == "v1"
+    assert meta["expected_chunk_count"] == len(chunks)
+    assert meta["content_hash"] in first["id"]
     assert "chunk_index" in meta
 
 
@@ -205,8 +212,8 @@ def test_chunk_markdown_file_hash_stable(tmp_path: Path):
     f = tmp_path / "stable.md"
     body = "# Title\n\n" + ("Stable content. " * 20)
     f.write_text(body, encoding="utf-8")
-    h1 = chunk_markdown_file(f)[0]["metadata"]["file_hash"]
-    h2 = chunk_markdown_file(f)[0]["metadata"]["file_hash"]
+    h1 = chunk_markdown_file(f).chunks[0]["metadata"]["file_hash"]
+    h2 = chunk_markdown_file(f).chunks[0]["metadata"]["file_hash"]
     assert h1 == h2
 
 
@@ -217,12 +224,12 @@ def test_chunk_markdown_content_hash_is_independent_of_chunking(
     raw = ("# Title\r\n\r\n" + ("Stable content. " * 100)).encode()
     f.write_bytes(raw)
     expected = hashlib.sha256(raw).hexdigest()
-    original = chunk_markdown_file(f)
+    original = chunk_markdown_file(f).chunks
     monkeypatch.setattr(
         "chunker.split_fixed_size",
         lambda text, _size, _overlap: [text[:600], text[600:]],
     )
-    changed_boundaries = chunk_markdown_file(f)
+    changed_boundaries = chunk_markdown_file(f).chunks
     assert {chunk["metadata"]["content_hash"] for chunk in original} == {expected}
     assert {
         chunk["metadata"]["content_hash"] for chunk in changed_boundaries
@@ -234,17 +241,71 @@ def test_pdf_chunker_uses_shared_fixed_size_splitter() -> None:
     assert getattr(pdf_chunker, "split_fixed_size") is split_fixed_size
 
 
+def test_pdf_chunker_hashes_the_exact_parsed_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pdf_chunker = importlib.import_module("chunker_pdf")
+    source = tmp_path / "note.pdf"
+    raw = b"not-a-real-pdf-but-one-exact-snapshot"
+    source.write_bytes(raw)
+
+    class Page:
+        def extract_text(self) -> str:
+            return "Extracted PDF content long enough to be indexed."
+
+    class Pdf:
+        pages = [Page()]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    def open_snapshot(snapshot: object) -> Pdf:
+        assert snapshot.getvalue() == raw  # type: ignore[attr-defined]
+        return Pdf()
+
+    monkeypatch.setattr(pdf_chunker.pdfplumber, "open", open_snapshot)
+
+    result = pdf_chunker.chunk_pdf_file(source)
+
+    assert result.status == "ok"
+    assert result.chunks[0]["metadata"]["content_hash"] == hashlib.sha256(raw).hexdigest()
+    assert result.chunks[0]["metadata"]["chunking_contract_version"] == "v1"
+
+
+def test_pdf_chunker_reports_extraction_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pdf_chunker = importlib.import_module("chunker_pdf")
+    source = tmp_path / "broken.pdf"
+    source.write_bytes(b"broken")
+
+    def fail_extract(_snapshot: object) -> None:
+        raise RuntimeError("parser failed")
+
+    monkeypatch.setattr(pdf_chunker.pdfplumber, "open", fail_extract)
+
+    result = pdf_chunker.chunk_pdf_file(source)
+
+    assert result.status == "extraction_error"
+    assert result.error == "parser failed"
+
+
 def test_chunk_markdown_file_rejects_invalid_utf8(tmp_path: Path):
     f = tmp_path / "invalid.md"
     f.write_bytes(b"# Invalid\n\xff")
-    assert chunk_markdown_file(f) == []
+    result = chunk_markdown_file(f)
+    assert result.status == "read_error"
+    assert result.error
 
 
 def test_chunk_respects_max_chars(tmp_path: Path):
     f = tmp_path / "long.md"
     body = "# Title\n\n" + ("a " * 1000)
     f.write_text(body, encoding="utf-8")
-    chunks = chunk_markdown_file(f)
+    chunks = chunk_markdown_file(f).chunks
     # Each chunk's text should be within MAX_CHARS (allowing some slack
     # for the natural-boundary backoff which can produce slightly shorter chunks).
     for c in chunks:

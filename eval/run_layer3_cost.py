@@ -39,8 +39,8 @@ def main() -> None:
     selective_bytes = 0
     for rel_path in selective_paths:
         abs_path = root / rel_path
-        chunks = chunk_markdown_file(abs_path)
-        selective_chunks += len(chunks)
+        result = chunk_markdown_file(abs_path)
+        selective_chunks += len(result.chunks)
         selective_bytes += abs_path.stat().st_size
 
     full_chunks = 0
@@ -51,8 +51,8 @@ def main() -> None:
         if is_excluded_path(rel):
             continue
         full_files += 1
-        chunks = chunk_markdown_file(path)
-        full_chunks += len(chunks)
+        result = chunk_markdown_file(path)
+        full_chunks += len(result.chunks)
         full_bytes += path.stat().st_size
 
     result = {

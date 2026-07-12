@@ -12,7 +12,6 @@ Usage:
 """
 
 import os
-import gc
 import logging
 import warnings
 import argparse
@@ -37,23 +36,11 @@ from config import (  # noqa: E402
     EMBEDDING_MODEL,
     INCLUDED_SECTIONS,
 )
-from chunker import chunk_markdown_file  # noqa: E402
-from chunker_pdf import chunk_pdf_file  # noqa: E402
 from chunker_utils import (  # noqa: E402
     discover_out_of_policy_dirs,
-    get_relative_path,
-    is_excluded_path,
 )
+from sync_hash_aware import empty_sync_stats, merge_sync_stats, sync_section  # noqa: E402
 from write_lock import chroma_write_lock  # noqa: E402
-
-# ── Format routing ────────────────────────────────────────────────────────────
-
-CHUNKERS = {
-    ".md": chunk_markdown_file,
-    ".pdf": chunk_pdf_file,
-}
-
-SUPPORTED_EXTENSIONS = set(CHUNKERS.keys())
 
 
 # ── Embedding function ────────────────────────────────────────────────────────
@@ -90,8 +77,6 @@ def get_embedding_function() -> FastEmbedFunction:
 
 
 # ── ChromaDB helpers ──────────────────────────────────────────────────────────
-
-BATCH_SIZE = 10
 
 
 def get_client() -> chromadb.PersistentClient:
@@ -132,51 +117,13 @@ def discover_out_of_policy_sections() -> list[str]:
     return discover_out_of_policy_dirs(Path(KB_PATH))
 
 
-def get_indexed_hashes(collection, section: str = None) -> dict[str, str]:
-    """
-    Return {file_path: file_hash} for already-indexed documents.
-    Scoped to section to avoid cross-section contamination.
-    Uses batched queries to handle large sections (ChromaDB SQL variable limit).
-    """
-    where = {"section": section} if section else None
-    hashes: dict[str, str] = {}
-    offset = 0
-    page_size = 5_000
-
-    while True:
-        try:
-            result = collection.get(
-                where=where,
-                include=["metadatas"],
-                limit=page_size,
-                offset=offset,
-            )
-        except Exception as e:
-            log.warning("get_indexed_hashes failed at offset %d: %s", offset, e)
-            break
-
-        metadatas = result.get("metadatas") or []
-        if not metadatas:
-            break
-
-        for meta in metadatas:
-            if meta and "path" in meta and "file_hash" in meta:
-                hashes[meta["path"]] = meta["file_hash"]
-
-        if len(metadatas) < page_size:
-            break
-        offset += page_size
-
-    return hashes
-
-
 # ── Sync ──────────────────────────────────────────────────────────────────────
 
 
 def sync(section: str = None, verbose: bool = True) -> dict:
     """
     Incremental sync. If section is given, only process that section's folder.
-    Returns stats dict: {added, deleted, skipped, errors}.
+    Returns file/chunk publication, removal, skip and error counters.
     Acquires the exclusive Chroma write lock for the whole call - see
     write_lock.chroma_write_lock(). Raises CortexWriteLockedError, without
     writing anything, if another writer already holds it.
@@ -187,158 +134,42 @@ def sync(section: str = None, verbose: bool = True) -> dict:
 
 def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, int]:
     kb_root = Path(KB_PATH)
-    stats = {"added": 0, "deleted": 0, "skipped": 0, "errors": 0}
+    stats = empty_sync_stats()
+
+    if not kb_root.is_dir():
+        log.error("KB_PATH is not a directory: %s", kb_root)
+        stats["errors"] += 1
+        return stats
 
     client = get_client()
     collection = get_collection(client)
 
-    folders = (
-        [kb_root / section] if section else [kb_root / s for s in discover_sections()]
-    )
+    section_names = [section] if section else sorted(INCLUDED_SECTIONS)
+    folders = [kb_root / name for name in section_names]
 
     for folder in folders:
         sec_name = folder.name
-        if not folder.is_dir():
-            if verbose:
-                log.warning("Section folder not found: %s", folder)
-            continue
-
         if verbose:
             log.info("--- Section: %s ---", sec_name)
 
-        indexed = get_indexed_hashes(collection, section=sec_name)
-
-        current_paths: set[str] = set()
-        files_to_index: list = []
-
-        for ext in SUPPORTED_EXTENSIONS:
-            for file_path in sorted(folder.rglob(f"*{ext}")):
-                # Single source of truth (was EXCLUDE_DIRS-only here, missing
-                # .datacron/_archive/_trash entirely - fixed as part of the
-                # section-policy consolidation).
-                if is_excluded_path(file_path.relative_to(kb_root)):
-                    continue
-
-                path_str = get_relative_path(file_path, KB_PATH)
-                current_paths.add(path_str)
-
-                # One read produces the hash and the text that would be embedded.
-                chunker = CHUNKERS[ext]
-                chunks = chunker(file_path)
-                if not chunks:
-                    stats["skipped"] += 1
-                    continue
-
-                file_hash = chunks[0]["metadata"]["file_hash"]
-                if indexed.get(path_str) == file_hash:
-                    stats["skipped"] += 1
-                    continue
-
-                files_to_index.append((file_path, chunks))
-
-        # Determine which paths need their chunks deleted
-        stale_paths = set(indexed.keys()) - current_paths
-        changed_paths = {
-            get_relative_path(f, KB_PATH)
-            for f, _ in files_to_index
-            if indexed.get(get_relative_path(f, KB_PATH))
-        }
-        paths_to_delete = stale_paths | changed_paths
-
-        if paths_to_delete:
-            # Batched collection.get() for both stale and changed files
-            ids_to_delete = []
-            stale_chunk_count = 0
-            offset = 0
-            page_size = 5_000
-
-            while True:
-                try:
-                    page = collection.get(
-                        where={"section": sec_name},
-                        include=["metadatas"],
-                        limit=page_size,
-                        offset=offset,
-                    )
-                except Exception:
-                    break
-
-                page_ids = page.get("ids", [])
-                page_metas = page.get("metadatas") or []
-                if not page_ids:
-                    break
-
-                for chunk_id, meta in zip(page_ids, page_metas):
-                    if meta and meta.get("path") in paths_to_delete:
-                        ids_to_delete.append(chunk_id)
-                        if meta.get("path") in stale_paths:
-                            stale_chunk_count += 1
-
-                if len(page_ids) < page_size:
-                    break
-                offset += page_size
-
-            if ids_to_delete:
-                # ChromaDB delete also has limits, batch the deletes
-                for i in range(0, len(ids_to_delete), page_size):
-                    collection.delete(ids=ids_to_delete[i : i + page_size])
-                stats["deleted"] += stale_chunk_count
-                if verbose and stale_paths:
-                    log.info(
-                        "  Deleted %d chunks from %d removed files",
-                        stale_chunk_count,
-                        len(stale_paths),
-                    )
-
-        # Index new / changed files in batches
-        batch_ids, batch_texts, batch_metas = [], [], []
-
-        for file_path, chunks in files_to_index:
-            for chunk in chunks:
-                batch_ids.append(chunk["id"])
-                batch_texts.append(chunk["text"])
-                batch_metas.append(chunk["metadata"])
-
-                if len(batch_ids) >= BATCH_SIZE:
-                    try:
-                        collection.upsert(
-                            ids=batch_ids,
-                            documents=batch_texts,
-                            metadatas=batch_metas,
-                        )
-                        stats["added"] += len(batch_ids)
-                    except Exception as e:
-                        if verbose:
-                            log.error("  Batch upsert failed: %s", e)
-                        stats["errors"] += len(batch_ids)
-                    batch_ids, batch_texts, batch_metas = [], [], []
-                    gc.collect()
-
-            if verbose:
-                log.info("  + %s (%d chunks)", file_path.name, len(chunks))
-            gc.collect()
-
-        # Flush remaining batch
-        if batch_ids:
-            try:
-                collection.upsert(
-                    ids=batch_ids,
-                    documents=batch_texts,
-                    metadatas=batch_metas,
-                )
-                stats["added"] += len(batch_ids)
-            except Exception as e:
-                if verbose:
-                    log.error("  Final batch failed: %s", e)
-                stats["errors"] += len(batch_ids)
-            gc.collect()
+        section_stats = sync_section(
+            collection,
+            kb_root,
+            sec_name,
+            checkpoint=None,
+            verbose=verbose,
+        )
+        merge_sync_stats(stats, section_stats)
 
     if verbose:
         log.info(
-            "Sync complete: Added=%d Deleted=%d Skipped=%d Errors=%d",
-            stats["added"],
-            stats["deleted"],
-            stats["skipped"],
+            "Sync complete: PublishedFiles=%d AddedChunks=%d DeletedChunks=%d "
+            "RemovedFiles=%d SkippedFiles=%d Errors=%d",
+            stats["published_files"],
+            stats["added_chunks"],
+            stats["deleted_chunks"],
+            stats["removed_files"],
+            stats["skipped_files"],
             stats["errors"],
         )
     return stats
