@@ -2,7 +2,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-"""Build and evaluate the isolated lot 6d multilingual-e5-large index."""
+"""Build and evaluate isolated lot 6d candidate embedding indexes."""
 
 from __future__ import annotations
 
@@ -20,15 +20,19 @@ import time
 from collections.abc import Iterable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import chromadb  # noqa: E402
 import fastembed  # noqa: E402
+import numpy as np  # type: ignore[import-not-found]  # noqa: E402
+import onnxruntime as ort  # type: ignore[import-not-found]  # noqa: E402
 from fastembed import TextEmbedding  # noqa: E402
 from fastembed.common.model_description import ModelSource, PoolingType  # noqa: E402
 from fastembed.rerank.cross_encoder import TextCrossEncoder  # noqa: E402
+from huggingface_hub import snapshot_download  # type: ignore[import-not-found]  # noqa: E402
+from tokenizers import Tokenizer  # type: ignore[import-not-found]  # noqa: E402
 
 from chroma_client import create_persistent_client, iter_collection_pages  # noqa: E402
 from config import (  # noqa: E402
@@ -54,6 +58,16 @@ MODEL_DIMENSIONS = 1024
 MODEL_POOLING = "mean"
 MODEL_NORMALIZATION = "l2"
 PREFIX_POLICY = "explicit-query-passage-v1"
+GRANITE_MODEL_NAME = "ibm-granite/granite-embedding-97m-multilingual-r2"
+GRANITE_REVISION = "c61e626a6255c490879d0af885078b61929d51f6"
+GRANITE_DIMENSIONS = 384
+GRANITE_POOLING = "cls"
+GRANITE_NORMALIZATION = "l2"
+GRANITE_PREFIX_POLICY = "none-model-card-r2"
+GRANITE_MODEL_CARD = (
+    "https://huggingface.co/ibm-granite/"
+    "granite-embedding-97m-multilingual-r2"
+)
 ONNXRUNTIME_VERSION = importlib.metadata.version("onnxruntime")
 PROBE_COLLECTION_NAME = "cortex_probe"
 PROBE_SET = EVAL_DIR / "baselines" / "lot6c-reranker" / "rerank_probe_set.json"
@@ -69,10 +83,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--probe-set", type=Path, default=PROBE_SET)
     parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
+    parser.add_argument("--model", choices=("e5", "granite"), default="e5")
     parser.add_argument(
         "--probe-path",
         type=Path,
-        default=Path(CHROMA_PATH).parent / "chroma_probe" / "multilingual-e5-large",
+        default=None,
     )
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--page-size", type=int, default=512)
@@ -178,6 +193,106 @@ class E5Embedding:
     def query(self, text: str) -> list[float]:
         return _vector(next(iter(self.model.embed([f"query: {text}"]))))
 
+    def fingerprint(self) -> dict[str, Any]:
+        return embedding_fingerprint()
+
+
+class ProbeEmbedder(Protocol):
+    """Candidate adapter surface shared by build, quality and latency probes."""
+
+    def documents(self, texts: Iterable[str], *, batch_size: int) -> list[list[float]]: ...
+    def query(self, text: str) -> list[float]: ...
+    def fingerprint(self) -> dict[str, Any]: ...
+
+
+class GraniteEmbedding:
+    """Minimal official-ONNX Granite adapter used only by this probe."""
+
+    def __init__(self, model_dir: Path) -> None:
+        model_dir.mkdir(parents=True, exist_ok=True)
+        snapshot_download(
+            repo_id=GRANITE_MODEL_NAME,
+            revision=GRANITE_REVISION,
+            local_dir=model_dir,
+            allow_patterns=(
+                "config.json",
+                "tokenizer.json",
+                "tokenizer_config.json",
+                "special_tokens_map.json",
+                "onnx/model.onnx",
+            ),
+        )
+        self.tokenizer = Tokenizer.from_file(str(model_dir / "tokenizer.json"))
+        self.tokenizer.enable_truncation(max_length=32_768)
+        self.tokenizer.enable_padding()
+        options = ort.SessionOptions()
+        self.session = ort.InferenceSession(
+            str(model_dir / "onnx" / "model.onnx"),
+            sess_options=options,
+            providers=["CPUExecutionProvider"],
+        )
+        self.input_names = {item.name for item in self.session.get_inputs()}
+        if not {"input_ids", "attention_mask"}.issubset(self.input_names):
+            raise RuntimeError(f"unexpected Granite ONNX inputs: {sorted(self.input_names)}")
+
+    def documents(self, texts: Iterable[str], *, batch_size: int) -> list[list[float]]:
+        items = list(texts)
+        result: list[list[float]] = []
+        for offset in range(0, len(items), batch_size):
+            encoded = self.tokenizer.encode_batch(items[offset : offset + batch_size])
+            feed: dict[str, Any] = {
+                "input_ids": np.asarray([item.ids for item in encoded], dtype=np.int64),
+                "attention_mask": np.asarray(
+                    [item.attention_mask for item in encoded], dtype=np.int64
+                ),
+            }
+            if "token_type_ids" in self.input_names:
+                feed["token_type_ids"] = np.asarray(
+                    [item.type_ids for item in encoded], dtype=np.int64
+                )
+            hidden = np.asarray(self.session.run(None, feed)[0], dtype=np.float32)
+            pooled = hidden[:, 0, :]
+            norms = np.linalg.norm(pooled, axis=1, keepdims=True)
+            if np.any(norms == 0):
+                raise RuntimeError("Granite returned a zero CLS embedding")
+            normalized = pooled / norms
+            if normalized.shape[1] != GRANITE_DIMENSIONS:
+                raise RuntimeError(
+                    f"Granite dimension mismatch: {normalized.shape[1]}"
+                )
+            result.extend(_vector(row) for row in normalized)
+        return result
+
+    def query(self, text: str) -> list[float]:
+        return self.documents([text], batch_size=1)[0]
+
+    def fingerprint(self) -> dict[str, Any]:
+        return {
+            "embedding_model": GRANITE_MODEL_NAME,
+            "artifact_revision": GRANITE_REVISION,
+            "fastembed_version": fastembed.__version__,
+            "onnxruntime_version": ONNXRUNTIME_VERSION,
+            "tokenizers_version": importlib.metadata.version("tokenizers"),
+            "dimensions": GRANITE_DIMENSIONS,
+            "pooling": GRANITE_POOLING,
+            "normalization": GRANITE_NORMALIZATION,
+            "prefix_policy": GRANITE_PREFIX_POLICY,
+        }
+
+    def attestation(self) -> dict[str, Any]:
+        witness = "durcissement Windows avec AppLocker"
+        document = self.documents([witness], batch_size=1)[0]
+        query = self.query(witness)
+        return {
+            "witness": witness,
+            "query_vs_passage_cosine": _cosine(query, document),
+            "roles_share_identical_encoding": True,
+            "selected_policy": GRANITE_PREFIX_POLICY,
+            "pooling": GRANITE_POOLING,
+            "normalization": GRANITE_NORMALIZATION,
+            "model_card": GRANITE_MODEL_CARD,
+        }
+
 
 def inspect_fastembed_prefixes(model: TextEmbedding) -> dict[str, Any]:
     """Empirically attest whether fastembed 0.8.0 adds E5 prefixes itself."""
@@ -223,17 +338,17 @@ def _checkpoint_path(probe_path: Path) -> Path:
     return probe_path / "lot6d-checkpoint.json"
 
 
-def _load_checkpoint(probe_path: Path) -> dict[str, Any]:
+def _load_checkpoint(probe_path: Path, fingerprint: dict[str, Any]) -> dict[str, Any]:
     path = _checkpoint_path(probe_path)
     if not path.is_file():
         return {
             "schema_version": 1,
-            "fingerprint": embedding_fingerprint(),
+            "fingerprint": fingerprint,
             "sections": {},
             "cumulative_embedding_seconds": 0.0,
         }
     checkpoint = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
-    if checkpoint.get("fingerprint") != embedding_fingerprint():
+    if checkpoint.get("fingerprint") != fingerprint:
         raise RuntimeError(f"probe checkpoint fingerprint mismatch: {path}")
     return checkpoint
 
@@ -283,8 +398,7 @@ def _probe_section_ids(collection: Any, section: str) -> list[str]:
     return [str(chunk_id) for chunk_id in result.get("ids") or []]
 
 
-def _probe_collection(client: Any) -> Any:
-    fingerprint = embedding_fingerprint()
+def _probe_collection(client: Any, fingerprint: dict[str, Any]) -> Any:
     try:
         collection = client.get_collection(PROBE_COLLECTION_NAME)
     except Exception as exc:
@@ -308,7 +422,7 @@ def _probe_collection(client: Any) -> Any:
 def build_parallel_index(
     source: Any,
     probe_path: Path,
-    embedder: E5Embedding,
+    embedder: ProbeEmbedder,
     *,
     batch_size: int,
     page_size: int,
@@ -319,9 +433,10 @@ def build_parallel_index(
     if probe_path.resolve() == Path(CHROMA_PATH).resolve():
         raise RuntimeError("refusing to use the production Chroma path as a probe")
     probe_path.mkdir(parents=True, exist_ok=True)
-    checkpoint = _load_checkpoint(probe_path)
+    fingerprint = embedder.fingerprint()
+    checkpoint = _load_checkpoint(probe_path, fingerprint)
     client = create_persistent_client(probe_path)
-    collection = _probe_collection(client)
+    collection = _probe_collection(client, fingerprint)
     invocation_started = time.perf_counter()
     rebuilt: list[str] = []
     resumed: list[str] = []
@@ -479,10 +594,11 @@ def _mini_vector_quality(source: Any, queries: list[dict[str, Any]]) -> dict[str
 def evaluate_quality(
     source: Any,
     probe: Any,
-    embedder: E5Embedding,
+    embedder: ProbeEmbedder,
     lexical: LexicalIndex,
     reranker: TextCrossEncoder,
     queries: list[dict[str, Any]],
+    candidate_key: str,
 ) -> dict[str, Any]:
     vector_ranks: dict[str, int | None] = {}
     pipeline_ranks: dict[str, int | None] = {}
@@ -499,8 +615,8 @@ def evaluate_quality(
         pipeline_ranks[query_id] = _rank(reranked, set(item["expected_paths"]))
     return {
         "minilm_vector_only": _mini_vector_quality(source, queries),
-        "e5_vector_only": _summarize(vector_ranks),
-        "e5_full_pipeline": _summarize(pipeline_ranks),
+        f"{candidate_key}_vector_only": _summarize(vector_ranks),
+        f"{candidate_key}_full_pipeline": _summarize(pipeline_ranks),
         "frozen_lot6c_full_pipeline_baseline": {
             "mrr_at_5": 0.7307692307692307,
             "hit_at_1": 0.6153846153846154,
@@ -533,7 +649,7 @@ def _latency_summary(samples: list[float], budget: float | None = None) -> dict[
 
 def evaluate_latency(
     probe: Any,
-    embedder: E5Embedding,
+    embedder: ProbeEmbedder,
     lexical: LexicalIndex,
     reranker: TextCrossEncoder,
     query: str,
@@ -583,18 +699,34 @@ def _load_probe_set(path: Path) -> tuple[bytes, list[dict[str, Any]]]:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     probe_started = time.perf_counter()
+    candidate_key = str(args.model)
+    default_slugs = {
+        "e5": "multilingual-e5-large",
+        "granite": "granite-97m-r2",
+    }
+    probe_path = args.probe_path or (
+        Path(CHROMA_PATH).parent / "chroma_probe" / default_slugs[candidate_key]
+    )
     raw_probe_set, queries = _load_probe_set(args.probe_set)
     production_client = create_persistent_client(CHROMA_PATH)
     source = production_client.get_collection(COLLECTION_NAME)
     memory_before = rss_mb()
     load_started = time.perf_counter()
-    embedder = E5Embedding()
+    if candidate_key == "e5":
+        e5 = E5Embedding()
+        embedder: ProbeEmbedder = e5
+        prefix_attestation = inspect_fastembed_prefixes(e5.model)
+    else:
+        granite = GraniteEmbedding(
+            probe_path.parent / "model_cache" / "granite-97m-r2"
+        )
+        embedder = granite
+        prefix_attestation = granite.attestation()
     model_load_seconds = time.perf_counter() - load_started
-    memory_after_e5 = rss_mb()
-    prefix_attestation = inspect_fastembed_prefixes(embedder.model)
+    memory_after_model = rss_mb()
     probe, build = build_parallel_index(
         source,
-        args.probe_path,
+        probe_path,
         embedder,
         batch_size=args.batch_size,
         page_size=args.page_size,
@@ -610,7 +742,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not lexical.is_compatible() or lexical.count() != source.count():
         raise RuntimeError("production lexical index is absent, incompatible, or incomplete")
     reranker = TextCrossEncoder(RERANKER_MODEL, threads=None, cuda=False)
-    quality = evaluate_quality(source, probe, embedder, lexical, reranker, queries)
+    quality = evaluate_quality(
+        source, probe, embedder, lexical, reranker, queries, candidate_key
+    )
     latency = evaluate_latency(
         probe,
         embedder,
@@ -619,7 +753,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         str(queries[4]["query"]),
     )
     measured_at = datetime.now(timezone.utc)
-    pipeline = quality["e5_full_pipeline"]
+    pipeline = quality[f"{candidate_key}_full_pipeline"]
     gate = {
         "strict_mrr_improvement": pipeline["mrr_at_5"] > 0.7307692307692307,
         "hit_at_1_non_regression": pipeline["hit_at_1"] >= 0.6153846153846154,
@@ -631,14 +765,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = {
         "schema_version": 1,
         "measured_at_utc": measured_at.isoformat(),
-        "stage": "lot6d-stage1-commit-a",
-        "model_fingerprint": embedding_fingerprint(),
+        "stage": f"lot6d-stage{'1' if candidate_key == 'e5' else '2'}",
+        "model_fingerprint": embedder.fingerprint(),
         "prefix_attestation": prefix_attestation,
         "probe_set": str(args.probe_set.resolve()),
         "probe_set_sha256": hashlib.sha256(raw_probe_set).hexdigest(),
         "isolation": {
             "production_chroma": str(Path(CHROMA_PATH).resolve()),
-            "parallel_chroma": str(args.probe_path.resolve()),
+            "parallel_chroma": str(probe_path.resolve()),
             "chunk_ids_embedding_independent": True,
             "production_writes": 0,
             "lexical_source": "production lexical.db (read-only)",
@@ -652,15 +786,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         "build": build,
         "memory": {
             "rss_before_model_mb": round(memory_before, 3),
-            "rss_after_e5_load_mb": round(memory_after_e5, 3),
-            "rss_e5_delta_mb_approx": round(memory_after_e5 - memory_before, 3),
+            "rss_after_model_load_mb": round(memory_after_model, 3),
+            "rss_model_delta_mb_approx": round(memory_after_model - memory_before, 3),
             "rss_after_full_probe_mb": round(rss_mb(), 3),
-            "e5_load_seconds_including_download": round(model_load_seconds, 3),
+            "model_load_seconds_including_download": round(model_load_seconds, 3),
         },
         "latency": latency,
         "quality": quality,
         "gate_inputs": gate,
-        "decision": "pending avenant 1; this probe does not promote an index",
+        "decision": "pending avenant; this probe does not promote an index",
     }
     args.output_dir.mkdir(parents=True, exist_ok=True)
     output = args.output_dir / f"probe-{measured_at.strftime('%Y%m%dT%H%M%SZ')}.json"

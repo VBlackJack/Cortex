@@ -63,6 +63,23 @@ def test_fingerprint_attests_prefixes_dimensions_and_runtime() -> None:
     assert fingerprint["onnxruntime_version"]
 
 
+def test_granite_fingerprint_uses_card_attested_cls_without_prefixes() -> None:
+    granite = probe_embedding.GraniteEmbedding.__new__(probe_embedding.GraniteEmbedding)
+
+    fingerprint = granite.fingerprint()
+
+    assert fingerprint["embedding_model"] == (
+        "ibm-granite/granite-embedding-97m-multilingual-r2"
+    )
+    assert fingerprint["artifact_revision"] == (
+        "c61e626a6255c490879d0af885078b61929d51f6"
+    )
+    assert fingerprint["dimensions"] == 384
+    assert fingerprint["pooling"] == "cls"
+    assert fingerprint["normalization"] == "l2"
+    assert fingerprint["prefix_policy"] == "none-model-card-r2"
+
+
 def test_rank_metrics_use_expected_path_and_frozen_cutoff() -> None:
     hits = [
         {"metadata": {"path": "wrong.md"}},
