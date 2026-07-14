@@ -676,7 +676,7 @@ def _default_lock_probe(path: Path) -> tuple[str, int | None, str | None]:
     except OSError as exc:
         return "unknown", pid, str(exc)
     try:
-        if os.name == "nt":
+        if sys.platform == "win32":
             import msvcrt
 
             try:
