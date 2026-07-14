@@ -63,5 +63,8 @@ jobs:
       # REST endpoint) with a fixed local ONNX model via fastembed (the
       # trust_remote_code path is never reached). No fixed chromadb release
       # exists yet; remove this ignore once one ships and the pin is bumped.
-      - name: Audit pinned runtime dependencies for known CVEs
-        run: python -m pip_audit -r requirements.txt --ignore-vuln PYSEC-2026-311
+      #
+      # Scans the fully-pinned, hash-locked transitive tree (requirements.lock)
+      # rather than the direct pins alone, so transitive CVEs are caught too.
+      - name: Audit the locked transitive dependency tree for known CVEs
+        run: python -m pip_audit -r requirements.lock --ignore-vuln PYSEC-2026-311
