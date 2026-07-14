@@ -12,6 +12,7 @@ CORTEX_WRITE_LOCK_PATH env var, read by config.py at import time.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
@@ -44,44 +45,57 @@ def _run_worker(
 
 
 def test_concurrent_writers_exactly_one_succeeds(tmp_path: Path) -> None:
-    """Two writers launched at the same time against the same DB: exactly
-    one proceeds to completion, the other fails closed. DB integrity holds
-    after both return.
+    """Two writers contend for the same DB: exactly one proceeds to
+    completion, the other fails closed. DB integrity holds after both return.
 
-    Timing: A holds the lock for ~1.5s (sleep + upsert). B's acquire
-    timeout is deliberately set shorter (0.5s) than A's hold, so B's
-    bounded wait genuinely expires while A is still writing - this is what
-    makes the test observe a real fail-closed rejection rather than B just
-    waiting its turn and succeeding after A releases (which would also be
-    safe, but proves sequencing, not the fail-closed contract)."""
+    Contention is made deterministic with a two-way file handshake, so the
+    outcome never depends on process start-up or import timing (which varies
+    wildly on cold CI runners): writer A signals once it holds the lock, B is
+    launched only then, and A keeps holding until B has finished its attempt.
+    B therefore provably tries to acquire while A holds the lock - a real
+    fail-closed rejection, not B merely waiting its turn."""
     db_path = tmp_path / "chroma_db"
     lock_path = tmp_path / "write.lock"
+    ready_file = tmp_path / "a.acquired"
+    release_file = tmp_path / "a.may_release"
 
     proc_a = subprocess.Popen(
-        [sys.executable, str(WORKER), str(db_path), "A", "5", "1.5", "0"],
-        env={**__import__("os").environ, "CORTEX_WRITE_LOCK_PATH": str(lock_path),
-             "CORTEX_WRITE_LOCK_TIMEOUT_SECONDS": "5"},
+        [sys.executable, str(WORKER), str(db_path), "A", "5", "0", "0"],
+        env={**os.environ, "CORTEX_WRITE_LOCK_PATH": str(lock_path),
+             "CORTEX_WRITE_LOCK_TIMEOUT_SECONDS": "5",
+             "CORTEX_TEST_READY_FILE": str(ready_file),
+             "CORTEX_TEST_RELEASE_FILE": str(release_file)},
         stdout=subprocess.PIPE, text=True,
     )
-    time.sleep(0.3)  # let A acquire first, widen the contention window
+
+    # Wait until A provably holds the lock (covers slow cold-start imports).
+    deadline = time.perf_counter() + 25
+    while not ready_file.exists() and time.perf_counter() < deadline:
+        if proc_a.poll() is not None:
+            break
+        time.sleep(0.05)
+    assert ready_file.exists(), "writer A never acquired the lock"
+
     proc_b = subprocess.Popen(
         [sys.executable, str(WORKER), str(db_path), "B", "5", "0", "0"],
-        env={**__import__("os").environ, "CORTEX_WRITE_LOCK_PATH": str(lock_path),
+        env={**os.environ, "CORTEX_WRITE_LOCK_PATH": str(lock_path),
              "CORTEX_WRITE_LOCK_TIMEOUT_SECONDS": "0.5"},
         stdout=subprocess.PIPE, text=True,
     )
+    out_b, _ = proc_b.communicate(timeout=30)
 
-    out_a, _ = proc_a.communicate(timeout=15)
-    out_b, _ = proc_b.communicate(timeout=15)
+    # B has finished its attempt (fail-closed); let A release and complete.
+    release_file.write_text("go", encoding="utf-8")
+    out_a, _ = proc_a.communicate(timeout=30)
 
     outcomes = {out_a.strip().splitlines()[-1], out_b.strip().splitlines()[-1]}
-    assert "OK" in {o.split(":")[0] for o in outcomes}
-    assert "LOCKED" in {o.split(":")[0] for o in outcomes}
+    assert "OK" in {o.split(":")[0] for o in outcomes}, outcomes
+    assert "LOCKED" in {o.split(":")[0] for o in outcomes}, outcomes
     # exactly one OK, one LOCKED - never both OK, never both LOCKED
     ok_count = sum(1 for o in outcomes if o.startswith("OK"))
     locked_count = sum(1 for o in outcomes if o.startswith("LOCKED"))
-    assert ok_count == 1
-    assert locked_count == 1
+    assert ok_count == 1, outcomes
+    assert locked_count == 1, outcomes
 
     client = create_persistent_client(db_path)
     collection = client.get_or_create_collection(name="test")

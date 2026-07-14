@@ -16,6 +16,7 @@ assert on the outcome without parsing process internals.
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -24,6 +25,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from chroma_client import create_persistent_client  # noqa: E402
 from write_lock import CortexWriteLockedError, chroma_write_lock  # noqa: E402
+
+
+def _wait_for_file(path: Path, timeout_seconds: float) -> None:
+    """Poll until ``path`` exists or the timeout elapses (test handshake)."""
+    deadline = time.perf_counter() + timeout_seconds
+    while not path.exists() and time.perf_counter() < deadline:
+        time.sleep(0.02)
 
 
 def main() -> None:
@@ -39,6 +47,15 @@ def main() -> None:
         lock_started = time.perf_counter()
         with chroma_write_lock():
             lock_wait_seconds = time.perf_counter() - lock_started
+            # Deterministic concurrency handshake (opt-in via env vars): signal
+            # that the lock is held, then keep holding until released by the
+            # parent, so a second writer provably contends while we hold it.
+            ready_file = os.environ.get("CORTEX_TEST_READY_FILE")
+            if ready_file:
+                Path(ready_file).write_text("acquired", encoding="utf-8")
+            release_file = os.environ.get("CORTEX_TEST_RELEASE_FILE")
+            if release_file:
+                _wait_for_file(Path(release_file), 30.0)
             if hold_seconds:
                 time.sleep(hold_seconds)
             client = create_persistent_client(db_path)
