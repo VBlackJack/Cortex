@@ -935,6 +935,9 @@ def _client_checks(context: DoctorContext) -> list[DiagnosticCheck]:
             "claude-desktop": "Open Claude Desktop and confirm the signed-in profile manually",
             "codex": "Run Codex and confirm authentication manually",
             "gemini": "Run Gemini or Gemini Code Assist and complete the browser sign-in manually",
+            "cursor": "Open Cursor and confirm the signed-in account manually",
+            "windsurf": "Open Windsurf and confirm the signed-in account manually",
+            "vscode": "Open VS Code and confirm MCP server trust and sign-in manually",
         }
         checks.append(
             _check(

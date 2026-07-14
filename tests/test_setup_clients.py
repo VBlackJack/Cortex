@@ -273,3 +273,134 @@ def test_check_reports_entry_and_valid_paths(tmp_path: Path) -> None:
     assert results[0].status == "OK"
     assert results[1].status == "FAIL"
     assert "missing" in results[1].message
+
+
+def _make_extra_client_paths(tmp_path: Path) -> tuple[Path, Path, Path]:
+    home = tmp_path / "home"
+    appdata = tmp_path / "appdata"
+    cursor = home / ".cursor" / "mcp.json"
+    windsurf = home / ".codeium" / "windsurf" / "mcp_config.json"
+    vscode = appdata / "Code" / "User" / "mcp.json"
+    for path in (cursor, windsurf, vscode):
+        path.parent.mkdir(parents=True, exist_ok=True)
+    return cursor, windsurf, vscode
+
+
+def test_registry_declares_extra_user_scope_clients(tmp_path: Path) -> None:
+    registry = setup_config.client_registry(
+        sys.executable,
+        environ={"APPDATA": str(tmp_path / "appdata")},
+        home=tmp_path / "home",
+        which=_which({}),
+    )
+
+    assert registry["cursor"].config_path == tmp_path / "home" / ".cursor" / "mcp.json"
+    assert registry["cursor"].config_format == "json"
+    assert registry["windsurf"].config_path == (
+        tmp_path / "home" / ".codeium" / "windsurf" / "mcp_config.json"
+    )
+    assert registry["windsurf"].config_format == "json"
+    assert registry["vscode"].config_path == (
+        tmp_path / "appdata" / "Code" / "User" / "mcp.json"
+    )
+    assert registry["vscode"].config_format == "json-servers"
+    assert registry["vscode"].entry["type"] == "stdio"
+
+
+def test_all_selection_includes_every_known_client(tmp_path: Path) -> None:
+    registry = setup_config.client_registry(
+        sys.executable,
+        environ={"APPDATA": str(tmp_path / "appdata")},
+        home=tmp_path / "home",
+        which=_which({}),
+    )
+
+    selected = setup_config.parse_client_selection("all", registry)
+
+    assert selected == list(setup_config.CLIENT_NAMES)
+    assert len(selected) == 7
+
+
+def test_cursor_and_windsurf_write_mcpservers_entry(tmp_path: Path) -> None:
+    cursor, windsurf, _ = _make_extra_client_paths(tmp_path)
+    _register(tmp_path, "cursor")
+    _register(tmp_path, "windsurf")
+
+    for path in (cursor, windsurf):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        entry = data["mcpServers"]["cortex"]
+        assert entry["command"] == str(Path(sys.executable).resolve())
+        assert entry["args"] == [str(setup_config.SERVER_PY)]
+        assert "type" not in entry
+
+
+def test_vscode_writes_servers_entry_with_stdio_type(tmp_path: Path) -> None:
+    _, _, vscode = _make_extra_client_paths(tmp_path)
+    _register(tmp_path, "vscode")
+
+    data = json.loads(vscode.read_text(encoding="utf-8"))
+
+    assert "mcpServers" not in data
+    entry = data["servers"]["cortex"]
+    assert entry["type"] == "stdio"
+    assert entry["command"] == str(Path(sys.executable).resolve())
+    assert entry["args"] == [str(setup_config.SERVER_PY)]
+
+
+def test_vscode_preserves_foreign_servers_and_backs_up(tmp_path: Path) -> None:
+    _, _, vscode = _make_extra_client_paths(tmp_path)
+    original = {
+        "servers": {
+            "foreign": {"type": "stdio", "command": "foreign", "args": ["serve"]},
+        }
+    }
+    vscode.write_text(json.dumps(original), encoding="utf-8")
+
+    result = _register(tmp_path, "vscode")
+    updated = json.loads(vscode.read_text(encoding="utf-8"))
+    backups = list(vscode.parent.glob(f"{vscode.name}.*.bak"))
+
+    assert result[0].changed
+    assert updated["servers"]["foreign"] == original["servers"]["foreign"]
+    assert updated["servers"]["cortex"]["type"] == "stdio"
+    assert len(backups) == 1
+
+
+def test_init_non_interactive_without_kb_path_fails_without_prompting(
+    tmp_path: Path,
+) -> None:
+    def forbidden(_prompt: str) -> str:
+        raise AssertionError("input must not be called in non-interactive mode")
+
+    path = tmp_path / "config.toml"
+
+    with pytest.raises(setup_config.CortexConfigError):
+        setup_config.init_user_config(
+            path=path, environ={}, input_fn=forbidden, assume_yes=True
+        )
+
+    assert not path.exists()
+
+
+def test_yes_flag_skips_interactive_legacy_migration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        setup_config,
+        "offer_legacy_data_migration",
+        lambda *args, **kwargs: calls.append("migrate"),
+    )
+    monkeypatch.setattr(
+        setup_config,
+        "register_clients",
+        lambda *args, **kwargs: [],
+    )
+
+    with pytest.raises(SystemExit):
+        setup_config.main(["--yes", "--clients", "none"])
+    assert calls == []
+
+    with pytest.raises(SystemExit):
+        setup_config.main(["--clients", "none"])
+    assert calls == ["migrate"]

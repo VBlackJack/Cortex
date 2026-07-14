@@ -74,6 +74,21 @@ def test_setup_subcommands_add_only_their_existing_flag(
     assert received == [*expected, "--clients", "all"]
 
 
+def test_register_forwards_non_interactive_yes_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received: list[str] = []
+
+    def fake_setup(arguments: list[str]) -> int:
+        received.extend(arguments)
+        return 0
+
+    monkeypatch.setattr(cli, "_run_setup", fake_setup)
+
+    assert cli.main(["register", "--yes"]) == 0
+    assert received == ["--yes"]
+
+
 def test_version_uses_package_single_source(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as raised:
         cli.main(["--version"])

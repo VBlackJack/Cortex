@@ -41,5 +41,5 @@ de la base ne quitte la machine.
 | Recherche | Semantique, FR et EN |
 | Index | ChromaDB dans `%LOCALAPPDATA%\Cortex\chroma_db` |
 | Python | 3.10 ou plus recent |
-| Clients | Claude Desktop/Code, Codex, Gemini (support MCP) |
+| Clients | Claude Desktop/Code, Codex, Gemini, Cursor, Windsurf, VS Code |
 | Licence | Apache 2.0 |

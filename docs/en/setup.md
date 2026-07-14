@@ -59,6 +59,13 @@ atomically; other settings and MCP servers are preserved.
 | Claude Code | Managed by `claude mcp add --scope user` | never written directly by Cortex |
 | Codex CLI and IDE extension | `~/.codex/config.toml` | `[mcp_servers.cortex]` |
 | Gemini CLI and Gemini Code Assist (VS Code agent mode) | `~/.gemini/settings.json` | `mcpServers.cortex` |
+| Cursor | `%USERPROFILE%\.cursor\mcp.json` | `mcpServers.cortex` |
+| Windsurf | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` | `mcpServers.cortex` |
+| VS Code | `%APPDATA%\Code\User\mcp.json` | `servers.cortex` (with `type: stdio`) |
+
+Registration is done at user scope for all seven clients. Cursor and Windsurf
+use the same `mcpServers` key as Claude; VS Code uses the `servers` key with a
+`type: stdio` field (VS Code's native MCP format).
 
 These locations and formats follow the official documentation for
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/mcp),
@@ -78,7 +85,14 @@ python setup_config.py --clients claude-desktop,codex,gemini
 
 # Validation without writing: entry, Python executable and server.py
 python setup_config.py --check --clients all
+
+# Non-interactive (no prompts): register detected clients
+python setup_config.py --yes --clients all
 ```
+
+The `--yes` mode asks no questions: it never prompts for a path (`--init --yes`
+then requires `CORTEX_KB_PATH`) and never moves an existing index (migration
+stays explicit via `--migrate-data`).
 
 Each client launches its own `server.py` process, about 150 MB of RAM per
 active client. Concurrent reads are safe. All writes to the index are

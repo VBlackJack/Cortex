@@ -57,7 +57,15 @@ logger = logging.getLogger("cortex.setup")
 SCRIPT_DIR = Path(__file__).parent.resolve()
 SERVER_PY = SCRIPT_DIR / "server.py"
 CORTEX_CONFIG_PATH = user_config_path()
-CLIENT_NAMES = ("claude-desktop", "claude-code", "codex", "gemini")
+CLIENT_NAMES = (
+    "claude-desktop",
+    "claude-code",
+    "codex",
+    "gemini",
+    "cursor",
+    "windsurf",
+    "vscode",
+)
 _TABLE_HEADER_RE = re.compile(r"^\s*\[\s*([^\]]+)\s*\]\s*(?:#.*)?$")
 _TOML_ASSIGNMENT_RE = re.compile(r"^(\s*)(command|args)(\s*=).*$")
 
@@ -125,6 +133,7 @@ def client_registry(
     appdata = Path(appdata_value) if appdata_value else user_home / "AppData" / "Roaming"
     entry = _resolved_entry(python_exe)
     claude_entry = {**entry, "timeout": 120000}
+    vscode_entry = {"type": "stdio", **entry}
     claude_cli = which("claude")
 
     return {
@@ -155,6 +164,27 @@ def client_registry(
             entry=entry,
             executable=which("gemini"),
         ),
+        "cursor": ClientTarget(
+            name="cursor",
+            config_path=user_home / ".cursor" / "mcp.json",
+            config_format="json",
+            entry=entry,
+            executable=which("cursor"),
+        ),
+        "windsurf": ClientTarget(
+            name="windsurf",
+            config_path=user_home / ".codeium" / "windsurf" / "mcp_config.json",
+            config_format="json",
+            entry=entry,
+            executable=which("windsurf"),
+        ),
+        "vscode": ClientTarget(
+            name="vscode",
+            config_path=appdata / "Code" / "User" / "mcp.json",
+            config_format="json-servers",
+            entry=vscode_entry,
+            executable=which("code"),
+        ),
     }
 
 
@@ -169,7 +199,16 @@ def _client_is_detected(target: ClientTarget) -> bool:
     )
 
 
-def _read_json_config(path: Path) -> dict[str, Any]:
+def _json_servers_key(config_format: str) -> str:
+    """Map a JSON client format to its server-map key.
+
+    VS Code stores MCP servers under a top-level 'servers' object, whereas
+    Claude Desktop, Gemini, Cursor and Windsurf use 'mcpServers'.
+    """
+    return "servers" if config_format == "json-servers" else "mcpServers"
+
+
+def _read_json_config(path: Path, key: str = "mcpServers") -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
@@ -184,10 +223,10 @@ def _read_json_config(path: Path) -> dict[str, Any]:
             f"Invalid JSON root at '{path}': expected an object. Cortex did not "
             "write anything."
         )
-    servers = data.get("mcpServers")
+    servers = data.get(key)
     if servers is not None and not isinstance(servers, dict):
         raise ClientConfigError(
-            f"Invalid 'mcpServers' value at '{path}': expected an object. Cortex "
+            f"Invalid '{key}' value at '{path}': expected an object. Cortex "
             "did not write anything."
         )
     return data
@@ -253,8 +292,10 @@ def _replace_atomically(path: Path, content: bytes) -> Path | None:
             temporary.unlink()
 
 
-def _json_with_entry(config: dict[str, Any], entry: Mapping[str, Any]) -> bytes | None:
-    servers = config.setdefault("mcpServers", {})
+def _json_with_entry(
+    config: dict[str, Any], entry: Mapping[str, Any], key: str = "mcpServers"
+) -> bytes | None:
+    servers = config.setdefault(key, {})
     if servers.get("cortex") == dict(entry):
         return None
     servers["cortex"] = dict(entry)
@@ -347,8 +388,11 @@ def _toml_with_entry(
 def _prepare_file_target(target: ClientTarget) -> bytes | None:
     """Parse and render a prospective update without touching the filesystem."""
     assert target.config_path is not None
-    if target.config_format == "json":
-        return _json_with_entry(_read_json_config(target.config_path), target.entry)
+    if target.config_format in ("json", "json-servers"):
+        key = _json_servers_key(target.config_format)
+        return _json_with_entry(
+            _read_json_config(target.config_path, key), target.entry, key
+        )
     if target.config_format.startswith("toml-table:"):
         text, parsed = _read_toml_config(target.config_path)
         return _toml_with_entry(text, parsed, target.entry, path=target.config_path)
@@ -498,6 +542,8 @@ def init_user_config(
     path: Path = CORTEX_CONFIG_PATH,
     environ: dict[str, str] | None = None,
     input_fn: Callable[[str], str] = input,
+    *,
+    assume_yes: bool = False,
 ) -> bool:
     """Create schema-v1 user config atomically without overwriting."""
     if path.exists():
@@ -505,7 +551,7 @@ def init_user_config(
         return False
     values = dict(os.environ if environ is None else environ)
     kb_path = values.get("CORTEX_KB_PATH", "").strip().strip('"')
-    if not kb_path:
+    if not kb_path and not assume_yes:
         kb_path = input_fn("Path to your Cortex knowledge base: ").strip().strip('"')
     if not kb_path:
         raise CortexConfigError(
@@ -618,9 +664,10 @@ def check_user_config() -> bool:
 
 def _entry_from_file(target: ClientTarget) -> Mapping[str, Any] | None:
     assert target.config_path is not None
-    if target.config_format == "json":
-        config = _read_json_config(target.config_path)
-        servers = config.get("mcpServers", {})
+    if target.config_format in ("json", "json-servers"):
+        key = _json_servers_key(target.config_format)
+        config = _read_json_config(target.config_path, key)
+        servers = config.get(key, {})
     else:
         _, config = _read_toml_config(target.config_path)
         servers = config.get("mcp_servers", {})
@@ -743,6 +790,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         action="store_true",
         help="Emit the doctor report as stable JSON",
     )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help=(
+            "Non-interactive: no prompts. Requires CORTEX_KB_PATH for --init and "
+            "never moves a legacy index (use --migrate-data explicitly)."
+        ),
+    )
     args = parser.parse_args(argv)
     python_exe = args.python or detect_python()
 
@@ -757,14 +812,15 @@ def main(argv: Sequence[str] | None = None) -> None:
                 doctor_args.append("--json")
             raise SystemExit(doctor_main(doctor_args))
         if args.init:
-            init_user_config()
+            init_user_config(assume_yes=args.yes)
             raise SystemExit(0)
         if args.migrate_data:
             offer_legacy_data_migration()
             raise SystemExit(0)
         if args.check:
             raise SystemExit(run_check(python_exe, clients=args.clients))
-        offer_legacy_data_migration()
+        if not args.yes:
+            offer_legacy_data_migration()
         results = register_clients(python_exe, clients=args.clients)
         raise SystemExit(0 if all(result.successful for result in results) else 1)
     except (ClientConfigError, CortexConfigError, CortexDataHomeError) as exc:

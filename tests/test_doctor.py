@@ -461,6 +461,45 @@ def test_unprobeable_auth_is_unknown_never_ok(tmp_path: Path) -> None:
     assert report["summary"]["counts"]["UNKNOWN"] >= 1
 
 
+def test_extra_clients_report_auth_hints_without_keyerror(tmp_path: Path) -> None:
+    context = _baseline(
+        tmp_path,
+        which_map={"cursor": "cursor", "windsurf": "windsurf", "code": "code"},
+    )
+
+    report = run_doctor(context)
+
+    checks = _checks(report)
+    for name in ("cursor", "windsurf", "vscode"):
+        assert checks[f"client.{name}.auth"]["status"] == "UNKNOWN"
+
+
+def test_vscode_servers_entry_is_read_by_doctor(tmp_path: Path) -> None:
+    context = _baseline(tmp_path, which_map={"code": "code"})
+    vscode = Path(context.environ["APPDATA"]) / "Code" / "User" / "mcp.json"
+    vscode.parent.mkdir(parents=True)
+    vscode.write_text(
+        json.dumps(
+            {
+                "servers": {
+                    "cortex": {
+                        "type": "stdio",
+                        "command": sys.executable,
+                        "args": [str(context.script_dir / "server.py")],
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = run_doctor(context)
+
+    checks = _checks(report)
+    assert checks["client.vscode.entry"]["status"] == "OK"
+    assert checks["client.vscode.paths"]["status"] == "OK"
+
+
 def test_claude_probe_propagates_strict_read_only_mode(tmp_path: Path) -> None:
     observed: dict[str, Any] = {}
     context = _baseline(tmp_path, which_map={"claude": "claude"})

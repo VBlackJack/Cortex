@@ -39,5 +39,5 @@ content from the knowledge base ever leaves it.
 | Search | Semantic, FR and EN |
 | Index | ChromaDB in `%LOCALAPPDATA%\Cortex\chroma_db` |
 | Python | 3.10 or newer |
-| Clients | Claude Desktop/Code, Codex, Gemini (MCP support) |
+| Clients | Claude Desktop/Code, Codex, Gemini, Cursor, Windsurf, VS Code |
 | License | Apache 2.0 |

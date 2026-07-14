@@ -68,7 +68,7 @@ After installation, restart the registered clients. Details:
 | Tool | Minimum version |
 |---|---|
 | Python | 3.10+ |
-| Client | Claude Desktop/Code, Codex or Gemini with MCP support |
+| Client | Claude Desktop/Code, Codex, Gemini, Cursor, Windsurf or VS Code (MCP support) |
 | Disk space | ~500 MB (model + index) |
 
 ## License
