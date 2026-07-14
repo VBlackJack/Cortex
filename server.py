@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 
 """
-server.py — Cortex MCP server
+server.py - Cortex MCP server
 Exposes four tools to MCP clients:
   - cortex_search         : semantic search in the knowledge base
   - cortex_sync           : incremental sync of the knowledge base
@@ -41,7 +41,7 @@ from write_lock import CortexWriteLockedError
 _LOG = logging.getLogger("cortex.server")
 
 
-# ── Lifespan: warm up the model at startup ────────────────────────────────────
+# -- Lifespan: warm up the model at startup ------------------------------------
 
 
 @asynccontextmanager
@@ -68,12 +68,12 @@ async def app_lifespan(app: Any) -> AsyncIterator[dict[str, Any]]:
     yield {"collection": collection}
 
 
-# ── MCP server ────────────────────────────────────────────────────────────────
+# -- MCP server ----------------------------------------------------------------
 
 mcp = FastMCP("cortex_mcp", lifespan=app_lifespan)
 
 
-# ── Section validation helper ────────────────────────────────────────────────
+# -- Section validation helper ------------------------------------------------
 
 
 def _resolve_section(section: str | None) -> tuple[str | None, str | None]:
@@ -93,7 +93,7 @@ def _resolve_section(section: str | None) -> tuple[str | None, str | None]:
     )
 
 
-# ── Tool: cortex_search ───────────────────────────────────────────────────────
+# -- Tool: cortex_search -------------------------------------------------------
 
 
 @mcp.tool()
@@ -144,7 +144,7 @@ def cortex_search(query: str, section: str | None = None, top_k: int = 5) -> str
 
         lines.append(f"### [{i}] {title}")
         if header:
-            lines.append(f"**Section:** {sec} › {header}")
+            lines.append(f"**Section:** {sec} > {header}")
         else:
             lines.append(f"**Section:** {sec}")
         if dist is not None:
@@ -159,7 +159,7 @@ def cortex_search(query: str, section: str | None = None, top_k: int = 5) -> str
     return "\n".join(lines)
 
 
-# ── Tool: cortex_sync ─────────────────────────────────────────────────────────
+# -- Tool: cortex_sync ---------------------------------------------------------
 
 
 @mcp.tool()
@@ -167,7 +167,7 @@ def cortex_sync(section: str | None = None) -> str:
     """
     Trigger an incremental sync of the knowledge base index.
     If section is provided, only that section is synced.
-    Sections are selected by the configured allowlist — use
+    Sections are selected by the configured allowlist - use
     cortex_list_sections to see included and out-of-policy directories.
     Returns file/chunk publication, removal, skip and error counters.
     """
@@ -194,7 +194,7 @@ def cortex_sync(section: str | None = None) -> str:
         )
     sec_label = section or "all sections"
     return (
-        f"## Cortex sync complete — {sec_label}\n\n"
+        f"## Cortex sync complete - {sec_label}\n\n"
         f"- **Published files:** {stats['published_files']}\n"
         f"- **Added chunks:** {stats['added_chunks']}\n"
         f"- **Deleted chunks:** {stats['deleted_chunks']}\n"
@@ -204,7 +204,7 @@ def cortex_sync(section: str | None = None) -> str:
     )
 
 
-# ── Tool: cortex_list_sections ────────────────────────────────────────────────
+# -- Tool: cortex_list_sections ------------------------------------------------
 
 
 @mcp.tool()
@@ -260,7 +260,7 @@ def cortex_freshness(
         return {"error": str(exc)}
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# -- Entry point ---------------------------------------------------------------
 
 if __name__ == "__main__":
     if os.environ.get("CORTEX_DOCTOR_READ_ONLY") != "1":

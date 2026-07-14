@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 
 """
-Cortex — Markdown Chunker
+Cortex - Markdown Chunker
 Splits .md files into semantically meaningful chunks with metadata.
 """
 
@@ -34,7 +34,7 @@ from config import (
 MAX_CHARS = CHUNK_SIZE
 OVERLAP_CHARS = CHUNK_OVERLAP
 
-# Skip files larger than this (bytes) — avoids loading huge index pages
+# Skip files larger than this (bytes) - avoids loading huge index pages
 MAX_FILE_SIZE_BYTES = MAX_MARKDOWN_FILE_SIZE_BYTES
 
 

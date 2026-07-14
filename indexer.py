@@ -57,7 +57,7 @@ from reranker import rerank_fused_hits, warmup_reranker  # noqa: E402
 from sync_hash_aware import empty_sync_stats, merge_sync_stats, sync_section  # noqa: E402
 from write_lock import chroma_write_lock  # noqa: E402
 
-# ── Embedding function ────────────────────────────────────────────────────────
+# -- Embedding function --------------------------------------------------------
 
 
 class FastEmbedFunction(EmbeddingFunction):
@@ -104,7 +104,7 @@ def get_embedding_function() -> FastEmbedFunction:
     return FastEmbedFunction(model_name=EMBEDDING_MODEL)
 
 
-# ── ChromaDB helpers ──────────────────────────────────────────────────────────
+# -- ChromaDB helpers ----------------------------------------------------------
 
 
 def get_client() -> chromadb.PersistentClient:
@@ -142,7 +142,7 @@ def discover_out_of_policy_sections() -> list[str]:
     return discover_out_of_policy_dirs(Path(require_kb_path(KB_PATH)))
 
 
-# ── Sync ──────────────────────────────────────────────────────────────────────
+# -- Sync ----------------------------------------------------------------------
 
 
 def sync(section: str | None = None, verbose: bool = True) -> dict[str, int]:
@@ -211,7 +211,7 @@ def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, 
     return stats
 
 
-# ── Search ────────────────────────────────────────────────────────────────────
+# -- Search --------------------------------------------------------------------
 
 
 class CortexSearchError(RuntimeError):
@@ -399,7 +399,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-# ── CLI entry point ───────────────────────────────────────────────────────────
+# -- CLI entry point -----------------------------------------------------------
 
 if __name__ == "__main__":
     raise SystemExit(main())

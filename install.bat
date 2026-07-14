@@ -11,12 +11,12 @@ if "%CORTEX_DIR:~-1%"=="\" set "CORTEX_DIR=%CORTEX_DIR:~0,-1%"
 
 echo.
 echo ============================================================
-echo   Cortex MCP — Installation / Reinstallation
+echo   Cortex MCP - Installation / Reinstallation
 echo   Install dir : %CORTEX_DIR%
 echo ============================================================
 echo.
 
-:: ── Step 1 : Detect Python ───────────────────────────────────────────────────
+:: -- Step 1 : Detect Python ---------------------------------------------------
 echo [1/6] Detecting Python...
 
 set PYTHON_EXE=
@@ -51,7 +51,7 @@ echo [OK]   Found : !PYTHON_EXE!
 echo        Version : !PY_VERSION!
 echo.
 
-:: ── Step 2 : Configure CORTEX_KB_PATH ────────────────────────────────────────
+:: -- Step 2 : Configure CORTEX_KB_PATH ----------------------------------------
 echo [2/6] Checking knowledge base path (CORTEX_KB_PATH)...
 echo.
 
@@ -96,7 +96,7 @@ if not defined CORTEX_KB_PATH (
 :user_config_ready
 echo.
 
-:: ── Step 3 : Install packages ────────────────────────────────────────────────
+:: -- Step 3 : Install packages ------------------------------------------------
 echo [3/6] Installing / upgrading required packages...
 echo.
 
@@ -111,7 +111,7 @@ echo.
 echo [OK]   Packages installed.
 echo.
 
-:: ── Step 4 : Register detected MCP clients ──────────────────────────────────
+:: -- Step 4 : Register detected MCP clients ----------------------------------
 echo [4/6] Register Cortex with detected AI clients?
 echo.
 
@@ -143,7 +143,7 @@ if /i "!REGISTER_CLIENTS!"=="n" (
 )
 echo.
 
-:: ── Step 5 : Optional — wipe vector database ─────────────────────────────────
+:: -- Step 5 : Optional - wipe vector database ---------------------------------
 echo [5/6] Reset vector database?
 echo.
 echo        WARNING: This deletes all indexed vectors. You will need to
@@ -166,14 +166,14 @@ if /i "!WIPE!"=="y" (
 )
 echo.
 
-:: ── Step 6 : Validate ────────────────────────────────────────────────────────
+:: -- Step 6 : Validate --------------------------------------------------------
 echo [6/6] Validating installation...
 echo.
 
 "!PYTHON_EXE!" "%CORTEX_DIR%\setup_config.py" --python "!PYTHON_EXE!" --check !CLIENT_CHECK_ARGS!
 if errorlevel 1 (
     echo.
-    echo [WARN] Validation reported issues — see above.
+    echo [WARN] Validation reported issues - see above.
     pause
     exit /b 1
 )

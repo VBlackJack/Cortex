@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 
 """
-Unit tests for chunker.py — boundary cases and invariants.
+Unit tests for chunker.py - boundary cases and invariants.
 """
 
 import hashlib
@@ -25,7 +25,7 @@ from chunker import (
 from chunker_utils import split_fixed_size, split_fixed_size_spans
 from config import CHUNK_MIN_CHARS, CHUNK_OVERLAP, CHUNK_SIZE
 
-# ── _split_fixed_size ─────────────────────────────────────────────────────────
+# -- _split_fixed_size ---------------------------------------------------------
 
 
 def test_split_fixed_size_empty_returns_empty():
@@ -156,7 +156,7 @@ def test_min_tail_zero_preserves_v2_behavior() -> None:
     assert default_spans == explicit_zero_spans == [(0, 512), (448, 600)]
 
 
-# ── _parse_frontmatter ────────────────────────────────────────────────────────
+# -- _parse_frontmatter --------------------------------------------------------
 
 
 def test_parse_frontmatter_none():
@@ -179,7 +179,7 @@ def test_parse_frontmatter_valid_with_quotes():
     assert body == "body here"
 
 
-# ── _split_by_headers ─────────────────────────────────────────────────────────
+# -- _split_by_headers ---------------------------------------------------------
 
 
 def test_split_by_headers_no_headers():
@@ -210,7 +210,7 @@ def test_split_by_headers_preserves_preamble_and_whitespace() -> None:
     assert "".join(text for _, text in parts) == content
 
 
-# ── header-section merge ─────────────────────────────────────────────────────
+# -- header-section merge -----------------------------------------------------
 
 
 def test_merge_small_sections(tmp_path: Path) -> None:
@@ -289,7 +289,7 @@ def test_merged_header_metadata() -> None:
     assert first_run[0][0].count(first_header) == 1
 
 
-# ── chunk_markdown_file ───────────────────────────────────────────────────────
+# -- chunk_markdown_file -------------------------------------------------------
 
 
 def test_chunk_markdown_file_empty(tmp_path: Path):

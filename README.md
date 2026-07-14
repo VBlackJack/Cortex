@@ -1,4 +1,4 @@
-# Cortex — RAG MCP pour base de connaissance Confluence
+# Cortex - RAG MCP pour base de connaissance Confluence
 
 Cortex est un serveur MCP (Model Context Protocol) qui expose une recherche sémantique sur une base de connaissance locale. Il permet à Claude, Codex et Gemini d'interroger la documentation interne sans consommer inutilement leur fenêtre de contexte.
 
@@ -7,19 +7,19 @@ Cortex est un serveur MCP (Model Context Protocol) qui expose une recherche sém
 ## Fonctionnement en bref
 
 ```
-kb_path (TOML/env)      ← Export Confluence (fichiers .md)
-      │
-      ▼
-  indexer.py            ← Découpe, hash, vectorise
-      │
-      ▼
-  %LOCALAPPDATA%\Cortex\chroma_db\  ← Base vectorielle locale (ChromaDB)
-      │
-      ▼
-  server.py             ← Serveur MCP (FastMCP)
-      │
-      ▼
-  Clients MCP           ← Claude / Codex / Gemini
+kb_path (TOML/env)      <- Export Confluence (fichiers .md)
+      |
+      v
+  indexer.py            <- Découpe, hash, vectorise
+      |
+      v
+  %LOCALAPPDATA%\Cortex\chroma_db\  <- Base vectorielle locale (ChromaDB)
+      |
+      v
+  server.py             <- Serveur MCP (FastMCP)
+      |
+      v
+  Clients MCP           <- Claude / Codex / Gemini
 ```
 
 La recherche est **sémantique** (par sens, pas par mot-clé) grâce au modèle ONNX multilingue `paraphrase-multilingual-MiniLM-L12-v2`. Les requêtes en **français et en anglais** fonctionnent.
@@ -108,23 +108,23 @@ testé en conditions multi-processus.
 ## Structure du projet
 
 ```
-<install_dir>\         ← Peu importe où vous clonez Cortex
-├── config.py          ← Contrats produit et configuration résolue
-├── user_config.py     ← Chargement TOML strict et initialisation atomique
-├── chunker.py         ← Découpe les .md en chunks (headers + taille fixe)
-├── chunker_pdf.py     ← Découpe les .pdf en chunks (pdfplumber + taille fixe)
-├── chunker_utils.py   ← Fonctions partagées (hash, split, paths)
-├── indexer.py         ← Sync incrémentale vers ChromaDB
-├── server.py          ← Serveur MCP FastMCP (4 outils Cortex)
-├── sync.bat           ← Lance le sync section par section (portable, %~dp0)
-├── install.bat        ← Installation / réinstallation en un clic (portable)
-├── setup_config.py    ← Enregistrement multi-client sûr + validation
-├── cli.py              ← Dispatcher des sous-commandes `cortex`
-├── pyproject.toml      ← Packaging et configuration des outils qualité
-├── requirements.txt   ← Source unique des dépendances runtime épinglées
-├── conftest.py        ← Bootstrap pytest (sys.path)
-├── tests\             ← Tests unitaires (chunker) + intégration (search)
-└── chroma_db\         ← Ancien emplacement, migré vers le data home utilisateur
+<install_dir>\          <- Peu importe où vous clonez Cortex
+|-- config.py           <- Contrats produit et configuration résolue
+|-- user_config.py      <- Chargement TOML strict et initialisation atomique
+|-- chunker.py          <- Découpe les .md en chunks (headers + taille fixe)
+|-- chunker_pdf.py      <- Découpe les .pdf en chunks (pdfplumber + taille fixe)
+|-- chunker_utils.py    <- Fonctions partagées (hash, split, paths)
+|-- indexer.py          <- Sync incrémentale vers ChromaDB
+|-- server.py           <- Serveur MCP FastMCP (4 outils Cortex)
+|-- sync.bat            <- Lance le sync section par section (portable, %~dp0)
+|-- install.bat         <- Installation / réinstallation en un clic (portable)
+|-- setup_config.py     <- Enregistrement multi-client sûr + validation
+|-- cli.py              <- Dispatcher des sous-commandes `cortex`
+|-- pyproject.toml      <- Packaging et configuration des outils qualité
+|-- requirements.txt    <- Source unique des dépendances runtime épinglées
+|-- conftest.py         <- Bootstrap pytest (sys.path)
+|-- tests\              <- Tests unitaires (chunker) + intégration (search)
+\-- chroma_db\          <- Ancien emplacement, migré vers le data home utilisateur
 ```
 
 ---
@@ -222,7 +222,7 @@ Les sections indexables sont définies par `included_sections` dans
 `config.toml`. Un dossier de premier niveau absent de l'allowlist et de la
 denylist n'est jamais indexé automatiquement : `cortex_list_sections` le
 signale comme « out of policy » jusqu'à une décision explicite. La validation
-MCP est case-insensitive (`KNOWLEDGE` → `knowledge`).
+MCP est case-insensitive (`KNOWLEDGE` -> `knowledge`).
 
 Depuis Claude, l'outil MCP `cortex_list_sections` liste toutes les sections disponibles.
 
@@ -388,7 +388,7 @@ suppressions sont maintenant limitées à la section en cours.
 
 ### Pourquoi 512 caractères par chunk ?
 
-Le modèle `paraphrase-multilingual-MiniLM-L12-v2` tronque toute entrée à **128 tokens maximum**. Tout ce qui dépasse n'est jamais vu par l'embedding. En français, 1 token ≈ 3,5 caractères, donc 512 caractères ≈ 145 tokens — légèrement au-dessus du plafond théorique, mais le chunker coupe sur des frontières naturelles (retour à la ligne, fin de phrase) ce qui produit en pratique des chunks plus courts. Les chunks plus longs (~2000 chars utilisés au début du projet) faisaient perdre 70 à 80 % du contenu indexé à l'embedding.
+Le modèle `paraphrase-multilingual-MiniLM-L12-v2` tronque toute entrée à **128 tokens maximum**. Tout ce qui dépasse n'est jamais vu par l'embedding. En français, 1 token vaut environ 3,5 caractères, donc 512 caractères ~= 145 tokens, légèrement au-dessus du plafond théorique, mais le chunker coupe sur des frontières naturelles (retour à la ligne, fin de phrase) ce qui produit en pratique des chunks plus courts. Les chunks plus longs (~2000 chars utilisés au début du projet) faisaient perdre 70 à 80 % du contenu indexé à l'embedding.
 
 ### Pourquoi les chemins en metadata sont relatifs ?
 
@@ -404,7 +404,7 @@ configuration utilisateur ou `CORTEX_KB_PATH` ; aucune valeur propre à une
 machine n'est codée dans les sources :
 
 - `config.py` résout `CHROMA_PATH` vers `%LOCALAPPDATA%\Cortex\chroma_db` ou la surcharge utilisateur.
-- `install.bat` et `sync.bat` utilisent `%~dp0` → ils trouvent eux-mêmes leur dossier d'exécution.
+- `install.bat` et `sync.bat` utilisent `%~dp0` : ils trouvent eux-mêmes leur dossier d'exécution.
 - `setup_config.py` détecte sa propre localisation pour enregistrer le serveur dans chaque client.
 - `%APPDATA%\Cortex\config.toml` sépare les choix roaming du code livré ; `%LOCALAPPDATA%\Cortex` contient les données propres au poste.
 
@@ -483,8 +483,8 @@ et fournit l'action manuelle à effectuer ; il n'est jamais présenté comme OK.
 Un seul handshake global lance réellement `server.py`, envoie MCP
 `initialize`, vérifie la réponse puis termine le processus avec un timeout de
 20 secondes. Le serveur utilise pour cette sonde un lifespan diagnostique qui
-n'ouvre pas Chroma — `PersistentClient` modifierait SQLite à la simple
-ouverture — puisque l'index a déjà été contrôlé séparément en lecture seule.
+n'ouvre pas Chroma (`PersistentClient` modifierait SQLite à la simple
+ouverture) puisque l'index a déjà été contrôlé séparément en lecture seule.
 
 Le code de sortie vaut `0` lorsqu'il n'existe aucun `[FAIL]`. Les statuts
 `[WARN]`, `[UNKNOWN]`, `[INFO]` et `[SKIP]` restent informatifs.

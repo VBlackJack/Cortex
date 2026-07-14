@@ -19,7 +19,7 @@ def _chroma_db_exists() -> bool:
 
 pytestmark = pytest.mark.skipif(
     not _chroma_db_exists(),
-    reason="ChromaDB not built — run `python indexer.py` first",
+    reason="ChromaDB not built - run `python indexer.py` first",
 )
 
 
@@ -29,7 +29,7 @@ def test_search_returns_expected_shape():
     results = search("zabbix", top_k=2)
     assert isinstance(results, list)
     if not results:
-        pytest.skip("Empty index — nothing to assert against")
+        pytest.skip("Empty index - nothing to assert against")
     hit = results[0]
     assert "text" in hit
     assert "metadata" in hit
