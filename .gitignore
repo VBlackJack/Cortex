@@ -43,3 +43,7 @@ AUDIT.md
 
 # Local execution reports
 local/
+
+# Private eval baselines: machine-specific paths + private vault structure.
+# Regenerable probe artifacts, never shipped in a public repo.
+eval/baselines/
