@@ -576,34 +576,19 @@ def _freshness_check(
     config: CortexUserConfig,
     metadatas: Sequence[dict[str, Any]],
 ) -> DiagnosticCheck:
-    import chunker_utils
     import freshness
 
-    freshness_values: dict[str, Any] = {
-        name: getattr(freshness, name)
-        for name in ("KB_PATH", "INCLUDED_SECTIONS", "EXCLUDED_DIRS")
-    }
-    chunker_values: dict[str, Any] = {
-        name: getattr(chunker_utils, name)
-        for name in ("INCLUDED_SECTIONS", "EXCLUDED_DIRS", "EXCLUDE_FILES")
-    }
-    try:
-        setattr(freshness, "KB_PATH", config.kb_path)
-        setattr(freshness, "INCLUDED_SECTIONS", config.included_sections)
-        setattr(freshness, "EXCLUDED_DIRS", config.excluded_dirs)
-        setattr(chunker_utils, "INCLUDED_SECTIONS", config.included_sections)
-        setattr(chunker_utils, "EXCLUDED_DIRS", config.excluded_dirs)
-        setattr(chunker_utils, "EXCLUDE_FILES", config.exclude_files)
-        report = freshness.cortex_freshness_report(
-            _MetadataCollection(metadatas),
-            include_entries=False,
-            emit_log=False,
-        )
-    finally:
-        for name, value in freshness_values.items():
-            setattr(freshness, name, value)
-        for name, value in chunker_values.items():
-            setattr(chunker_utils, name, value)
+    report = freshness.cortex_freshness_report(
+        _MetadataCollection(metadatas),
+        include_entries=False,
+        emit_log=False,
+        scope=freshness.FreshnessScope(
+            kb_path=config.kb_path,
+            included_sections=config.included_sections,
+            excluded_dirs=config.excluded_dirs,
+            exclude_files=config.exclude_files,
+        ),
+    )
     summary = report.get("summary", {})
     bad = sum(int(summary.get(key, 0)) for key in ("stale", "missing", "error"))
     status = "WARN" if bad else "OK"

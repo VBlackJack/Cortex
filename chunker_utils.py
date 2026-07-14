@@ -43,29 +43,51 @@ class ChunkResult:
     error: str | None = None
 
 
-def is_excluded_path(rel_path: Path) -> bool:
+def is_excluded_path(
+    rel_path: Path,
+    *,
+    excluded_dirs: frozenset[str] = EXCLUDED_DIRS,
+    exclude_files: frozenset[str] = EXCLUDE_FILES,
+) -> bool:
     """True if any parent directory of rel_path is structurally excluded
-    (config.EXCLUDED_DIRS, or a dotfile dir), or the filename itself is."""
-    if rel_path.name in EXCLUDE_FILES:
+    (excluded_dirs, or a dotfile dir), or the filename itself is.
+
+    The policy defaults to the config-derived module constants; callers that
+    must run against a different configuration (for example cortex doctor)
+    pass the policy explicitly instead of mutating these globals."""
+    if rel_path.name in exclude_files:
         return True
     return any(
-        part in EXCLUDED_DIRS or part.startswith(".")
+        part in excluded_dirs or part.startswith(".")
         for part in rel_path.parts[:-1]
     )
 
 
-def discover_out_of_policy_dirs(kb_root: Path) -> list[str]:
-    """Live top-level dirs neither in INCLUDED_SECTIONS nor structurally
+def discover_out_of_policy_dirs(
+    kb_root: Path,
+    *,
+    included_sections: frozenset[str] = INCLUDED_SECTIONS,
+    excluded_dirs: frozenset[str] = EXCLUDED_DIRS,
+    exclude_files: frozenset[str] = EXCLUDE_FILES,
+) -> list[str]:
+    """Live top-level dirs neither in included_sections nor structurally
     excluded - present on disk but requiring an explicit policy decision
     before they are ever synced. Never auto-indexed; surfaced so a real gap
-    (a genuinely new section) is never silent."""
+    (a genuinely new section) is never silent.
+
+    The policy defaults to the config-derived module constants; callers pass
+    it explicitly to run against a different configuration."""
     if not kb_root.is_dir():
         return []
     result = []
     for folder in sorted(kb_root.iterdir()):
-        if not folder.is_dir() or folder.name in INCLUDED_SECTIONS:
+        if not folder.is_dir() or folder.name in included_sections:
             continue
-        if is_excluded_path(Path(folder.name) / "_probe"):
+        if is_excluded_path(
+            Path(folder.name) / "_probe",
+            excluded_dirs=excluded_dirs,
+            exclude_files=exclude_files,
+        ):
             continue
         result.append(folder.name)
     return result

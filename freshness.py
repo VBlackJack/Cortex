@@ -27,6 +27,7 @@ from chunker import chunk_markdown_file
 from chunker_pdf import chunk_pdf_file
 from chunker_utils import discover_out_of_policy_dirs, is_excluded_path, sha256_bytes
 from config import (
+    EXCLUDE_FILES,
     EXCLUDED_DIRS,
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
@@ -38,6 +39,31 @@ from config import (
 
 _LOG = logging.getLogger("cortex.freshness")
 _HASH_LENGTH = 64
+
+
+@dataclass(frozen=True)
+class FreshnessScope:
+    """Explicit source-selection policy for one freshness report.
+
+    Passing this instead of relying on module globals lets a caller (for
+    example cortex doctor) run the report against a specific configuration
+    without mutating this module's or chunker_utils' globals.
+    """
+
+    kb_path: str | None
+    included_sections: frozenset[str]
+    excluded_dirs: frozenset[str]
+    exclude_files: frozenset[str]
+
+
+def _default_scope() -> FreshnessScope:
+    """Build the scope from this module's config-derived globals."""
+    return FreshnessScope(
+        kb_path=KB_PATH,
+        included_sections=INCLUDED_SECTIONS,
+        excluded_dirs=EXCLUDED_DIRS,
+        exclude_files=EXCLUDE_FILES,
+    )
 
 
 @dataclass(frozen=True)
@@ -72,10 +98,17 @@ def cortex_freshness_report(
     section: str | None = None,
     include_entries: bool = True,
     emit_log: bool = True,
+    *,
+    scope: FreshnessScope | None = None,
 ) -> dict[str, Any]:
-    """Compare live sources with index metadata without writing either system."""
+    """Compare live sources with index metadata without writing either system.
+
+    The selection policy comes from ``scope`` when given, otherwise from this
+    module's config-derived globals (see _default_scope). Callers that need a
+    specific configuration pass ``scope`` rather than mutating globals."""
+    active = scope if scope is not None else _default_scope()
     started = perf_counter()
-    root = Path(require_kb_path(KB_PATH))
+    root = Path(require_kb_path(active.kb_path))
     indexed, invalid_paths = _indexed_metadata(collection, section)
     entries: list[dict[str, str]] = []
     seen_paths: set[str] = set()
@@ -87,17 +120,18 @@ def cortex_freshness_report(
         return _report(
             entries,
             started,
+            active,
             scope_error="KB_PATH is not a directory",
             include_entries=include_entries,
             emit_log=emit_log,
         )
 
-    for excluded in _discover_excluded(root, section):
+    for excluded in _discover_excluded(root, section, active):
         rel_path = excluded.relative_to(root).as_posix()
         seen_paths.add(rel_path)
         entries.append({"path": rel_path, "status": "excluded"})
 
-    for source in _discover_sources(root, section):
+    for source in _discover_sources(root, section, active):
         rel_path = source.relative_to(root).as_posix()
         seen_paths.add(rel_path)
         try:
@@ -111,64 +145,78 @@ def cortex_freshness_report(
         if rel_path in seen_paths:
             continue
         status = "missing"
-        if is_excluded_path(Path(rel_path)):
+        if is_excluded_path(
+            Path(rel_path),
+            excluded_dirs=active.excluded_dirs,
+            exclude_files=active.exclude_files,
+        ):
             status = "excluded"
         entries.append(
             {"path": rel_path, "status": status, "chunks": str(len(metadata))}
         )
 
-    out_of_policy = discover_out_of_policy_dirs(root)
+    out_of_policy = discover_out_of_policy_dirs(
+        root,
+        included_sections=active.included_sections,
+        excluded_dirs=active.excluded_dirs,
+        exclude_files=active.exclude_files,
+    )
     return _report(
         entries,
         started,
+        active,
         out_of_policy_dirs=out_of_policy,
         include_entries=include_entries,
         emit_log=emit_log,
     )
 
 
-def _source_scan_bases(root: Path, section: str | None) -> list[Path]:
+def _source_scan_bases(root: Path, section: str | None, scope: FreshnessScope) -> list[Path]:
     """Bases to scan for indexable sources. Explicit section: that one
     folder, whatever its policy status (a diagnostic look is fine -
-    freshness never writes). Whole vault (no section): INCLUDED_SECTIONS
+    freshness never writes). Whole vault (no section): included_sections
     only - an out-of-policy dir must not be silently scanned as if it were
     a normal section (it would get real fresh/unindexed statuses instead
     of being surfaced distinctly via out_of_policy_dirs)."""
     if section:
         return [root / section]
-    return [root / name for name in sorted(INCLUDED_SECTIONS)]
+    return [root / name for name in sorted(scope.included_sections)]
 
 
-def _excluded_scan_bases(root: Path, section: str | None) -> list[Path]:
+def _excluded_scan_bases(root: Path, section: str | None, scope: FreshnessScope) -> list[Path]:
     """Bases to scan for excluded content, to surface it rather than hide
-    it. Explicit section: that one folder. Whole vault: INCLUDED_SECTIONS
+    it. Explicit section: that one folder. Whole vault: included_sections
     (catches nested exclusions like _memory/_archive/) plus every
-    top-level EXCLUDED_DIRS entry (catches standalone excluded dirs like
+    top-level excluded_dirs entry (catches standalone excluded dirs like
     _archive/) - but never an out-of-policy dir, which is a distinct
     status, not folded into "excluded"."""
     if section:
         return [root / section]
-    return [root / name for name in sorted(INCLUDED_SECTIONS | EXCLUDED_DIRS)]
+    return [root / name for name in sorted(scope.included_sections | scope.excluded_dirs)]
 
 
-def _discover_sources(root: Path, section: str | None) -> list[Path]:
+def _discover_sources(root: Path, section: str | None, scope: FreshnessScope) -> list[Path]:
     paths: list[Path] = []
-    for base in _source_scan_bases(root, section):
+    for base in _source_scan_bases(root, section, scope):
         if not base.is_dir():
             continue
         for path in sorted(base.rglob("*")):
             if not path.is_file() or path.suffix.lower() not in {".md", ".pdf"}:
                 continue
             rel = path.relative_to(root)
-            if is_excluded_path(rel):
+            if is_excluded_path(
+                rel,
+                excluded_dirs=scope.excluded_dirs,
+                exclude_files=scope.exclude_files,
+            ):
                 continue
             paths.append(path)
     return sorted(paths)
 
 
-def _discover_excluded(root: Path, section: str | None) -> list[Path]:
+def _discover_excluded(root: Path, section: str | None, scope: FreshnessScope) -> list[Path]:
     paths: list[Path] = []
-    for base in _excluded_scan_bases(root, section):
+    for base in _excluded_scan_bases(root, section, scope):
         if not base.is_dir():
             continue
         paths.extend(
@@ -176,7 +224,11 @@ def _discover_excluded(root: Path, section: str | None) -> list[Path]:
             for path in base.rglob("*")
             if path.is_file()
             and path.suffix.lower() in {".md", ".pdf"}
-            and is_excluded_path(path.relative_to(root))
+            and is_excluded_path(
+                path.relative_to(root),
+                excluded_dirs=scope.excluded_dirs,
+                exclude_files=scope.exclude_files,
+            )
         )
     return sorted(set(paths))
 
@@ -303,6 +355,7 @@ def _annotate_source(root: Path, rel_path: str, metadata: dict[str, Any]) -> str
 def _report(
     entries: list[dict[str, str]],
     started: float,
+    scope: FreshnessScope,
     scope_error: str | None = None,
     out_of_policy_dirs: list[str] | None = None,
     include_entries: bool = True,
@@ -317,8 +370,8 @@ def _report(
         "read_only": True,
         "freshness_is_not_completeness": True,
         "scope": {
-            "included_sections": sorted(INCLUDED_SECTIONS),
-            "excluded_dirs": sorted(EXCLUDED_DIRS),
+            "included_sections": sorted(scope.included_sections),
+            "excluded_dirs": sorted(scope.excluded_dirs),
             "out_of_policy_dirs": sorted(out_of_policy_dirs or []),
             "pdf": "supported_by_contract_v1",
         },
