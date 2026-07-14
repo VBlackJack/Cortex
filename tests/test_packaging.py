@@ -23,11 +23,21 @@ ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
 REQUIREMENTS = ROOT / "requirements.txt"
 
+# Human CalVer source format: YYYY.MMDD.XX, zero-padded (e.g. 2026.0714.00).
+_CALVER_RE = re.compile(r"^\d{4}\.\d{4}\.\d{2}$")
 
-def test_version_is_semver_and_pyproject_uses_the_single_source() -> None:
+
+def test_version_is_calver_and_pyproject_uses_the_single_source() -> None:
     project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
 
-    assert Version(__version__).public == __version__
+    # Source of truth is the zero-padded human CalVer used for tags and display.
+    assert _CALVER_RE.fullmatch(__version__), __version__
+    # It must also parse as a valid PEP 440 version. Note: PEP 440 canonical
+    # form strips leading zeros from numeric release segments
+    # (2026.0714.00 -> 2026.714.0), so we assert validity and value, never
+    # string identity with the canonical public form.
+    parsed = Version(__version__)
+    assert parsed.release[0] == int(__version__.split(".", 1)[0])
     assert "version" in project["project"]["dynamic"]
     assert project["tool"]["setuptools"]["dynamic"]["version"] == {
         "attr": "_version.__version__"
