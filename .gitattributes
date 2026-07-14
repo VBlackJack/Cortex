@@ -1,0 +1,17 @@
+# Cortex line-ending policy.
+# Text files are normalized to LF inside the repository so diffs, CI and
+# encodings stay deterministic across contributors and platforms.
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF to run reliably.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files: never apply text or EOL conversion.
+*.png binary
+*.ico binary
+*.pdf binary
+*.onnx binary
+*.gz binary
+*.zip binary
