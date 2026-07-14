@@ -1,0 +1,113 @@
+# Configuration
+
+**Francais** | [English](../en/configuration.md)
+
+[Retour au sommaire](index.md)
+
+## Variables d'environnement
+
+| Variable | Role | Defaut |
+|---|---|---|
+| `CORTEX_KB_PATH` | Surcharge optionnelle de `kb_path` | aucune |
+| `CORTEX_WRITE_LOCK_PATH` | Surcharge du chemin de verrou | a cote de l'installation |
+| `CORTEX_WRITE_LOCK_TIMEOUT_SECONDS` | Surcharge du timeout de verrou | `30` |
+| `CORTEX_MAX_MARKDOWN_FILE_SIZE_BYTES` | Surcharge de la limite Markdown | `1000000` |
+
+La configuration utilisateur vit dans `%APPDATA%\Cortex\config.toml` avec
+`schema_version = 1`. Elle ne contient jamais de secret. La precedence est
+variable d'environnement > fichier TOML > defaut produit. Les variables
+d'environnement historiques restent donc compatibles, mais `install.bat` ne les
+cree plus sur une nouvelle installation.
+
+Le lot data home etend volontairement le schema v1 sans passage en v2 :
+`chroma_path` est une nouvelle cle optionnelle, donc tout fichier v1 existant
+reste valide. Par defaut, la configuration legere reste roaming dans
+`%APPDATA%\Cortex`, tandis que l'index, le verrou et les logs volumineux vivent
+localement dans `%LOCALAPPDATA%\Cortex`.
+
+## Exemple de config.toml
+
+```toml
+schema_version = 1
+kb_path = "D:\\Knowledge"
+chroma_path = "C:\\Users\\me\\AppData\\Local\\Cortex\\chroma_db"
+included_sections = ["knowledge", "operations", "projects", "sources", "_memory", "_drafts"]
+excluded_dirs = [".datacron", "_archive", "_trash", "_attachments", "zzz_Corbeille", "_inbox", "_journal"]
+exclude_files = ["00_INDEX.md"]
+max_markdown_file_size_bytes = 1000000
+max_pdf_size_bytes = 50000000
+write_lock_path = "C:\\Users\\me\\AppData\\Local\\Cortex\\chroma_db.write.lock"
+write_lock_timeout_seconds = 30
+```
+
+Creer le fichier manuellement ou lancer :
+
+```powershell
+python setup_config.py --init
+```
+
+`kb_path` est requis pour `cortex_sync` et `cortex_freshness`, sans valeur par
+defaut. La recherche continue de fonctionner sur l'index existant lorsqu'il est
+absent.
+
+`chroma_path` et `write_lock_path` peuvent etre omis pour utiliser le data home
+local, ou definis explicitement pour un besoin d'exploitation particulier.
+
+## Sections
+
+Les sections indexables sont definies par `included_sections` dans
+`config.toml`. Un dossier de premier niveau absent de l'allowlist et de la
+denylist n'est jamais indexe automatiquement : `cortex_list_sections` le signale
+comme "out of policy" jusqu'a une decision explicite. La validation MCP est
+insensible a la casse (`KNOWLEDGE` devient `knowledge`).
+
+Depuis Claude, l'outil MCP `cortex_list_sections` liste toutes les sections
+disponibles.
+
+### Ajouter une nouvelle section
+
+1. Exporter la section sous le dossier `kb_path` configure.
+2. Ajouter son nom a `included_sections` dans `config.toml`.
+3. Lancer `sync.bat` (ou `cortex_sync` depuis Claude).
+
+Sans cet opt-in, le dossier reste visible comme "out of policy" mais n'est
+jamais envoye au modele d'embedding.
+
+## Contrats d'index (non modifiables)
+
+Les contrats d'index restent centralises dans `config.py` et ne sont pas
+modifiables par utilisateur :
+
+```python
+COLLECTION_NAME = "cortex"
+EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+EMBEDDING_POOLING = "mean"
+CHUNK_SIZE = 512
+CHUNK_OVERLAP = 64
+CHUNKING_CONTRACT_VERSION = "v1"
+SEARCH_TOP_K_MIN = 1
+SEARCH_TOP_K_MAX = 10
+```
+
+`CHUNK_SIZE` est dimensionne pour rester sous la limite de 128 tokens du modele
+MiniLM avec une marge de securite. Voir "Pourquoi 512 caracteres par chunk ?"
+dans l'[architecture](architecture.md).
+
+## Migration de l'ancien index
+
+Si `chroma_db` existe encore a cote du code et que la cible du data home
+n'existe pas, `setup_config.py` propose son deplacement :
+
+```powershell
+python setup_config.py --migrate-data
+```
+
+Le deplacement utilise un renommage atomique et ne cree jamais de copie
+silencieuse. Si source et cible sont sur des volumes differents, Cortex refuse
+le fallback copie : fermer tous les clients, deplacer le dossier manuellement,
+ou configurer temporairement `chroma_path` sur le volume source. Si l'ancien et
+le nouvel index existent simultanement, Cortex refuse de choisir ou de les
+fusionner. Le fingerprint est contenu dans le dossier deplace ; le write lock
+utilise le data home par defaut, tandis qu'une surcharge explicite existante
+reste strictement respectee. Pour rollback, fermer les clients et redeplacer le
+dossier dans l'autre sens.
