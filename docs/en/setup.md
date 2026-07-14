@@ -46,6 +46,30 @@ Cortex package to be installed. For a hash-locked install (byte-for-byte
 identical dependency chains), see
 [Reproducible install](reproducible-install.md).
 
+### One-command setup
+
+Once the package is installed, `cortex setup` chains the three steps in a single
+call: initialize the config, build the index, then register the MCP clients.
+
+```powershell
+# Config + index + registration of every detected client
+cortex setup
+
+# Non-interactive (no prompts; requires CORTEX_KB_PATH to create the config)
+cortex setup --yes
+
+# Skip building the index (useful on a RAM-constrained machine)
+cortex setup --no-index
+
+# Target specific clients
+cortex setup --clients claude-desktop,codex
+```
+
+`--clients` accepts `all` (default), `none`, or a list. The index is built in a
+single process (higher RAM peak than section-by-section `sync.bat`); `--no-index`
+lets you run `sync.bat` separately afterwards. A client registration failure is
+reported as a warning without interrupting the rest.
+
 ## Connect Claude, Codex and Gemini
 
 `setup_config.py` detects installed clients, prints a summary, then registers

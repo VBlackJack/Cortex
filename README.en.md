@@ -41,6 +41,10 @@ to register Cortex in the detected MCP clients, and validates the installation.
 After installation, restart the registered clients. Details:
 [Setup](docs/en/setup.md).
 
+Once the package is installed, `cortex setup` chains config, index and client
+registration in a single command (`--yes` for non-interactive, `--no-index` to
+skip indexing).
+
 ## Exposed MCP tools
 
 | Tool | Description |

@@ -46,6 +46,31 @@ requiert pas que le paquet Cortex soit installe. Pour une installation
 verrouillee par hash (chaines identiques a l'octet pres), voir
 [Installation reproductible](install-reproductible.md).
 
+### Setup en une commande
+
+Une fois le paquet installe, `cortex setup` enchaine les trois etapes en un seul
+appel : initialisation de la config, construction de l'index, puis enregistrement
+des clients MCP.
+
+```powershell
+# Config + index + enregistrement de tous les clients detectes
+cortex setup
+
+# Non-interactif (aucune question ; exige CORTEX_KB_PATH pour creer la config)
+cortex setup --yes
+
+# Sauter la construction de l'index (utile sur poste a RAM contrainte)
+cortex setup --no-index
+
+# Cibler des clients precis
+cortex setup --clients claude-desktop,codex
+```
+
+`--clients` accepte `all` (defaut), `none`, ou une liste. La construction de
+l'index se fait en un seul process (pic RAM superieur a `sync.bat` section par
+section) ; `--no-index` permet de lancer `sync.bat` separement ensuite. Un echec
+d'enregistrement client est signale en avertissement sans interrompre le reste.
+
 ## Connecter Claude, Codex et Gemini
 
 `setup_config.py` detecte les clients installes, affiche un recapitulatif puis

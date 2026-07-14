@@ -104,12 +104,16 @@ The installed subcommands are thin dispatchers to the same entry points as the
 historical scripts:
 
 ```powershell
+cortex setup [--clients all] [--no-index] [--yes]
 cortex sync [section]
 cortex doctor [--json]
 cortex init
 cortex register [--clients all]
 cortex check [--clients all]
 ```
+
+`cortex setup` chains init, index and client registration in a single call (see
+[Setup](setup.md#one-command-setup)).
 
 ## Bounded local logs
 

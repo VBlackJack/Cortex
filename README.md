@@ -42,6 +42,10 @@ d'enregistrer Cortex dans les clients MCP detectes et valide l'installation.
 Apres l'installation, redemarrer les clients enregistres. Details :
 [Installation](docs/fr/setup.md).
 
+Une fois le paquet installe, `cortex setup` enchaine config, index et
+enregistrement des clients en une commande (`--yes` non-interactif,
+`--no-index` pour sauter l'indexation).
+
 ## Outils MCP exposes
 
 | Outil | Description |

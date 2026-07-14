@@ -20,7 +20,7 @@ from collections.abc import Sequence
 
 from _version import __version__
 
-_COMMANDS = ("sync", "doctor", "init", "register", "check")
+_COMMANDS = ("sync", "doctor", "setup", "init", "register", "check")
 
 
 def _run_setup(arguments: list[str]) -> int:
@@ -50,6 +50,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from doctor import main as doctor_main
 
         return doctor_main(arguments)
+    if namespace.command == "setup":
+        from setup_wizard import main as setup_wizard_main
+
+        return setup_wizard_main(arguments)
     setup_flags = {
         "init": ["--init"],
         "register": [],

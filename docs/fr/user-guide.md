@@ -105,12 +105,16 @@ Les sous-commandes installees sont des dispatchers minces vers les memes points
 d'entree que les scripts historiques :
 
 ```powershell
+cortex setup [--clients all] [--no-index] [--yes]
 cortex sync [section]
 cortex doctor [--json]
 cortex init
 cortex register [--clients all]
 cortex check [--clients all]
 ```
+
+`cortex setup` enchaine init, index et enregistrement des clients en un appel
+(voir [Installation](setup.md#setup-en-une-commande)).
 
 ## Logs locaux bornes
 
