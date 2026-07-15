@@ -4,33 +4,37 @@
 
 Cortex est un serveur MCP (Model Context Protocol) qui expose une recherche
 semantique sur une base de connaissance locale. Il permet a Claude, Codex et
-Gemini d'interroger la documentation interne sans consommer inutilement leur
-fenetre de contexte. La recherche est semantique (par sens, pas par mot-cle), en
-francais comme en anglais, et tout reste local : aucun contenu de la base ne
-quitte le poste.
+Gemini de retrouver le bon passage dans vos documents sans consommer inutilement
+leur fenetre de contexte. La recherche est semantique (par sens, pas par
+mot-cle), en francais comme en anglais, et tout reste local : aucun contenu de la
+base ne quitte le poste.
 
-## Fonctionnement en bref
+## Installation
 
-```
-kb_path (TOML/env)      <- Export Confluence (fichiers .md)
-      |
-      v
-  indexer.py            <- Decoupe, hash, vectorise
-      |
-      v
-  %LOCALAPPDATA%\Cortex\chroma_db\  <- Base vectorielle locale (ChromaDB)
-      |
-      v
-  server.py             <- Serveur MCP (FastMCP)
-      |
-      v
-  Clients MCP           <- Claude / Codex / Gemini
-```
+### Windows, sans Python (recommande)
 
-Le modele d'embedding est le multilingue ONNX
-`paraphrase-multilingual-MiniLM-L12-v2`.
+La voie la plus simple : un installeur autonome, aucun Python a installer.
 
-## Demarrage rapide
+1. Telecharger `Cortex-Setup.exe` depuis la
+   [derniere release](https://github.com/VBlackJack/Cortex/releases/latest).
+2. Double-cliquer. L'installeur n'etant pas encore signe, SmartScreen peut
+   afficher un avertissement : `Informations complementaires`, puis
+   `Executer quand meme`.
+3. Choisir le dossier de vos documents, laisser `Tout indexer dans ce dossier`,
+   terminer.
+4. Redemarrer votre application IA : Cortex y apparait comme serveur MCP.
+
+Deposez ensuite vos documents dans le dossier et lancez le raccourci
+`Cortex Sync`. Details, mode silencieux et reinstallation :
+[Installation Windows](docs/fr/installation-windows.md).
+
+### Binaire autonome (macOS Apple Silicon, Linux x64)
+
+Chaque release fournit aussi un binaire unique `cortex` pour macOS Apple
+Silicon (arm64) et Linux x64 (serveur MCP + CLI, sans Python). Voir
+[Distribution autonome](docs/fr/distribution.md).
+
+### Depuis les sources (Python, avance)
 
 ```bat
 :: Depuis le dossier ou vous avez clone Cortex
@@ -39,12 +43,51 @@ install.bat
 
 `install.bat` initialise la configuration, installe les dependances, propose
 d'enregistrer Cortex dans les clients MCP detectes et valide l'installation.
-Apres l'installation, redemarrer les clients enregistres. Details :
-[Installation](docs/fr/setup.md).
+Details : [Installation](docs/fr/setup.md).
 
-Une fois le paquet installe, `cortex setup` enchaine config, index et
-enregistrement des clients en une commande (`--yes` non-interactif,
-`--no-index` pour sauter l'indexation).
+## Fonctionnement en bref
+
+```
+Dossier de documents (.md, .pdf)   <- vos fichiers
+      |
+      v
+  cortex sync           <- Decoupe, hash, vectorise
+      |
+      v
+  %LOCALAPPDATA%\Cortex\chroma_db\  <- Base vectorielle locale (ChromaDB)
+      |
+      v
+  cortex serve          <- Serveur MCP (FastMCP)
+      |
+      v
+  Clients MCP           <- Claude / Codex / Gemini / Cursor / Windsurf / VS Code
+```
+
+Le modele d'embedding est le multilingue ONNX
+`paraphrase-multilingual-MiniLM-L12-v2`, telecharge au premier usage.
+
+## Deux modes d'indexation
+
+- **Tout le dossier** (defaut) : tout ce que vous placez dans le dossier
+  choisi, a la racine ou dans n'importe quel sous-dossier, devient cherchable.
+  Rien a configurer.
+- **Sections** (avance) : limite l'indexation a des sous-dossiers nommes que
+  vous pouvez chercher separement (defauts `knowledge`, `projects`, `notes`).
+
+Details : [Configuration](docs/fr/configuration.md).
+
+## Commande `cortex`
+
+Le paquet installe expose une commande unique :
+
+| Sous-commande | Role |
+|---|---|
+| `cortex setup` | Config + index + enregistrement des clients en une fois (`--yes`, `--no-index`, `--reset`). |
+| `cortex serve` | Lance le serveur MCP (utilise par les clients). |
+| `cortex sync` | Synchronisation incrementale de l'index. |
+| `cortex doctor` | Diagnostic de l'installation (lecture seule). |
+| `cortex register` / `cortex unregister` | Ajoute ou retire Cortex des clients MCP. |
+| `cortex check` | Verifie l'installation. |
 
 ## Outils MCP exposes
 
@@ -58,11 +101,14 @@ enregistrement des clients en une commande (`--yes` non-interactif,
 ## Documentation
 
 - [Sommaire](docs/fr/index.md)
-- [Installation](docs/fr/setup.md) : prerequis, clients MCP.
+- [Installation Windows](docs/fr/installation-windows.md) : assistant sans
+  Python, choix du corpus, mode silencieux, reinstallation.
+- [Distribution autonome](docs/fr/distribution.md) : binaires one-file et builds.
+- [Installation depuis les sources](docs/fr/setup.md) : prerequis, clients MCP.
 - [Guide d'utilisation](docs/fr/user-guide.md) : sync, recherche, outils,
   doctor, logs.
-- [Configuration](docs/fr/configuration.md) : `config.toml`, sections, data
-  home, migration.
+- [Configuration](docs/fr/configuration.md) : `config.toml`, modes d'indexation,
+  sections, data home, migration.
 - [Installation reproductible](docs/fr/install-reproductible.md) :
   `requirements.lock`, `--require-hashes`, regeneration du verrou.
 - [Architecture](docs/fr/architecture.md) : bout en bout et choix techniques.
@@ -71,11 +117,11 @@ enregistrement des clients en une commande (`--yes` non-interactif,
 
 ## Prerequis
 
-| Outil | Version minimale |
+| Voie | Prerequis |
 |---|---|
-| Python | 3.10+ |
-| Client | Claude Desktop/Code, Codex, Gemini, Cursor, Windsurf ou VS Code (support MCP) |
-| Espace disque | ~500 Mo (modele + index) |
+| Installeur Windows / binaire autonome | Aucun Python. ~500 Mo d'espace (modele + index). |
+| Depuis les sources | Python 3.10+. ~500 Mo d'espace. |
+| Client | Claude Desktop/Code, Codex, Gemini, Cursor, Windsurf ou VS Code (support MCP). |
 
 ## Licence
 
