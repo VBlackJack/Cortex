@@ -1,0 +1,165 @@
+# Copyright 2026 Julien Bombled
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build executable (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: cortex-windows-x64.exe
+            binary: dist/cortex.exe
+          - os: macos-latest
+            artifact: cortex-macos-arm64
+            binary: dist/cortex
+          - os: ubuntu-latest
+            artifact: cortex-linux-x64
+            binary: dist/cortex
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install project and build tooling
+        run: python -m pip install -e ".[build]"
+
+      - name: Build standalone executable
+        shell: bash
+        run: |
+          python -m PyInstaller \
+            --noconfirm \
+            --onefile \
+            --name cortex \
+            --paths . \
+            --collect-all chromadb \
+            --collect-all onnxruntime \
+            --collect-all fastembed \
+            --collect-all tokenizers \
+            --hidden-import server \
+            --hidden-import indexer \
+            --hidden-import doctor \
+            --hidden-import setup_wizard \
+            --hidden-import setup_config \
+            --hidden-import sync_hash_aware \
+            --hidden-import sync_summary \
+            --hidden-import lexical_index \
+            --hidden-import reranker \
+            --hidden-import chroma_client \
+            --hidden-import chunker \
+            --hidden-import chunker_pdf \
+            --hidden-import chunker_utils \
+            --hidden-import config \
+            --hidden-import cortex_logging \
+            --hidden-import data_home \
+            --hidden-import dependencies \
+            --hidden-import embedding_fingerprint \
+            --hidden-import freshness \
+            --hidden-import user_config \
+            --hidden-import write_lock \
+            --hidden-import _version \
+            packaging/cortex_launcher.py
+
+      - name: Smoke-test CLI and server imports
+        shell: bash
+        env:
+          CORTEX_BINARY: ${{ matrix.binary }}
+          CORTEX_KB_PATH: ${{ github.workspace }}
+        run: |
+          "${CORTEX_BINARY}" --version
+          "${CORTEX_BINARY}" --help
+          "${CORTEX_BINARY}" check --clients none
+          python - <<'PY'
+          import os
+          import subprocess
+          import time
+
+          binary = os.environ["CORTEX_BINARY"]
+          process = subprocess.Popen(
+              [binary, "serve"],
+              stdin=subprocess.PIPE,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.PIPE,
+              text=True,
+          )
+          try:
+              time.sleep(8)
+              if process.poll() is not None:
+                  stdout, stderr = process.communicate()
+                  raise SystemExit(
+                      f"cortex serve exited early ({process.returncode})\n"
+                      f"stdout:\n{stdout}\nstderr:\n{stderr}"
+                  )
+              assert process.stdin is not None
+              process.stdin.close()
+              process.wait(timeout=10)
+          finally:
+              if process.poll() is None:
+                  process.terminate()
+                  try:
+                      process.wait(timeout=5)
+                  except subprocess.TimeoutExpired:
+                      process.kill()
+                      process.wait(timeout=5)
+          PY
+
+      - name: Stage artifact
+        shell: bash
+        run: |
+          mkdir -p out
+          cp "${{ matrix.binary }}" "out/${{ matrix.artifact }}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: out/${{ matrix.artifact }}
+          retention-days: 1
+
+  release:
+    name: Attach binaries to the GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+          merge-multiple: true
+
+      - name: Publish release with binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-artifacts/**/*
+          generate_release_notes: true

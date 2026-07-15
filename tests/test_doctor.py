@@ -428,6 +428,33 @@ def test_invalid_client_paths_are_fail(tmp_path: Path) -> None:
     assert checks["client.gemini.paths"]["status"] == "FAIL"
 
 
+def test_frozen_client_entry_paths_are_valid(tmp_path: Path) -> None:
+    context = _baseline(tmp_path, which_map={"gemini": "gemini"})
+    executable = tmp_path / "cortex.exe"
+    executable.write_bytes(b"fixture")
+    settings = context.home / ".gemini" / "settings.json"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "cortex": {
+                        "command": str(executable),
+                        "args": ["serve"],
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = run_doctor(context)
+
+    checks = _checks(report)
+    assert checks["client.gemini.entry"]["status"] == "OK"
+    assert checks["client.gemini.paths"]["status"] == "OK"
+
+
 def test_absent_gemini_extension_is_info_not_fail(tmp_path: Path) -> None:
     report = run_doctor(_baseline(tmp_path))
 

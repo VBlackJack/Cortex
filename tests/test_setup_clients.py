@@ -78,6 +78,70 @@ def test_registry_declares_paths_formats_and_entries(tmp_path: Path) -> None:
     assert registry["gemini"].entry["args"] == [str(setup_config.SERVER_PY)]
 
 
+def test_build_server_entry_preserves_python_and_frozen_forms(tmp_path: Path) -> None:
+    python_exe = tmp_path / "python"
+    server_py = tmp_path / "server.py"
+    cortex_exe = tmp_path / "cortex"
+
+    assert setup_config.build_server_entry(
+        frozen=False,
+        exe_path=str(cortex_exe),
+        python_exe=str(python_exe),
+        server_py=server_py,
+    ) == {
+        "command": str(python_exe.resolve()),
+        "args": [str(server_py)],
+    }
+    assert setup_config.build_server_entry(
+        frozen=True,
+        exe_path=str(cortex_exe),
+        python_exe=str(python_exe),
+        server_py=server_py,
+    ) == {
+        "command": str(cortex_exe.resolve()),
+        "args": ["serve"],
+    }
+
+
+def test_frozen_registration_writes_executable_serve_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    claude, _, _ = _make_detected_paths(tmp_path)
+    cortex_exe = tmp_path / "cortex.exe"
+    cortex_exe.write_bytes(b"fixture")
+    monkeypatch.setattr(setup_config.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(setup_config.sys, "executable", str(cortex_exe))
+
+    results = _register(tmp_path, "claude-desktop")
+    entry = json.loads(claude.read_text(encoding="utf-8"))["mcpServers"]["cortex"]
+
+    assert results[0].successful
+    assert entry["command"] == str(cortex_exe.resolve())
+    assert entry["args"] == ["serve"]
+
+
+def test_frozen_runtime_checks_use_bundled_imports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cortex_exe = tmp_path / "cortex.exe"
+    cortex_exe.write_bytes(b"fixture")
+    imported: list[str] = []
+
+    def import_module(name: str) -> object:
+        imported.append(name)
+        return object()
+
+    def forbidden_subprocess(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("frozen runtime checks must not spawn cortex.exe as Python")
+
+    monkeypatch.setattr(setup_config.importlib, "import_module", import_module)
+    monkeypatch.setattr(setup_config.subprocess, "run", forbidden_subprocess)
+
+    assert setup_config.check_python(str(cortex_exe), frozen=True)
+    assert setup_config.check_packages(str(cortex_exe), frozen=True)
+    assert imported == [package.split("[")[0] for package in setup_config.REQUIRED_PACKAGES]
+
+
 def test_registry_respects_home_and_appdata_environment(tmp_path: Path) -> None:
     registry = setup_config.client_registry(
         sys.executable,

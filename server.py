@@ -271,9 +271,15 @@ def cortex_freshness(
 
 # -- Entry point ---------------------------------------------------------------
 
-if __name__ == "__main__":
+
+def run_stdio() -> None:
+    """Run the MCP server over stdio with the standard Cortex logging policy."""
     if os.environ.get("CORTEX_DOCTOR_READ_ONLY") != "1":
         from cortex_logging import configure_logging
 
         configure_logging()
     mcp.run()
+
+
+if __name__ == "__main__":
+    run_stdio()

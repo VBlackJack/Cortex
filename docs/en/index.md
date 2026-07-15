@@ -21,6 +21,8 @@ content from the knowledge base ever leaves it.
 
 - [Setup](setup.md): prerequisites, `install.bat`, connecting MCP clients
   (Claude, Codex, Gemini).
+- [Standalone distribution](distribution.md): one-file executables, local
+  PyInstaller builds and release artifacts.
 - [User guide](user-guide.md): indexing and sync, search, the four MCP tools,
   the doctor, logs.
 - [Configuration](configuration.md): `config.toml`, environment variables,
@@ -38,6 +40,6 @@ content from the knowledge base ever leaves it.
 | Type | Local MCP server (FastMCP) |
 | Search | Semantic, FR and EN |
 | Index | ChromaDB in `%LOCALAPPDATA%\Cortex\chroma_db` |
-| Python | 3.10 or newer |
+| Runtime | Standalone binary, or Python 3.10+ |
 | Clients | Claude Desktop/Code, Codex, Gemini, Cursor, Windsurf, VS Code |
 | License | Apache 2.0 |

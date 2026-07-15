@@ -22,6 +22,8 @@ de la base ne quitte la machine.
 
 - [Installation](setup.md) : prerequis, `install.bat`, connexion des clients
   MCP (Claude, Codex, Gemini).
+- [Distribution autonome](distribution.md) : executables one-file, builds
+  PyInstaller locaux et artefacts de release.
 - [Guide d'utilisation](user-guide.md) : indexation et sync, recherche, les
   quatre outils MCP, le doctor, les logs.
 - [Configuration](configuration.md) : `config.toml`, variables
@@ -40,6 +42,6 @@ de la base ne quitte la machine.
 | Type | Serveur MCP local (FastMCP) |
 | Recherche | Semantique, FR et EN |
 | Index | ChromaDB dans `%LOCALAPPDATA%\Cortex\chroma_db` |
-| Python | 3.10 ou plus recent |
+| Runtime | Binaire autonome, ou Python 3.10+ |
 | Clients | Claude Desktop/Code, Codex, Gemini, Cursor, Windsurf, VS Code |
 | Licence | Apache 2.0 |

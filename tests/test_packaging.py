@@ -31,6 +31,8 @@ from _version import __version__
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
 REQUIREMENTS = ROOT / "requirements.txt"
+LAUNCHER = ROOT / "packaging" / "cortex_launcher.py"
+RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 
 # Human CalVer source format: YYYY.MMDD.XX, zero-padded (e.g. 2026.0714.00).
 _CALVER_RE = re.compile(r"^\d{4}\.\d{4}\.\d{2}$")
@@ -76,6 +78,22 @@ def test_requirements_is_the_single_runtime_dependency_source() -> None:
     }
     assert all(str(requirement.specifier).startswith("==") for requirement in parsed)
     assert next(requirement for requirement in parsed if requirement.name == "tomli").marker
+
+
+def test_standalone_distribution_contract_is_declared() -> None:
+    project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    launcher = LAUNCHER.read_text(encoding="utf-8")
+    release = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert project["project"]["optional-dependencies"]["build"] == ["pyinstaller>=6.0"]
+    assert "from cli import main" in launcher
+    assert 'tags: ["v*"]' in release
+    for artifact in (
+        "cortex-windows-x64.exe",
+        "cortex-macos-arm64",
+        "cortex-linux-x64",
+    ):
+        assert artifact in release
 
 
 def test_every_python_source_has_apache_header() -> None:

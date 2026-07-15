@@ -203,3 +203,29 @@ def test_cortex_search_reports_vector_fallback_reason(
 
     assert "**Mode:** vector-only" in response
     assert "**Fallback reason:** lexical index absent; run cortex sync" in response
+
+
+def test_run_stdio_configures_logging_and_runs_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.delenv("CORTEX_DOCTOR_READ_ONLY", raising=False)
+    monkeypatch.setattr("cortex_logging.configure_logging", lambda: calls.append("logging"))
+    monkeypatch.setattr(server.mcp, "run", lambda: calls.append("server"))
+
+    server.run_stdio()
+
+    assert calls == ["logging", "server"]
+
+
+def test_run_stdio_skips_logging_in_doctor_read_only_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setenv("CORTEX_DOCTOR_READ_ONLY", "1")
+    monkeypatch.setattr("cortex_logging.configure_logging", lambda: calls.append("logging"))
+    monkeypatch.setattr(server.mcp, "run", lambda: calls.append("server"))
+
+    server.run_stdio()
+
+    assert calls == ["server"]

@@ -927,7 +927,7 @@ def _client_checks(context: DoctorContext) -> list[DiagnosticCheck]:
                     _check(
                         f"client.{name}.paths",
                         "FAIL" if path_error else "OK",
-                        path_error or "Stored Python and server paths are valid",
+                        path_error or "Stored server command and arguments are valid",
                     ),
                 ]
             )

@@ -8,9 +8,14 @@
 
 | Outil | Version minimale |
 |---|---|
-| Python | 3.10+ |
+| Runtime | Binaire Cortex autonome, ou Python 3.10+ |
 | Client | Claude Desktop/Code, Codex ou Gemini avec support MCP |
 | Espace disque | ~500 Mo (modele + index) |
+
+Pour un poste cible sans Python, utiliser un binaire autonome publie et voir la
+[distribution autonome](distribution.md). Les chemins `install.bat` depuis le
+clone et pip ci-dessous restent les options de developpement et d'installation
+depuis les sources.
 
 ## Installation en un clic
 
@@ -71,6 +76,10 @@ l'index se fait en un seul process (pic RAM superieur a `sync.bat` section par
 section) ; `--no-index` permet de lancer `sync.bat` separement ensuite. Un echec
 d'enregistrement client est signale en avertissement sans interrompre le reste.
 
+Quand cette commande tourne depuis l'executable autonome, elle enregistre cet
+executable avec `serve` comme argument MCP. Depuis une installation pip ou les
+sources, elle conserve l'entree Python avec `server.py`.
+
 ## Connecter Claude, Codex et Gemini
 
 `setup_config.py` detecte les clients installes, affiche un recapitulatif puis
@@ -109,7 +118,7 @@ python setup_config.py --clients all
 # Selection explicite
 python setup_config.py --clients claude-desktop,codex,gemini
 
-# Validation sans ecriture : entree, executable Python et server.py
+# Validation sans ecriture : entree, commande serveur et arguments
 python setup_config.py --check --clients all
 
 # Non-interactif (aucune question) : enregistre les clients detectes
@@ -120,10 +129,11 @@ Le mode `--yes` ne pose aucune question : il n'invite jamais a saisir un chemin
 (`--init --yes` exige alors `CORTEX_KB_PATH`) et ne deplace jamais un index
 existant (la migration reste explicite via `--migrate-data`).
 
-Chaque client lance son propre processus `server.py`, soit environ 150 Mo de
-RAM par client actif. Les lectures simultanees sont sures. Toutes les ecritures
-sur l'index sont serialisees entre processus par le write lock Cortex deja
-teste en conditions multi-processus (voir [Securite](security.md)).
+Chaque client lance son propre processus serveur : `cortex serve` pour une
+installation autonome, ou `python server.py` pour une installation depuis les
+sources ou pip. Les lectures simultanees sont sures. Toutes les ecritures sur
+l'index sont serialisees entre processus par le write lock Cortex deja teste en
+conditions multi-processus (voir [Securite](security.md)).
 
 ## Validation post-installation
 
@@ -131,11 +141,10 @@ teste en conditions multi-processus (voir [Securite](security.md)).
 python setup_config.py --check
 ```
 
-Verifie : Python accessible, packages importables, configuration utilisateur
-valide, emplacement d'index unique ou migration requise, entree `cortex`
-presente pour chaque client selectionne, executable Python et `server.py`
-accessibles. La sortie est qualifiee par client avec `[OK]`,
-`[SKIP not installed]` ou `[FAIL]`.
+Verifie : dependances runtime, configuration utilisateur, emplacement d'index
+unique ou migration requise, presence de l'entree `cortex` pour chaque client
+selectionne, commande serveur et arguments enregistres. La sortie est qualifiee
+par client avec `[OK]`, `[SKIP not installed]` ou `[FAIL]`.
 
 Pour un diagnostic support complet, lancer ensuite le
 [doctor](user-guide.md#cortex-doctor).

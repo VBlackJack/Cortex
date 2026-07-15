@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import logging
 import os
@@ -107,11 +108,32 @@ def detect_python() -> str:
     return sys.executable
 
 
-def _resolved_entry(python_exe: str) -> dict[str, Any]:
+def build_server_entry(
+    *,
+    frozen: bool,
+    exe_path: str,
+    python_exe: str,
+    server_py: Path,
+) -> dict[str, Any]:
+    """Build the MCP command for a frozen binary or a Python installation."""
+    if frozen:
+        return {
+            "command": str(Path(exe_path).resolve()),
+            "args": ["serve"],
+        }
     return {
         "command": str(Path(python_exe).resolve()),
-        "args": [str(SERVER_PY)],
+        "args": [str(server_py)],
     }
+
+
+def _resolved_entry(python_exe: str) -> dict[str, Any]:
+    return build_server_entry(
+        frozen=bool(getattr(sys, "frozen", False)),
+        exe_path=sys.executable,
+        python_exe=python_exe,
+        server_py=SERVER_PY,
+    )
 
 
 def client_registry(
@@ -608,7 +630,15 @@ def offer_legacy_data_migration(
     return moved
 
 
-def check_python(python_exe: str) -> bool:
+def check_python(python_exe: str, *, frozen: bool = False) -> bool:
+    if frozen:
+        executable = Path(python_exe)
+        if not executable.is_file():
+            print(f"[FAIL] Standalone executable does not exist: {python_exe}")
+            return False
+        version = ".".join(map(str, sys.version_info[:3]))
+        print(f"[OK] Standalone runtime: Python {version} in {executable.resolve()}")
+        return True
     try:
         result = subprocess.run(
             [python_exe, "--version"], capture_output=True, text=True, timeout=10
@@ -623,12 +653,21 @@ def check_python(python_exe: str) -> bool:
         return False
 
 
-def check_packages(python_exe: str) -> bool:
+def check_packages(python_exe: str, *, frozen: bool = False) -> bool:
     ok = True
     for package in REQUIRED_PACKAGES:
+        import_name = package.split("[")[0]
+        if frozen:
+            try:
+                importlib.import_module(import_name)
+                print(f"[OK] Bundled package: {package}")
+            except ImportError as exc:
+                print(f"[FAIL] Bundled package {package} not importable: {exc}")
+                ok = False
+            continue
         try:
             result = subprocess.run(
-                [python_exe, "-c", f"import {package.split('[')[0]}; print('ok')"],
+                [python_exe, "-c", f"import {import_name}; print('ok')"],
                 capture_output=True,
                 text=True,
                 timeout=15,
@@ -680,9 +719,11 @@ def _validate_entry_paths(entry: Mapping[str, Any] | None) -> str | None:
     command = entry.get("command")
     args = entry.get("args")
     if not isinstance(command, str) or not Path(command).is_file():
-        return f"Python executable does not exist: {command!r}"
+        return f"Server command does not exist: {command!r}"
     if not isinstance(args, list) or not args or not isinstance(args[0], str):
         return "server argument is missing"
+    if args == ["serve"]:
+        return None
     if not Path(args[0]).is_file():
         return f"server.py does not exist: {args[0]!r}"
     return None
@@ -744,9 +785,10 @@ def run_check(
     clients: str | None = None,
 ) -> int:
     print("\n=== Cortex installation check ===\n")
+    frozen = bool(getattr(sys, "frozen", False))
     base_results = [
-        check_python(python_exe),
-        check_packages(python_exe),
+        check_python(python_exe, frozen=frozen),
+        check_packages(python_exe, frozen=frozen),
         check_user_config(),
     ]
     client_results = check_clients(python_exe, clients=clients)

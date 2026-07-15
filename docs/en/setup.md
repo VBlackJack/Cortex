@@ -8,9 +8,13 @@
 
 | Tool | Minimum version |
 |---|---|
-| Python | 3.10+ |
+| Runtime | Standalone Cortex binary, or Python 3.10+ |
 | Client | Claude Desktop/Code, Codex or Gemini with MCP support |
 | Disk space | ~500 MB (model + index) |
+
+For a target machine without Python, use a released standalone binary and see
+[Standalone distribution](distribution.md). The clone-based `install.bat` and
+pip paths below remain the development and source-install options.
 
 ## One-click install
 
@@ -70,6 +74,10 @@ single process (higher RAM peak than section-by-section `sync.bat`); `--no-index
 lets you run `sync.bat` separately afterwards. A client registration failure is
 reported as a warning without interrupting the rest.
 
+When this command runs from the standalone executable, it registers that
+executable with `serve` as the MCP argument. When it runs from a pip or source
+installation, it preserves the Python plus `server.py` entry.
+
 ## Connect Claude, Codex and Gemini
 
 `setup_config.py` detects installed clients, prints a summary, then registers
@@ -107,7 +115,7 @@ python setup_config.py --clients all
 # Explicit selection
 python setup_config.py --clients claude-desktop,codex,gemini
 
-# Validation without writing: entry, Python executable and server.py
+# Validation without writing: entry, server command and arguments
 python setup_config.py --check --clients all
 
 # Non-interactive (no prompts): register detected clients
@@ -118,10 +126,11 @@ The `--yes` mode asks no questions: it never prompts for a path (`--init --yes`
 then requires `CORTEX_KB_PATH`) and never moves an existing index (migration
 stays explicit via `--migrate-data`).
 
-Each client launches its own `server.py` process, about 150 MB of RAM per
-active client. Concurrent reads are safe. All writes to the index are
-serialized across processes by the Cortex write lock, already tested under
-multi-process conditions (see [Security](security.md)).
+Each client launches its own server process: `cortex serve` for a standalone
+installation, or `python server.py` for a source/pip installation. Concurrent
+reads are safe. All writes to the index are serialized across processes by the
+Cortex write lock, already tested under multi-process conditions (see
+[Security](security.md)).
 
 ## Post-install validation
 
@@ -129,10 +138,10 @@ multi-process conditions (see [Security](security.md)).
 python setup_config.py --check
 ```
 
-Checks: Python reachable, packages importable, user configuration valid, single
-index location or migration required, `cortex` entry present for each selected
-client, Python executable and `server.py` reachable. The output is qualified per
-client with `[OK]`, `[SKIP not installed]` or `[FAIL]`.
+Checks: runtime dependencies, user configuration, single index location or
+migration required, `cortex` entry presence for each selected client, and stored
+server command/arguments. The output is qualified per client with `[OK]`,
+`[SKIP not installed]` or `[FAIL]`.
 
 For a full support diagnostic, then run the
 [doctor](user-guide.md#cortex-doctor).

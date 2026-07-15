@@ -51,6 +51,20 @@ def test_direct_subcommands_dispatch_existing_main(
     assert received == arguments
 
 
+def test_serve_dispatches_server_stdio(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    module = ModuleType("server")
+
+    def fake_run_stdio() -> None:
+        calls.append("serve")
+
+    module.run_stdio = fake_run_stdio  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "server", module)
+
+    assert cli.main(["serve"]) == 0
+    assert calls == ["serve"]
+
+
 @pytest.mark.parametrize(
     ("command", "expected"),
     [

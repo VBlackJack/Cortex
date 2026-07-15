@@ -20,7 +20,7 @@ from collections.abc import Sequence
 
 from _version import __version__
 
-_COMMANDS = ("sync", "doctor", "setup", "init", "register", "check")
+_COMMANDS = ("serve", "sync", "doctor", "setup", "init", "register", "check")
 
 
 def _run_setup(arguments: list[str]) -> int:
@@ -42,6 +42,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         subparsers.add_parser(name, add_help=False)
     namespace, arguments = parser.parse_known_args(argv)
 
+    if namespace.command == "serve":
+        from server import run_stdio
+
+        run_stdio()
+        return 0
     if namespace.command == "sync":
         from indexer import main as sync_main
 
