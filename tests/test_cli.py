@@ -70,6 +70,7 @@ def test_serve_dispatches_server_stdio(monkeypatch: pytest.MonkeyPatch) -> None:
     [
         ("init", ["--init"]),
         ("register", []),
+        ("unregister", ["--unregister"]),
         ("check", ["--check"]),
     ],
 )

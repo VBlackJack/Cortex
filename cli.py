@@ -20,7 +20,16 @@ from collections.abc import Sequence
 
 from _version import __version__
 
-_COMMANDS = ("serve", "sync", "doctor", "setup", "init", "register", "check")
+_COMMANDS = (
+    "serve",
+    "sync",
+    "doctor",
+    "setup",
+    "init",
+    "register",
+    "unregister",
+    "check",
+)
 
 
 def _run_setup(arguments: list[str]) -> int:
@@ -62,6 +71,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     setup_flags = {
         "init": ["--init"],
         "register": [],
+        "unregister": ["--unregister"],
         "check": ["--check"],
     }
     return _run_setup([*setup_flags[namespace.command], *arguments])

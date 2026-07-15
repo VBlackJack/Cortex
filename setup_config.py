@@ -324,6 +324,16 @@ def _json_with_entry(
     return (json.dumps(config, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
 
+def _json_without_entry(
+    config: dict[str, Any], key: str = "mcpServers"
+) -> bytes | None:
+    servers = config.get(key)
+    if not isinstance(servers, dict) or "cortex" not in servers:
+        return None
+    del servers["cortex"]
+    return (json.dumps(config, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+
+
 def _toml_value(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
 
@@ -407,6 +417,46 @@ def _toml_with_entry(
     return "".join(lines).encode("utf-8")
 
 
+def _toml_without_entry(
+    text: str,
+    parsed: dict[str, Any],
+    *,
+    path: Path,
+) -> bytes | None:
+    servers = parsed.get("mcp_servers", {})
+    existing = servers.get("cortex") if isinstance(servers, dict) else None
+    if existing is None:
+        return None
+
+    lines = text.splitlines(keepends=True)
+    header_index: int | None = None
+    end_index = len(lines)
+    for index, line in enumerate(lines):
+        match = _TABLE_HEADER_RE.match(line.rstrip("\r\n"))
+        if match and match.group(1).strip() == "mcp_servers.cortex":
+            header_index = index
+            for following in range(index + 1, len(lines)):
+                if _TABLE_HEADER_RE.match(lines[following].rstrip("\r\n")):
+                    end_index = following
+                    break
+            break
+
+    if header_index is None:
+        raise ClientConfigError(
+            f"The Cortex entry in '{path}' uses an unsupported inline or dotted "
+            "TOML form. Convert it to [mcp_servers.cortex], then retry; Cortex "
+            "did not write anything."
+        )
+
+    # Blank lines before the next table are separators, not Cortex settings.
+    # Preserve them byte-for-byte with the surrounding user configuration.
+    content_end = end_index
+    while content_end > header_index + 1 and not lines[content_end - 1].strip():
+        content_end -= 1
+    del lines[header_index:content_end]
+    return "".join(lines).encode("utf-8")
+
+
 def _prepare_file_target(target: ClientTarget) -> bytes | None:
     """Parse and render a prospective update without touching the filesystem."""
     assert target.config_path is not None
@@ -421,6 +471,18 @@ def _prepare_file_target(target: ClientTarget) -> bytes | None:
     raise ClientConfigError(f"Unsupported client format: {target.config_format}")
 
 
+def _prepare_file_unregistration(target: ClientTarget) -> bytes | None:
+    """Parse and render removal of only the Cortex entry."""
+    assert target.config_path is not None
+    if target.config_format in ("json", "json-servers"):
+        key = _json_servers_key(target.config_format)
+        return _json_without_entry(_read_json_config(target.config_path, key), key)
+    if target.config_format.startswith("toml-table:"):
+        text, parsed = _read_toml_config(target.config_path)
+        return _toml_without_entry(text, parsed, path=target.config_path)
+    raise ClientConfigError(f"Unsupported client format: {target.config_format}")
+
+
 def _register_file_target(target: ClientTarget, content: bytes | None) -> ClientResult:
     assert target.config_path is not None
     if content is None:
@@ -430,6 +492,19 @@ def _register_file_target(target: ClientTarget, content: bytes | None) -> Client
     if backup is not None:
         detail += f" (backup: {backup.name})"
     logger.info("Registered Cortex with %s at %s", target.name, target.config_path)
+    return ClientResult(target.name, "OK", detail, changed=True)
+
+
+def _unregister_file_target(target: ClientTarget) -> ClientResult:
+    assert target.config_path is not None
+    content = _prepare_file_unregistration(target)
+    if content is None:
+        return ClientResult(target.name, "OK", "already unregistered")
+    backup = _replace_atomically(target.config_path, content)
+    detail = f"updated {target.config_path}"
+    if backup is not None:
+        detail += f" (backup: {backup.name})"
+    logger.info("Unregistered Cortex from %s at %s", target.name, target.config_path)
     return ClientResult(target.name, "OK", detail, changed=True)
 
 
@@ -479,6 +554,27 @@ def _register_claude_code(target: ClientTarget, runner: Runner) -> ClientResult:
         return ClientResult(target.name, "FAIL", f"claude mcp add failed: {detail}")
     logger.info("Registered Cortex with Claude Code at user scope")
     return ClientResult(target.name, "OK", "registered through claude mcp add --scope user", True)
+
+
+def _unregister_claude_code(target: ClientTarget, runner: Runner) -> ClientResult:
+    current = _run_claude(target, ["mcp", "get", "cortex"], runner=runner)
+    if current.returncode != 0:
+        return ClientResult(target.name, "OK", "already unregistered at user scope")
+    removed = _run_claude(
+        target,
+        ["mcp", "remove", "--scope", "user", "cortex"],
+        runner=runner,
+    )
+    if removed.returncode != 0:
+        detail = (removed.stderr or removed.stdout).strip() or "unknown Claude CLI error"
+        return ClientResult(target.name, "FAIL", f"claude mcp remove failed: {detail}")
+    logger.info("Unregistered Cortex from Claude Code at user scope")
+    return ClientResult(
+        target.name,
+        "OK",
+        "unregistered through claude mcp remove --scope user",
+        True,
+    )
 
 
 def _format_result(result: ClientResult) -> str:
@@ -557,6 +653,42 @@ def register_clients(
         results.append(result)
     for result in results:
         print(_format_result(result))
+    return results
+
+
+def unregister_clients(
+    python_exe: str,
+    *,
+    clients: str | None = "all",
+    environ: Mapping[str, str] | None = None,
+    home: Path | None = None,
+    which: Callable[[str], str | None] = shutil.which,
+    runner: Runner = subprocess.run,
+) -> list[ClientResult]:
+    """Remove only Cortex MCP entries while preserving every other setting."""
+    registry = client_registry(python_exe, environ=environ, home=home, which=which)
+    selected = parse_client_selection(clients, registry)
+    print("\n=== Cortex client unregistration ===")
+    if not selected:
+        print("[SKIP not installed] No supported clients selected.")
+        return []
+
+    results: list[ClientResult] = []
+    for name in selected:
+        target = registry[name]
+        if not _client_is_detected(target):
+            result = ClientResult(name, "SKIP", "client not installed")
+        else:
+            try:
+                result = (
+                    _unregister_claude_code(target, runner)
+                    if target.name == "claude-code"
+                    else _unregister_file_target(target)
+                )
+            except (ClientConfigError, OSError, subprocess.SubprocessError) as exc:
+                result = ClientResult(name, "FAIL", str(exc))
+        print(_format_result(result))
+        results.append(result)
     return results
 
 
@@ -818,6 +950,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         "--init", action="store_true", help="Create per-user Cortex config"
     )
     parser.add_argument(
+        "--unregister",
+        action="store_true",
+        help="Remove Cortex MCP entries without deleting user data",
+    )
+    parser.add_argument(
         "--migrate-data",
         action="store_true",
         help="Offer migration of a legacy repository-local Chroma index",
@@ -859,6 +996,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         if args.migrate_data:
             offer_legacy_data_migration()
             raise SystemExit(0)
+        if args.unregister:
+            clients = args.clients if args.clients is not None else "all"
+            results = unregister_clients(python_exe, clients=clients)
+            raise SystemExit(0 if all(result.successful for result in results) else 1)
         if args.check:
             raise SystemExit(run_check(python_exe, clients=args.clients))
         if not args.yes:

@@ -59,6 +59,24 @@ def _register(
     return setup_config.register_clients(sys.executable, **kwargs)
 
 
+def _unregister(
+    tmp_path: Path,
+    clients: str,
+    *,
+    which=None,
+    runner=None,
+) -> list[setup_config.ClientResult]:
+    kwargs: dict[str, Any] = {
+        "clients": clients,
+        "environ": {"APPDATA": str(tmp_path / "appdata")},
+        "home": tmp_path / "home",
+        "which": which or _which({}),
+    }
+    if runner is not None:
+        kwargs["runner"] = runner
+    return setup_config.unregister_clients(sys.executable, **kwargs)
+
+
 def test_registry_declares_paths_formats_and_entries(tmp_path: Path) -> None:
     registry = setup_config.client_registry(
         sys.executable,
@@ -196,6 +214,37 @@ def test_json_foreign_keys_and_servers_are_preserved_with_backup(tmp_path: Path)
     assert backups[0].read_text(encoding="utf-8") == json.dumps(original)
 
 
+def test_json_unregistration_preserves_foreign_data_and_creates_backup(
+    tmp_path: Path,
+) -> None:
+    claude, _, _ = _make_detected_paths(tmp_path)
+    original = {
+        "theme": "dark",
+        "mcpServers": {
+            "foreign": {"command": "foreign", "args": ["serve"]},
+            "cortex": {"command": "old", "args": ["serve"]},
+        },
+    }
+    claude.write_text(json.dumps(original), encoding="utf-8")
+
+    first = _unregister(tmp_path, "claude-desktop")
+    first_bytes = claude.read_bytes()
+    backups = list(claude.parent.glob(f"{claude.name}.*.bak"))
+    second = _unregister(tmp_path, "claude-desktop")
+    updated = json.loads(first_bytes.decode("utf-8"))
+
+    assert first[0].changed
+    assert updated["theme"] == "dark"
+    assert updated["mcpServers"] == {"foreign": original["mcpServers"]["foreign"]}
+    assert len(backups) == 1
+    assert backups[0].read_text(encoding="utf-8") == json.dumps(original)
+    assert second == [
+        setup_config.ClientResult("claude-desktop", "OK", "already unregistered")
+    ]
+    assert claude.read_bytes() == first_bytes
+    assert list(claude.parent.glob(f"{claude.name}.*.bak")) == backups
+
+
 def test_client_replacement_is_atomic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     claude, _, _ = _make_detected_paths(tmp_path)
     claude.write_text("{}", encoding="utf-8")
@@ -239,6 +288,31 @@ def test_codex_preserves_non_cortex_bytes_and_unknown_cortex_keys(
     assert '[mcp_servers.other]\ncommand = "other"' in updated.replace("\r\n", "\n")
 
 
+def test_codex_unregistration_removes_only_cortex_table(tmp_path: Path) -> None:
+    _, codex, _ = _make_detected_paths(tmp_path)
+    prefix = (
+        '# user comment\r\nmodel = "custom"\r\n\r\n[mcp_servers.other]\r\n'
+        'command = "other"\r\nargs = ["serve"]\r\n\r\n'
+    )
+    cortex = (
+        '[mcp_servers.cortex]\r\ncommand = "cortex"\r\nargs = ["serve"]\r\n'
+        "enabled = true\r\n"
+    )
+    suffix = '\r\n[projects."workspace"]\r\ntrust_level = "trusted"\r\n'
+    original = (prefix + cortex + suffix).encode("utf-8")
+    codex.write_bytes(original)
+
+    result = _unregister(tmp_path, "codex")
+    updated = codex.read_bytes().decode("utf-8")
+    backups = list(codex.parent.glob(f"{codex.name}.*.bak"))
+
+    assert result[0].changed
+    assert updated == prefix + suffix
+    assert "mcp_servers.cortex" not in updated
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == original
+
+
 @pytest.mark.parametrize(
     ("client", "content"),
     [
@@ -274,6 +348,23 @@ def test_preflight_failure_prevents_other_selected_writes(tmp_path: Path) -> Non
     assert results[0].status == "FAIL"
     assert claude.read_bytes() == before
     assert list(claude.parent.glob(f"{claude.name}.*.bak")) == []
+
+
+def test_unregistration_failure_does_not_block_other_clients(tmp_path: Path) -> None:
+    claude, codex, _ = _make_detected_paths(tmp_path)
+    claude.write_text(
+        json.dumps({"mcpServers": {"cortex": {"command": "old"}}}),
+        encoding="utf-8",
+    )
+    codex.write_text("not = valid = toml", encoding="utf-8")
+
+    results = _unregister(tmp_path, "codex,claude-desktop")
+    updated = json.loads(claude.read_text(encoding="utf-8"))
+
+    assert [result.status for result in results] == ["FAIL", "OK"]
+    assert results[1].changed
+    assert "cortex" not in updated["mcpServers"]
+    assert codex.read_text(encoding="utf-8") == "not = valid = toml"
 
 
 def test_absent_client_is_clean_skip(tmp_path: Path) -> None:
@@ -320,6 +411,38 @@ def test_claude_code_uses_documented_user_scope_cli_and_is_idempotent(
         )
     ]
     assert sum(call[1:3] == ["mcp", "add"] for call in calls) == 1
+
+
+def test_claude_code_unregistration_uses_user_scope_and_is_idempotent(
+    tmp_path: Path,
+) -> None:
+    state = {"registered": True}
+    calls: list[list[str]] = []
+
+    def runner(command, **_kwargs):
+        calls.append(command)
+        if command[1:4] == ["mcp", "get", "cortex"]:
+            return setup_config.subprocess.CompletedProcess(
+                command,
+                0 if state["registered"] else 1,
+                "registered" if state["registered"] else "",
+                "" if state["registered"] else "missing",
+            )
+        assert command[1:6] == ["mcp", "remove", "--scope", "user", "cortex"]
+        state["registered"] = False
+        return setup_config.subprocess.CompletedProcess(command, 0, "removed", "")
+
+    which = _which({"claude": "claude"})
+    first = _unregister(tmp_path, "claude-code", which=which, runner=runner)
+    second = _unregister(tmp_path, "claude-code", which=which, runner=runner)
+
+    assert first[0].changed
+    assert second == [
+        setup_config.ClientResult(
+            "claude-code", "OK", "already unregistered at user scope"
+        )
+    ]
+    assert sum(call[1:3] == ["mcp", "remove"] for call in calls) == 1
 
 
 def test_check_reports_entry_and_valid_paths(tmp_path: Path) -> None:
