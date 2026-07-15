@@ -30,9 +30,11 @@ from dataclasses import dataclass, field
 from setup_config import (
     ClientConfigError,
     ClientResult,
+    ResetResult,
     detect_python,
     init_user_config,
     register_clients,
+    reset_user_state,
 )
 from user_config import CortexConfigError
 
@@ -49,6 +51,7 @@ class SetupPlan:
         build_index: Whether to build the search index during setup.
         assume_yes: Non-interactive mode; init requires CORTEX_KB_PATH instead of
             prompting.
+        reset: Delete the existing user config and generated data before init.
         python_exe: Interpreter recorded in client configs; None uses the current
             interpreter.
     """
@@ -56,6 +59,7 @@ class SetupPlan:
     clients: str | None = "all"
     build_index: bool = True
     assume_yes: bool = False
+    reset: bool = False
     python_exe: str | None = None
 
 
@@ -68,12 +72,14 @@ class SetupResult:
         indexed: Whether the search index was built.
         client_results: Per-client registration outcomes.
         warnings: Non-fatal messages (one per non-successful client).
+        reset: Whether an explicit reset ran before initialization.
     """
 
     config_created: bool
     indexed: bool
     client_results: list[ClientResult]
     warnings: list[str] = field(default_factory=list)
+    reset: bool = False
 
     @property
     def successful(self) -> bool:
@@ -83,6 +89,7 @@ class SetupResult:
 InitFn = Callable[..., bool]
 IndexFn = Callable[[], dict[str, int]]
 RegisterFn = Callable[..., list[ClientResult]]
+ResetFn = Callable[[], ResetResult]
 
 
 def _default_index() -> dict[str, int]:
@@ -98,23 +105,27 @@ def run_setup(
     init_fn: InitFn = init_user_config,
     index_fn: IndexFn = _default_index,
     register_fn: RegisterFn = register_clients,
+    reset_fn: ResetFn = reset_user_state,
 ) -> SetupResult:
     """Run the full setup sequence for `plan` and return a summary.
 
-    Steps run in order: initialize the per-user config, build the index when
-    requested, then register the selected MCP clients. Client registration
-    failures are captured as warnings rather than aborting an otherwise
-    successful setup, matching the guided-setup contract.
+    Steps run in order: reset when explicitly requested, initialize the per-user
+    config, build the index when requested, then register the selected MCP
+    clients. Client registration failures are captured as warnings rather than
+    aborting an otherwise successful setup, matching the guided-setup contract.
 
     Args:
         plan: The resolved setup choices.
         init_fn: Config initializer; defaults to the real init_user_config.
         index_fn: Index builder; defaults to a full incremental sync.
         register_fn: Client registrar; defaults to the real register_clients.
+        reset_fn: Guarded user-state reset; defaults to reset_user_state.
 
     Returns:
         A SetupResult describing everything that was done.
     """
+    if plan.reset:
+        reset_fn()
     config_created = init_fn(assume_yes=plan.assume_yes)
 
     indexed = False
@@ -134,11 +145,14 @@ def run_setup(
         indexed=indexed,
         client_results=client_results,
         warnings=warnings,
+        reset=plan.reset,
     )
 
 
 def _render_result(result: SetupResult) -> None:
     print("\n=== Cortex setup ===")
+    if result.reset:
+        print("[OK] previous config and generated index reset")
     config_label = "OK" if result.config_created else "INFO"
     config_state = "created" if result.config_created else "already present"
     print(f"[{config_label}] config {config_state}")
@@ -173,6 +187,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Non-interactive: no prompts; requires CORTEX_KB_PATH to create config",
     )
     parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Delete the existing Cortex config and generated index before setup",
+    )
+    parser.add_argument(
         "--python",
         default=None,
         help="Python executable (default: current interpreter)",
@@ -182,6 +201,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         clients=args.clients,
         build_index=not args.no_index,
         assume_yes=args.yes,
+        reset=args.reset,
         python_exe=args.python,
     )
     try:

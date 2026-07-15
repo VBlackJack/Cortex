@@ -60,6 +60,24 @@ def test_run_setup_runs_init_index_register_in_order() -> None:
     assert result.warnings == []
 
 
+def test_run_setup_resets_before_init_when_explicitly_requested() -> None:
+    calls: list[str] = []
+
+    result = run_setup(
+        SetupPlan(reset=True, build_index=False),
+        reset_fn=lambda: (
+            calls.append("reset")
+            or setup_config.ResetResult(config_removed=True, data_home_removed=True)
+        ),
+        init_fn=lambda *, assume_yes: calls.append("init") or True,
+        index_fn=lambda: {},
+        register_fn=lambda python_exe, *, clients: calls.append("register") or [_ok()],
+    )
+
+    assert calls == ["reset", "init", "register"]
+    assert result.reset is True
+
+
 def test_run_setup_skips_index_when_build_index_false() -> None:
     calls: list[str] = []
 
@@ -124,5 +142,5 @@ def test_cli_routes_setup_to_wizard(monkeypatch: pytest.MonkeyPatch) -> None:
     module.main = fake_main  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "setup_wizard", module)
 
-    assert cli.main(["setup", "--yes", "--no-index"]) == 0
-    assert received == ["--yes", "--no-index"]
+    assert cli.main(["setup", "--reset", "--yes", "--no-index"]) == 0
+    assert received == ["--reset", "--yes", "--no-index"]

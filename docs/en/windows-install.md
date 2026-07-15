@@ -65,6 +65,25 @@ Cortex-Setup.exe /VERYSILENT /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE=sections /SE
 
 The process returns a non-zero exit code if automatic setup fails.
 
+## Reinstall and reset
+
+When `%APPDATA%\Cortex\config.toml` already exists, the wizard offers two
+choices:
+
+- `Keep my current configuration` is the conservative default. The existing
+  folder, mode, and index stay intact; Cortex reindexes and registers clients.
+- `Reset configuration` removes only Cortex's configuration and generated data
+  under `%LOCALAPPDATA%\Cortex`, then applies the folder and mode selected in
+  the wizard. The document folder is never deleted.
+
+Close AI applications before a reset: an active server may hold the index open
+and make the operation fail safely. Silent installs still default to Keep;
+`/RESETCONFIG` explicitly requests a reset:
+
+```powershell
+Cortex-Setup.exe /VERYSILENT /RESETCONFIG /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE=whole /INDEX
+```
+
 ## Uninstallation
 
 Uninstall Cortex from `Settings > Apps`. The uninstaller runs

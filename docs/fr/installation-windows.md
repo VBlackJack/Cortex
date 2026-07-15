@@ -67,6 +67,24 @@ Cortex-Setup.exe /VERYSILENT /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE=sections /SE
 
 Le processus retourne un code non nul si la configuration automatique echoue.
 
+## Reinstallation et remise a zero
+
+Si `%APPDATA%\Cortex\config.toml` existe deja, l'assistant propose deux choix :
+
+- `Garder ma configuration` est le defaut prudent. Le dossier, le mode et
+  l'index existants sont conserves ; Cortex reindexe et reenregistre les clients.
+- `Reinitialiser` supprime uniquement la configuration Cortex et les donnees
+  generees sous `%LOCALAPPDATA%\Cortex`, puis applique le dossier et le mode
+  choisis dans l'assistant. Le dossier de documents n'est jamais supprime.
+
+Fermer les applications IA avant une reinitialisation : un serveur actif peut
+tenir l'index ouvert et faire echouer proprement l'operation. En silencieux,
+le defaut reste Keep ; `/RESETCONFIG` demande explicitement le reset :
+
+```powershell
+Cortex-Setup.exe /VERYSILENT /RESETCONFIG /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE=whole /INDEX
+```
+
 ## Desinstallation
 
 Desinstaller Cortex depuis `Parametres > Applications`. Le desinstalleur lance

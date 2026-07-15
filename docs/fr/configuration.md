@@ -64,6 +64,19 @@ dans le fichier mais n'est pas utilise dans ce mode.
 Une configuration existante sans `index_whole_folder` garde son comportement
 historique : la valeur absente equivaut a `false` et active les sections.
 
+Pour changer proprement de mode sur une installation existante, utiliser le
+choix `Reinitialiser` de l'installeur ou :
+
+```powershell
+$env:CORTEX_KB_PATH = "D:\Knowledge"
+$env:CORTEX_INDEX_MODE = "whole"
+cortex setup --reset --yes
+```
+
+Le reset supprime `config.toml` et les donnees generees du data home avant de
+reconstruire l'index. Il ne supprime jamais `kb_path`. Sans `--reset`, une
+configuration existante reste preservee.
+
 Les sections indexables sont definies par `included_sections` dans
 `config.toml`. Un dossier de premier niveau absent de l'allowlist et de la
 denylist n'est jamais indexe automatiquement : `cortex_list_sections` le signale

@@ -47,6 +47,11 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 
 [CustomMessages]
+english.ReinstallCaption=Existing Cortex configuration
+english.ReinstallDescription=Choose what this installation should do with your current setup.
+english.ReinstallSubCaption=Keep preserves your configuration and index. Reset deletes generated Cortex state, then applies the folder and indexing choices on the next pages.
+english.KeepConfig=Keep my current Cortex configuration (recommended)
+english.ResetConfig=Reset configuration and rebuild the index from scratch
 english.KBPageCaption=Knowledge base folder
 english.KBPageDescription=Choose where Cortex will read your documents.
 english.KBPageSubCaption=You can start with an empty folder and add documents later.
@@ -66,7 +71,13 @@ english.SetupFailed=Cortex was installed, but automatic setup failed. Run Cortex
 english.PathFailed=Cortex could not add its application folder to your user PATH.
 english.EnvironmentFailed=Cortex could not pass the selected knowledge base folder to the setup process.
 english.DirectoryFailed=Cortex could not create the selected knowledge base folder:
+english.ResetFailed=Cortex could not reset its configuration and generated index. Close every AI application using Cortex, then run the installer again.
 english.UnregisterFailed=Cortex could not remove every MCP client entry. The uninstall will continue; review the client configurations manually.
+french.ReinstallCaption=Configuration Cortex existante
+french.ReinstallDescription=Choisissez ce que cette installation doit faire de votre configuration actuelle.
+french.ReinstallSubCaption=Garder conserve la configuration et l'index. Reinitialiser efface les donnees Cortex generees, puis applique le dossier et le mode choisis aux pages suivantes.
+french.KeepConfig=Garder ma configuration Cortex actuelle (recommande)
+french.ResetConfig=Reinitialiser la configuration et reconstruire l'index
 french.KBPageCaption=Dossier de base de connaissances
 french.KBPageDescription=Choisissez le dossier dans lequel Cortex lira vos documents.
 french.KBPageSubCaption=Vous pouvez commencer avec un dossier vide et ajouter des documents plus tard.
@@ -86,6 +97,7 @@ french.SetupFailed=Cortex a ete installe, mais la configuration automatique a ec
 french.PathFailed=Cortex n'a pas pu ajouter son dossier d'application au PATH utilisateur.
 french.EnvironmentFailed=Cortex n'a pas pu transmettre le dossier de base de connaissances au processus de configuration.
 french.DirectoryFailed=Cortex n'a pas pu creer le dossier de base de connaissances selectionne :
+french.ResetFailed=Cortex n'a pas pu reinitialiser sa configuration et son index genere. Fermez toutes les applications IA utilisant Cortex, puis relancez l'installeur.
 french.UnregisterFailed=Cortex n'a pas pu retirer toutes les entrees des clients MCP. La desinstallation continue ; verifiez manuellement les configurations clientes.
 
 [Files]
@@ -97,11 +109,13 @@ Name: "{group}\Cortex Sync"; Filename: "{cmd}"; Parameters: "/k """"{app}\cortex
 
 [Code]
 var
+  ReinstallPage: TInputOptionWizardPage;
   KnowledgeBasePage: TInputDirWizardPage;
   IndexNowCheckBox: TNewCheckBox;
   IndexModePage: TInputOptionWizardPage;
   SectionsPage: TInputQueryWizardPage;
   KnowledgeBasePath: String;
+  ExistingConfigDetected: Boolean;
   SetupFailed: Boolean;
 
 function SetEnvironmentVariable(lpName, lpValue: String): BOOL;
@@ -135,6 +149,21 @@ begin
     Result := Trim(KnowledgeBasePage.Values[0]);
   if Result = '' then
     Result := ExpandConstant('{userdocs}\Cortex-KB');
+end;
+
+function ResetConfigurationRequested: Boolean;
+begin
+  if CommandLineSwitchPresent('RESETCONFIG') then
+    Result := True
+  else if WizardSilent then
+    Result := False
+  else
+    Result := ExistingConfigDetected and (ReinstallPage.SelectedValueIndex = 1);
+end;
+
+function KeepExistingConfiguration: Boolean;
+begin
+  Result := ExistingConfigDetected and not ResetConfigurationRequested;
 end;
 
 function ShouldIndexNow: Boolean;
@@ -173,8 +202,26 @@ procedure InitializeWizard;
 var
   InitialPath: String;
 begin
+  ExistingConfigDetected := FileExists(
+    ExpandConstant('{userappdata}\Cortex\config.toml')
+  );
+  ReinstallPage := CreateInputOptionPage(
+    wpWelcome,
+    CustomMessage('ReinstallCaption'),
+    CustomMessage('ReinstallDescription'),
+    CustomMessage('ReinstallSubCaption'),
+    True,
+    False
+  );
+  ReinstallPage.Add(CustomMessage('KeepConfig'));
+  ReinstallPage.Add(CustomMessage('ResetConfig'));
+  if CommandLineSwitchPresent('RESETCONFIG') then
+    ReinstallPage.SelectedValueIndex := 1
+  else
+    ReinstallPage.SelectedValueIndex := 0;
+
   KnowledgeBasePage := CreateInputDirPage(
-    wpSelectDir,
+    ReinstallPage.ID,
     CustomMessage('KBPageCaption'),
     CustomMessage('KBPageDescription'),
     CustomMessage('KBPageSubCaption'),
@@ -222,6 +269,14 @@ function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   if WizardSilent then
     Result :=
+      (PageID = ReinstallPage.ID) or
+      (PageID = KnowledgeBasePage.ID) or
+      (PageID = IndexModePage.ID) or
+      (PageID = SectionsPage.ID)
+  else if (PageID = ReinstallPage.ID) then
+    Result := not ExistingConfigDetected
+  else if KeepExistingConfiguration then
+    Result :=
       (PageID = KnowledgeBasePage.ID) or
       (PageID = IndexModePage.ID) or
       (PageID = SectionsPage.ID)
@@ -234,6 +289,11 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
+  if KeepExistingConfiguration then
+  begin
+    KnowledgeBasePath := '';
+    Exit;
+  end;
   KnowledgeBasePath := SelectedKnowledgeBasePath;
   if (SelectedIndexMode <> 'whole') and (SelectedIndexMode <> 'sections') then
   begin
@@ -396,6 +456,7 @@ procedure RunCortexSetup;
 var
   IndexMode: String;
   Parameters: String;
+  ResetConfiguration: Boolean;
   ResultCode: Integer;
 begin
   if not AddAppToUserPath then
@@ -403,29 +464,35 @@ begin
     MarkSetupFailure(CustomMessage('PathFailed'));
     Exit;
   end;
-  if not SetEnvironmentVariable('CORTEX_KB_PATH', KnowledgeBasePath) then
+  ResetConfiguration := ResetConfigurationRequested;
+  if not KeepExistingConfiguration then
   begin
-    MarkSetupFailure(CustomMessage('EnvironmentFailed'));
-    Exit;
-  end;
-  IndexMode := SelectedIndexMode;
-  if not SetEnvironmentVariable('CORTEX_INDEX_MODE', IndexMode) then
-  begin
-    MarkSetupFailure(CustomMessage('EnvironmentFailed'));
-    Exit;
-  end;
-  if IndexMode = 'sections' then
-  begin
-    if not SetEnvironmentVariable('CORTEX_INDEX_SECTIONS', SelectedSections) then
+    if not SetEnvironmentVariable('CORTEX_KB_PATH', KnowledgeBasePath) then
     begin
       MarkSetupFailure(CustomMessage('EnvironmentFailed'));
       Exit;
     end;
-  end
-  else
-    SetEnvironmentVariable('CORTEX_INDEX_SECTIONS', '');
+    IndexMode := SelectedIndexMode;
+    if not SetEnvironmentVariable('CORTEX_INDEX_MODE', IndexMode) then
+    begin
+      MarkSetupFailure(CustomMessage('EnvironmentFailed'));
+      Exit;
+    end;
+    if IndexMode = 'sections' then
+    begin
+      if not SetEnvironmentVariable('CORTEX_INDEX_SECTIONS', SelectedSections) then
+      begin
+        MarkSetupFailure(CustomMessage('EnvironmentFailed'));
+        Exit;
+      end;
+    end
+    else
+      SetEnvironmentVariable('CORTEX_INDEX_SECTIONS', '');
+  end;
 
   Parameters := 'setup --yes --clients all';
+  if ResetConfiguration then
+    Parameters := Parameters + ' --reset';
   if not ShouldIndexNow then
     Parameters := Parameters + ' --no-index';
   if not Exec(
@@ -438,7 +505,12 @@ begin
   ) then
     MarkSetupFailure('Could not start cortex.exe.')
   else if ResultCode <> 0 then
-    MarkSetupFailure('cortex setup returned exit code ' + IntToStr(ResultCode) + '.');
+  begin
+    if ResetConfiguration then
+      MarkSetupFailure(CustomMessage('ResetFailed'))
+    else
+      MarkSetupFailure('cortex setup returned exit code ' + IntToStr(ResultCode) + '.');
+  end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

@@ -282,6 +282,86 @@ def test_init_whole_mode_creates_no_section_folders(tmp_path: Path) -> None:
     assert list(kb.iterdir()) == []
 
 
+def test_reset_user_state_removes_only_config_and_generated_data(tmp_path: Path) -> None:
+    roaming = tmp_path / "roaming" / "Cortex"
+    data_home = tmp_path / "local" / "Cortex"
+    kb = tmp_path / "documents"
+    config_path = roaming / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    data_home.mkdir(parents=True)
+    kb.mkdir()
+    config_path.write_text("schema_version = 1\n", encoding="utf-8")
+    (data_home / "chroma.sqlite3").write_text("index", encoding="utf-8")
+    document = kb / "keep.md"
+    document.write_text("keep", encoding="utf-8")
+
+    result = setup_config.reset_user_state(
+        config_path=config_path,
+        data_home=data_home,
+    )
+
+    assert result == setup_config.ResetResult(
+        config_removed=True, data_home_removed=True
+    )
+    assert not config_path.exists()
+    assert not data_home.exists()
+    assert document.read_text(encoding="utf-8") == "keep"
+
+    second = setup_config.reset_user_state(
+        config_path=config_path,
+        data_home=data_home,
+    )
+    assert second == setup_config.ResetResult(
+        config_removed=False, data_home_removed=False
+    )
+
+
+def test_reset_user_state_rejects_unexpected_or_linked_targets(tmp_path: Path) -> None:
+    with pytest.raises(CortexConfigError, match="unexpected config path"):
+        setup_config.reset_user_state(
+            config_path=tmp_path / "not-cortex.toml",
+            data_home=tmp_path / "local" / "Cortex",
+        )
+
+    target = tmp_path / "target"
+    target.mkdir()
+    linked = tmp_path / "local" / "Cortex"
+    linked.parent.mkdir()
+    try:
+        linked.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks require unavailable privileges")
+    with pytest.raises(CortexConfigError, match="linked Cortex data home"):
+        setup_config.reset_user_state(
+            config_path=tmp_path / "roaming" / "Cortex" / "config.toml",
+            data_home=linked,
+        )
+    assert target.exists()
+
+
+def test_reset_failure_keeps_config_and_reports_active_client(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = tmp_path / "roaming" / "Cortex" / "config.toml"
+    data_home = tmp_path / "local" / "Cortex"
+    config_path.parent.mkdir(parents=True)
+    data_home.mkdir(parents=True)
+    config_path.write_text("schema_version = 1\n", encoding="utf-8")
+
+    def fail_remove(_path: Path) -> None:
+        raise PermissionError(13, "in use", str(data_home / "chroma.sqlite3"))
+
+    monkeypatch.setattr(setup_config.shutil, "rmtree", fail_remove)
+
+    with pytest.raises(CortexConfigError, match="Close all AI clients"):
+        setup_config.reset_user_state(
+            config_path=config_path,
+            data_home=data_home,
+        )
+
+    assert config_path.exists()
+
+
 @pytest.mark.parametrize(
     "environ",
     [

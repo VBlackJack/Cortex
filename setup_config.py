@@ -48,6 +48,7 @@ from dependencies import REQUIRED_PACKAGES
 from user_config import (
     CortexConfigError,
     load_user_config,
+    local_data_home,
     require_kb_path,
     user_config_path,
     write_user_config_atomic,
@@ -73,6 +74,14 @@ _TOML_ASSIGNMENT_RE = re.compile(r"^(\s*)(command|args)(\s*=).*$")
 
 class ClientConfigError(RuntimeError):
     """Raised when a client configuration cannot be changed safely."""
+
+
+@dataclass(frozen=True)
+class ResetResult:
+    """Paths removed by one explicit user-state reset."""
+
+    config_removed: bool
+    data_home_removed: bool
 
 
 @dataclass(frozen=True)
@@ -690,6 +699,78 @@ def unregister_clients(
         print(_format_result(result))
         results.append(result)
     return results
+
+
+def _guard_reset_paths(config_path: Path, data_home: Path) -> tuple[Path, Path]:
+    """Return absolute reset targets after enforcing the product path shape."""
+    config_target = Path(os.path.abspath(config_path))
+    data_target = Path(os.path.abspath(data_home))
+    if (
+        config_target.name != "config.toml"
+        or config_target.parent.name.casefold() != "cortex"
+    ):
+        raise CortexConfigError(
+            f"Refusing to reset unexpected config path: '{config_target}'."
+        )
+    if data_target.name.casefold() != "cortex" or data_target == data_target.parent:
+        raise CortexConfigError(
+            f"Refusing to reset unexpected data home: '{data_target}'."
+        )
+    return config_target, data_target
+
+
+def _is_linked_directory(path: Path) -> bool:
+    is_junction = getattr(path, "is_junction", lambda: False)
+    return path.is_symlink() or is_junction()
+
+
+def reset_user_state(
+    *,
+    config_path: Path | None = None,
+    data_home: Path | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> ResetResult:
+    """Delete only Cortex's generated state, never the knowledge-base folder."""
+    values = dict(os.environ if environ is None else environ)
+    config_target, data_target = _guard_reset_paths(
+        user_config_path(values) if config_path is None else Path(config_path),
+        local_data_home(values) if data_home is None else Path(data_home),
+    )
+    if _is_linked_directory(config_target.parent):
+        raise CortexConfigError(
+            f"Refusing to reset linked Cortex config directory: '{config_target.parent}'."
+        )
+    if _is_linked_directory(data_target):
+        raise CortexConfigError(
+            f"Refusing to reset linked Cortex data home: '{data_target}'."
+        )
+    if data_target.exists() and not data_target.is_dir():
+        raise CortexConfigError(
+            f"Refusing to reset non-directory Cortex data home: '{data_target}'."
+        )
+    if config_target.exists() and not config_target.is_file():
+        raise CortexConfigError(
+            f"Refusing to reset non-file Cortex config: '{config_target}'."
+        )
+
+    data_home_removed = False
+    config_removed = False
+    try:
+        if data_target.exists():
+            shutil.rmtree(data_target)
+            data_home_removed = True
+        if config_target.exists() or config_target.is_symlink():
+            config_target.unlink()
+            config_removed = True
+    except OSError as exc:
+        raise CortexConfigError(
+            "Could not reset Cortex configuration and generated index. Close all AI "
+            f"clients using Cortex, then retry. Failed path: '{exc.filename or 'unknown'}'."
+        ) from exc
+    return ResetResult(
+        config_removed=config_removed,
+        data_home_removed=data_home_removed,
+    )
 
 
 def init_user_config(

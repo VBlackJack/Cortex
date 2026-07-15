@@ -109,7 +109,7 @@ Les sous-commandes installees sont des dispatchers minces vers les memes points
 d'entree que les scripts historiques :
 
 ```powershell
-cortex setup [--clients all] [--no-index] [--yes]
+cortex setup [--clients all] [--no-index] [--reset] [--yes]
 cortex sync [section]
 cortex doctor [--json]
 cortex init

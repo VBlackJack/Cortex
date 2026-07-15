@@ -65,6 +65,9 @@ cortex setup --yes
 # Skip building the index (useful on a RAM-constrained machine)
 cortex setup --no-index
 
+# Explicitly reset config and generated index before setup
+cortex setup --reset --yes
+
 # Target specific clients
 cortex setup --clients claude-desktop,codex
 ```

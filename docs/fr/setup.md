@@ -67,6 +67,9 @@ cortex setup --yes
 # Sauter la construction de l'index (utile sur poste a RAM contrainte)
 cortex setup --no-index
 
+# Reinitialiser explicitement config + index genere avant le setup
+cortex setup --reset --yes
+
 # Cibler des clients precis
 cortex setup --clients claude-desktop,codex
 ```

@@ -62,6 +62,19 @@ def test_installer_defaults_to_whole_folder_and_supports_advanced_sections() -> 
     assert "CommandLineValue('SECTIONS')" in script
 
 
+def test_reinstall_defaults_to_keep_and_routes_reset_through_cortex_cli() -> None:
+    script = INSTALLER.read_text(encoding="utf-8")
+
+    assert "ExistingConfigDetected := FileExists" in script
+    assert "{userappdata}\\Cortex\\config.toml" in script
+    assert "ReinstallPage.SelectedValueIndex := 0" in script
+    assert "Keep my current Cortex configuration (recommended)" in script
+    assert "CommandLineSwitchPresent('RESETCONFIG')" in script
+    assert "Parameters := Parameters + ' --reset'" in script
+    assert "if not KeepExistingConfiguration then" in script
+    assert "DelTree(" not in script
+
+
 def test_uninstaller_unregisters_before_removing_user_path() -> None:
     script = INSTALLER.read_text(encoding="utf-8")
     uninstall = script[script.index("procedure CurUninstallStepChanged") :]
