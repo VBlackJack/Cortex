@@ -14,6 +14,7 @@ The same binary exposes the complete command surface:
 
 ```text
 cortex setup
+cortex unregister
 cortex sync
 cortex doctor
 cortex serve
@@ -27,7 +28,16 @@ The Python installation remains supported. In that mode, setup continues to
 register the current Python interpreter with `server.py`; existing development
 and pip workflows are unchanged.
 
-## Install a released binary
+## Install on Windows
+
+For non-technical users, download `Cortex-Setup.exe` from the release. The
+wizard installs Cortex without administrator privileges, collects the document
+folder, adds the binary to PATH, and registers the MCP clients. See the
+[Windows installation guide](windows-install.md).
+
+The raw Windows binary remains available for portable or advanced use.
+
+## Install a released raw binary
 
 1. Download the binary for your operating system from the matching GitHub
    Release.
@@ -74,6 +84,9 @@ Pushing a `v*` tag starts `.github/workflows/release.yml`. It builds on Windows,
 macOS arm64 and Linux x64, smoke-tests the CLI and server imports, and attaches
 the three binaries to the GitHub Release. `workflow_dispatch` can build the same
 artifacts without publishing a release.
+The Windows leg also compiles `Cortex-Setup.exe` with Inno Setup and attaches it
+to the release. When the Windows signing secrets are configured, the workflow
+signs the Windows binary before packaging and then signs the resulting installer.
 
 The release job must never publish a binary from a failed platform build or a
 failed smoke-test.

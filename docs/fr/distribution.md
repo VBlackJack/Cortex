@@ -14,6 +14,7 @@ Le meme binaire expose toute la surface de commandes :
 
 ```text
 cortex setup
+cortex unregister
 cortex sync
 cortex doctor
 cortex serve
@@ -28,7 +29,16 @@ L'installation Python reste prise en charge. Dans ce mode, le setup continue
 d'enregistrer l'interpreteur Python courant avec `server.py` ; les workflows de
 developpement et pip existants ne changent pas.
 
-## Installer un binaire publie
+## Installer sous Windows
+
+Pour un utilisateur non technique, telecharger `Cortex-Setup.exe` depuis la
+release. L'assistant installe Cortex sans droits administrateur, collecte le
+dossier de documents, ajoute le binaire au PATH et enregistre les clients MCP.
+Voir le [guide d'installation Windows](installation-windows.md).
+
+Le binaire Windows nu reste disponible pour un usage portable ou avance.
+
+## Installer un binaire nu publie
 
 1. Telecharger le binaire de son systeme depuis la GitHub Release correspondante.
 2. Le placer dans un emplacement stable qui ne sera ni renomme ni supprime.
@@ -74,6 +84,9 @@ des modeles ne sont pas embarques.
 Le push d'un tag `v*` demarre `.github/workflows/release.yml`. Le workflow build
 sous Windows, macOS arm64 et Linux x64, smoke-teste le CLI et les imports du
 serveur, puis attache les trois binaires a la GitHub Release.
+Le leg Windows compile aussi `Cortex-Setup.exe` avec Inno Setup et l'attache a
+la release. Si les secrets de signature Windows sont configures, le workflow
+signe le binaire Windows avant son emballage, puis signe l'installeur produit.
 `workflow_dispatch` peut construire les memes artefacts sans publier de release.
 
 Le job de release ne doit jamais publier le binaire d'une plateforme dont le

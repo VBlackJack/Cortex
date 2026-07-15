@@ -21,6 +21,8 @@ content from the knowledge base ever leaves it.
 
 - [Setup](setup.md): prerequisites, `install.bat`, connecting MCP clients
   (Claude, Codex, Gemini).
+- [Windows installation](windows-install.md): Python-free wizard, corpus
+  selection, shortcuts, and silent deployment.
 - [Standalone distribution](distribution.md): one-file executables, local
   PyInstaller builds and release artifacts.
 - [User guide](user-guide.md): indexing and sync, search, the four MCP tools,
