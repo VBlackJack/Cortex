@@ -59,13 +59,15 @@ set /a IDX=0
 set /a FAILURES=0
 for /f "usebackq delims=" %%S in ("!SECTIONS_FILE!") do (
     set /a IDX+=1
-    echo [!IDX!/%COUNT%] Syncing: %%S
+    set "SECTION_LABEL=%%S"
+    if "%%S"=="." set "SECTION_LABEL=all documents"
+    echo [!IDX!/%COUNT%] Syncing: !SECTION_LABEL!
     "!PYTHON_EXE!" "%CORTEX_DIR%indexer.py" "%%S"
     if errorlevel 1 (
         set /a FAILURES+=1
-        echo [!IDX!/%COUNT%] %%S FAILED.
+        echo [!IDX!/%COUNT%] !SECTION_LABEL! FAILED.
     ) else (
-        echo [!IDX!/%COUNT%] %%S done.
+        echo [!IDX!/%COUNT%] !SECTION_LABEL! done.
     )
     echo.
 )

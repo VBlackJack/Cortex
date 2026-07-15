@@ -17,6 +17,10 @@ Le sync est incremental : seuls les fichiers nouveaux ou modifies (detectes par
 SHA-256 et version du contrat de chunking) sont retraites. Les fichiers
 supprimes, vides ou devenus exclus sont retires de l'index.
 
+Sur une nouvelle installation Windows, ce sync couvre tout le dossier de base
+de connaissances, recursivement. Le filtrage par section ci-dessous concerne
+uniquement le mode avance.
+
 ### Sync d'une seule section
 
 ```powershell

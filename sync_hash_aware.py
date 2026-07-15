@@ -29,6 +29,7 @@ from config import (
     CHUNKING_CONTRACT_VERSION,
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
+    ROOT_SECTION,
 )
 from lexical_index import LexicalIndex
 from write_lock import chroma_write_lock
@@ -246,7 +247,7 @@ def _sync_section_locked(
 ) -> dict[str, int]:
     """Reconcile live, excluded and removed paths for one section."""
     stats = empty_sync_stats()
-    section_root = root / section
+    section_root = root if section == ROOT_SECTION else root / section
     if not section_root.is_dir():
         stats["errors"] += 1
         _LOG.error(
@@ -278,6 +279,11 @@ def _sync_section_locked(
             continue
         eligible_paths.add(rel_path)
         result = CHUNKERS[path.suffix.lower()](path)
+        if result.status == "ok":
+            for chunk in result.chunks:
+                metadata = chunk.get("metadata")
+                if isinstance(metadata, dict):
+                    metadata["section"] = section
         old_ids, old_metadata = existing.get(rel_path, ([], []))
 
         if result.status == "ok":

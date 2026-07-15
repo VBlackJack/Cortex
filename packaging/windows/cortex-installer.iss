@@ -51,6 +51,17 @@ english.KBPageCaption=Knowledge base folder
 english.KBPageDescription=Choose where Cortex will read your documents.
 english.KBPageSubCaption=You can start with an empty folder and add documents later.
 english.IndexNow=Index this folder now
+english.IndexModeCaption=Indexing mode
+english.IndexModeDescription=Choose how Cortex should read this folder.
+english.IndexModeSubCaption=Recommended: everything is searchable automatically. Advanced: only named section folders are indexed.
+english.WholeFolderMode=Index everything in this folder (recommended)
+english.SectionsMode=Organize into sections (advanced)
+english.SectionsCaption=Section folders
+english.SectionsDescription=Choose the folders Cortex should create and index.
+english.SectionsHelp=knowledge: reference documents; projects: working files; notes: free-form notes. You may edit this list.
+english.SectionsList=Section folders (comma-separated):
+english.IndexModeFailed=Index mode must be whole or sections.
+english.SectionsFailed=Enter at least one comma-separated section folder.
 english.SetupFailed=Cortex was installed, but automatic setup failed. Run Cortex Doctor from the Start menu after correcting the problem. Setup will return a failure exit code.
 english.PathFailed=Cortex could not add its application folder to your user PATH.
 english.EnvironmentFailed=Cortex could not pass the selected knowledge base folder to the setup process.
@@ -60,6 +71,17 @@ french.KBPageCaption=Dossier de base de connaissances
 french.KBPageDescription=Choisissez le dossier dans lequel Cortex lira vos documents.
 french.KBPageSubCaption=Vous pouvez commencer avec un dossier vide et ajouter des documents plus tard.
 french.IndexNow=Indexer ce dossier maintenant
+french.IndexModeCaption=Mode d'indexation
+french.IndexModeDescription=Choisissez comment Cortex doit lire ce dossier.
+french.IndexModeSubCaption=Recommande : tout devient cherchable automatiquement. Avance : seuls les dossiers de sections nommes sont indexes.
+french.WholeFolderMode=Tout indexer dans ce dossier (recommande)
+french.SectionsMode=Organiser en sections (avance)
+french.SectionsCaption=Dossiers de sections
+french.SectionsDescription=Choisissez les dossiers que Cortex doit creer et indexer.
+french.SectionsHelp=knowledge : documents de reference ; projects : dossiers de travail ; notes : notes libres. Vous pouvez modifier cette liste.
+french.SectionsList=Dossiers de sections (separes par des virgules) :
+french.IndexModeFailed=Le mode d'indexation doit etre whole ou sections.
+french.SectionsFailed=Indiquez au moins un dossier de section, separe par des virgules.
 french.SetupFailed=Cortex a ete installe, mais la configuration automatique a echoue. Lancez Cortex Doctor depuis le menu Demarrer apres avoir corrige le probleme. L'installeur retournera un code d'echec.
 french.PathFailed=Cortex n'a pas pu ajouter son dossier d'application au PATH utilisateur.
 french.EnvironmentFailed=Cortex n'a pas pu transmettre le dossier de base de connaissances au processus de configuration.
@@ -77,6 +99,8 @@ Name: "{group}\Cortex Sync"; Filename: "{cmd}"; Parameters: "/k """"{app}\cortex
 var
   KnowledgeBasePage: TInputDirWizardPage;
   IndexNowCheckBox: TNewCheckBox;
+  IndexModePage: TInputOptionWizardPage;
+  SectionsPage: TInputQueryWizardPage;
   KnowledgeBasePath: String;
   SetupFailed: Boolean;
 
@@ -121,6 +145,30 @@ begin
     Result := IndexNowCheckBox.Checked;
 end;
 
+function SelectedIndexMode: String;
+begin
+  if WizardSilent then
+    Result := Lowercase(CommandLineValue('INDEXMODE'))
+  else if IndexModePage.SelectedValueIndex = 1 then
+    Result := 'sections'
+  else
+    Result := 'whole';
+  if Result = '' then
+    Result := 'whole';
+end;
+
+function SelectedSections: String;
+begin
+  if WizardSilent then
+  begin
+    Result := CommandLineValue('SECTIONS');
+    if Result = '' then
+      Result := 'knowledge,projects,notes';
+  end
+  else
+    Result := Trim(SectionsPage.Values[0]);
+end;
+
 procedure InitializeWizard;
 var
   InitialPath: String;
@@ -147,17 +195,56 @@ begin
     KnowledgeBasePage.Edits[0].Top + KnowledgeBasePage.Edits[0].Height + ScaleY(16);
   IndexNowCheckBox.Left := KnowledgeBasePage.Edits[0].Left;
   IndexNowCheckBox.Width := KnowledgeBasePage.Edits[0].Width;
+
+  IndexModePage := CreateInputOptionPage(
+    KnowledgeBasePage.ID,
+    CustomMessage('IndexModeCaption'),
+    CustomMessage('IndexModeDescription'),
+    CustomMessage('IndexModeSubCaption'),
+    True,
+    False
+  );
+  IndexModePage.Add(CustomMessage('WholeFolderMode'));
+  IndexModePage.Add(CustomMessage('SectionsMode'));
+  IndexModePage.SelectedValueIndex := 0;
+
+  SectionsPage := CreateInputQueryPage(
+    IndexModePage.ID,
+    CustomMessage('SectionsCaption'),
+    CustomMessage('SectionsDescription'),
+    CustomMessage('SectionsHelp')
+  );
+  SectionsPage.Add(CustomMessage('SectionsList'), False);
+  SectionsPage.Values[0] := 'knowledge,projects,notes';
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := WizardSilent and (PageID = KnowledgeBasePage.ID);
+  if WizardSilent then
+    Result :=
+      (PageID = KnowledgeBasePage.ID) or
+      (PageID = IndexModePage.ID) or
+      (PageID = SectionsPage.ID)
+  else
+    Result :=
+      (PageID = SectionsPage.ID) and
+      (IndexModePage.SelectedValueIndex = 0);
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
   KnowledgeBasePath := SelectedKnowledgeBasePath;
+  if (SelectedIndexMode <> 'whole') and (SelectedIndexMode <> 'sections') then
+  begin
+    Result := CustomMessage('IndexModeFailed');
+    Exit;
+  end;
+  if (SelectedIndexMode = 'sections') and (Trim(SelectedSections) = '') then
+  begin
+    Result := CustomMessage('SectionsFailed');
+    Exit;
+  end;
   if not DirExists(KnowledgeBasePath) and not ForceDirectories(KnowledgeBasePath) then
     Result := CustomMessage('DirectoryFailed') + #13#10 + KnowledgeBasePath;
 end;
@@ -307,6 +394,7 @@ end;
 
 procedure RunCortexSetup;
 var
+  IndexMode: String;
   Parameters: String;
   ResultCode: Integer;
 begin
@@ -320,6 +408,22 @@ begin
     MarkSetupFailure(CustomMessage('EnvironmentFailed'));
     Exit;
   end;
+  IndexMode := SelectedIndexMode;
+  if not SetEnvironmentVariable('CORTEX_INDEX_MODE', IndexMode) then
+  begin
+    MarkSetupFailure(CustomMessage('EnvironmentFailed'));
+    Exit;
+  end;
+  if IndexMode = 'sections' then
+  begin
+    if not SetEnvironmentVariable('CORTEX_INDEX_SECTIONS', SelectedSections) then
+    begin
+      MarkSetupFailure(CustomMessage('EnvironmentFailed'));
+      Exit;
+    end;
+  end
+  else
+    SetEnvironmentVariable('CORTEX_INDEX_SECTIONS', '');
 
   Parameters := 'setup --yes --clients all';
   if not ShouldIndexNow then

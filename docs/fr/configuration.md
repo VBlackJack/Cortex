@@ -19,9 +19,9 @@ variable d'environnement > fichier TOML > defaut produit. Les variables
 d'environnement historiques restent donc compatibles, mais `install.bat` ne les
 cree plus sur une nouvelle installation.
 
-Le lot data home etend volontairement le schema v1 sans passage en v2 :
-`chroma_path` est une nouvelle cle optionnelle, donc tout fichier v1 existant
-reste valide. Par defaut, la configuration legere reste roaming dans
+Le schema v1 accepte les cles optionnelles `chroma_path` et
+`index_whole_folder`, donc tout fichier v1 existant reste valide. Par defaut,
+la configuration legere reste roaming dans
 `%APPDATA%\Cortex`, tandis que l'index, le verrou et les logs volumineux vivent
 localement dans `%LOCALAPPDATA%\Cortex`.
 
@@ -31,7 +31,8 @@ localement dans `%LOCALAPPDATA%\Cortex`.
 schema_version = 1
 kb_path = "D:\\Knowledge"
 chroma_path = "C:\\Users\\me\\AppData\\Local\\Cortex\\chroma_db"
-included_sections = ["knowledge", "operations", "projects", "sources", "_memory", "_drafts"]
+index_whole_folder = true
+included_sections = ["knowledge", "projects", "notes"]
 excluded_dirs = [".datacron", "_archive", "_trash", "_attachments", "zzz_Corbeille", "_inbox", "_journal"]
 exclude_files = ["00_INDEX.md"]
 max_markdown_file_size_bytes = 1000000
@@ -53,7 +54,15 @@ absent.
 `chroma_path` et `write_lock_path` peuvent etre omis pour utiliser le data home
 local, ou definis explicitement pour un besoin d'exploitation particulier.
 
-## Sections
+## Dossier entier ou sections
+
+Avec `index_whole_folder = true`, Cortex indexe recursivement tout `kb_path`,
+en respectant toujours `excluded_dirs` et `exclude_files`. C'est le mode par
+defaut de l'installeur Windows pour un nouveau poste. `included_sections` reste
+dans le fichier mais n'est pas utilise dans ce mode.
+
+Une configuration existante sans `index_whole_folder` garde son comportement
+historique : la valeur absente equivaut a `false` et active les sections.
 
 Les sections indexables sont definies par `included_sections` dans
 `config.toml`. Un dossier de premier niveau absent de l'allowlist et de la

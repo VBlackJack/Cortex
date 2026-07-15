@@ -82,6 +82,18 @@ def test_discover_sections_returns_only_included_and_warns_on_missing(
     assert any(missing in record.getMessage() for record in caplog.records)
 
 
+def test_whole_folder_mode_discovers_only_reserved_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    (root / "anything").mkdir(parents=True)
+    monkeypatch.setattr(indexer, "KB_PATH", str(root))
+    monkeypatch.setattr(indexer, "INDEX_WHOLE_FOLDER", True)
+
+    assert indexer.discover_sections() == [indexer.ROOT_SECTION]
+    assert indexer.discover_out_of_policy_sections() == []
+
+
 def test_sync_excludes_datacron_via_is_excluded_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -26,6 +26,7 @@ from config import (
     CHUNKING_CONTRACT_VERSION,
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
+    ROOT_SECTION,
 )
 from sync_hash_aware import _sync_section_locked, sync_file
 
@@ -255,6 +256,44 @@ def test_unavailable_section_preserves_all_indexed_content(tmp_path: Path) -> No
     assert stats["errors"] == 1
     assert stats["deleted_chunks"] == 0
     assert stats["removed_files"] == 0
+
+
+def test_root_section_recurses_forces_metadata_and_reconciles_deletions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    nested = root / "arbitrary"
+    nested.mkdir(parents=True)
+    root_source = root / "root.md"
+    nested_source = nested / "nested.md"
+    root_source.write_text("root source", encoding="utf-8")
+    nested_source.write_text("nested source", encoding="utf-8")
+    collection = Collection()
+
+    def chunk(path: Path) -> ChunkResult:
+        rel_path = path.relative_to(root).as_posix()
+        return ChunkResult(status="ok", chunks=_chunks(path=rel_path))
+
+    monkeypatch.setitem(sync_hash_aware.CHUNKERS, ".md", chunk)
+
+    first = _sync_section_locked(collection, root, ROOT_SECTION)
+
+    assert first["published_files"] == 2
+    assert first["errors"] == 0
+    assert {
+        row["metadata"]["section"] for row in collection.rows.values()
+    } == {ROOT_SECTION}
+    assert {
+        row["metadata"]["path"] for row in collection.rows.values()
+    } == {"root.md", "arbitrary/nested.md"}
+
+    nested_source.unlink()
+    second = _sync_section_locked(collection, root, ROOT_SECTION)
+
+    assert second["removed_files"] == 1
+    assert {
+        row["metadata"]["path"] for row in collection.rows.values()
+    } == {"root.md"}
 
 
 def test_complete_hash_and_chunking_version_is_skipped(

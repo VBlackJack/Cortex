@@ -51,8 +51,10 @@ from config import (  # noqa: E402
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
     INCLUDED_SECTIONS,
+    INDEX_WHOLE_FOLDER,
     KB_PATH,
     LEGACY_CHROMA_PATH,
+    ROOT_SECTION,
     SEARCH_HYBRID_CANDIDATES,
     SEARCH_RRF_K,
     SEARCH_TOP_K_MAX,
@@ -135,6 +137,11 @@ def discover_sections() -> list[str]:
     KNOWN_SECTIONS list, whose staleness went unnoticed for months.
     """
     kb_root = Path(require_kb_path(KB_PATH))
+    if INDEX_WHOLE_FOLDER:
+        if kb_root.is_dir():
+            return [ROOT_SECTION]
+        log.warning("Knowledge base folder not found on disk at %s", kb_root)
+        return []
     sections = []
     for name in sorted(INCLUDED_SECTIONS):
         if (kb_root / name).is_dir():
@@ -148,6 +155,8 @@ def discover_out_of_policy_sections() -> list[str]:
     """Live top-level dirs present but outside the section policy (neither
     included nor structurally excluded) - never auto-indexed, surfaced so
     a genuinely new section is never a silent gap."""
+    if INDEX_WHOLE_FOLDER:
+        return []
     return discover_out_of_policy_dirs(Path(require_kb_path(KB_PATH)))
 
 
@@ -188,13 +197,23 @@ def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, 
         stats["errors"] += 1
         log.exception("lexical_prepare_error reason=%s", exc)
 
-    section_names = [section] if section else sorted(INCLUDED_SECTIONS)
-    folders = [kb_root / name for name in section_names]
+    if INDEX_WHOLE_FOLDER:
+        if section not in {None, ROOT_SECTION}:
+            log.error("Unknown section in whole-folder mode: %s", section)
+            stats["errors"] += 1
+            return stats
+        section_names = [ROOT_SECTION]
+    else:
+        if section == ROOT_SECTION:
+            log.error("Reserved root section is unavailable in sections mode")
+            stats["errors"] += 1
+            return stats
+        section_names = [section] if section else sorted(INCLUDED_SECTIONS)
 
-    for folder in folders:
-        sec_name = folder.name
+    for sec_name in section_names:
         if verbose:
-            log.info("--- Section: %s ---", sec_name)
+            label = "whole knowledge base" if sec_name == ROOT_SECTION else sec_name
+            log.info("--- Section: %s ---", label)
 
         section_stats = sync_section(
             collection,

@@ -32,7 +32,9 @@ from config import (
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
     INCLUDED_SECTIONS,
+    INDEX_WHOLE_FOLDER,
     KB_PATH,
+    ROOT_SECTION,
     CortexConfigError,
     require_kb_path,
 )
@@ -54,6 +56,7 @@ class FreshnessScope:
     included_sections: frozenset[str]
     excluded_dirs: frozenset[str]
     exclude_files: frozenset[str]
+    index_whole_folder: bool = False
 
 
 def _default_scope() -> FreshnessScope:
@@ -63,6 +66,7 @@ def _default_scope() -> FreshnessScope:
         included_sections=INCLUDED_SECTIONS,
         excluded_dirs=EXCLUDED_DIRS,
         exclude_files=EXCLUDE_FILES,
+        index_whole_folder=INDEX_WHOLE_FOLDER,
     )
 
 
@@ -155,12 +159,14 @@ def cortex_freshness_report(
             {"path": rel_path, "status": status, "chunks": str(len(metadata))}
         )
 
-    out_of_policy = discover_out_of_policy_dirs(
-        root,
-        included_sections=active.included_sections,
-        excluded_dirs=active.excluded_dirs,
-        exclude_files=active.exclude_files,
-    )
+    out_of_policy = []
+    if not active.index_whole_folder:
+        out_of_policy = discover_out_of_policy_dirs(
+            root,
+            included_sections=active.included_sections,
+            excluded_dirs=active.excluded_dirs,
+            exclude_files=active.exclude_files,
+        )
     return _report(
         entries,
         started,
@@ -178,6 +184,8 @@ def _source_scan_bases(root: Path, section: str | None, scope: FreshnessScope) -
     only - an out-of-policy dir must not be silently scanned as if it were
     a normal section (it would get real fresh/unindexed statuses instead
     of being surfaced distinctly via out_of_policy_dirs)."""
+    if scope.index_whole_folder and section in {None, ROOT_SECTION}:
+        return [root]
     if section:
         return [root / section]
     return [root / name for name in sorted(scope.included_sections)]
@@ -190,6 +198,8 @@ def _excluded_scan_bases(root: Path, section: str | None, scope: FreshnessScope)
     top-level excluded_dirs entry (catches standalone excluded dirs like
     _archive/) - but never an out-of-policy dir, which is a distinct
     status, not folded into "excluded"."""
+    if scope.index_whole_folder and section in {None, ROOT_SECTION}:
+        return [root]
     if section:
         return [root / section]
     return [root / name for name in sorted(scope.included_sections | scope.excluded_dirs)]
@@ -370,6 +380,7 @@ def _report(
         "read_only": True,
         "freshness_is_not_completeness": True,
         "scope": {
+            "index_whole_folder": scope.index_whole_folder,
             "included_sections": sorted(scope.included_sections),
             "excluded_dirs": sorted(scope.excluded_dirs),
             "out_of_policy_dirs": sorted(out_of_policy_dirs or []),

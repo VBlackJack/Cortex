@@ -714,9 +714,19 @@ def init_user_config(
         )
     values["CORTEX_KB_PATH"] = kb_path
     config = load_user_config(path=path, environ=values, script_dir=SCRIPT_DIR)
+    sections_mode = values.get("CORTEX_INDEX_MODE", "").strip().lower() == "sections"
+    if sections_mode:
+        kb_root = Path(require_kb_path(config.kb_path))
+        for section in sorted(config.included_sections):
+            (kb_root / section).mkdir(parents=True, exist_ok=True)
     created = write_user_config_atomic(path, config)
     if created:
         print(f"[OK] Created Cortex user config: {path}")
+        if sections_mode:
+            print(
+                "[OK] Created Cortex sections: "
+                + ", ".join(sorted(config.included_sections))
+            )
     return created
 
 

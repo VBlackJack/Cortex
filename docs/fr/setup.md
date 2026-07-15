@@ -80,6 +80,12 @@ Quand cette commande tourne depuis l'executable autonome, elle enregistre cet
 executable avec `serve` comme argument MCP. Depuis une installation pip ou les
 sources, elle conserve l'entree Python avec `server.py`.
 
+L'installeur transmet `CORTEX_INDEX_MODE=whole` lors de la creation d'une
+nouvelle configuration. Le mode avance utilise `CORTEX_INDEX_MODE=sections` et
+`CORTEX_INDEX_SECTIONS=knowledge,projects,notes` ; Cortex cree alors ces
+sous-dossiers. Ces variables d'onboarding ne remplacent jamais un choix deja
+persiste dans `config.toml`.
+
 ## Connecter Claude, Codex et Gemini
 
 `setup_config.py` detecte les clients installes, affiche un recapitulatif puis

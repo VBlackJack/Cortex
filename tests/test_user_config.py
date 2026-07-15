@@ -64,6 +64,7 @@ write_lock_timeout_seconds = 7
     assert config.kb_path == "from-env"
     assert config.chroma_path == "file-chroma"
     assert config.included_sections == frozenset({"custom"})
+    assert config.index_whole_folder is False
     assert config.excluded_dirs == frozenset({"archive"})
     assert config.exclude_files == frozenset({"index.md"})
     assert config.max_markdown_file_size_bytes == 456
@@ -88,6 +89,40 @@ def test_env_only_without_file_is_valid(tmp_path: Path) -> None:
         tmp_path / "local" / "Cortex" / "chroma_db.write.lock"
     )
     assert config.included_sections == user_config.DEFAULT_INCLUDED_SECTIONS
+    assert config.index_whole_folder is False
+
+
+def test_whole_folder_mode_parses_and_round_trips(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    _write_config(
+        path,
+        'kb_path = "kb"\nindex_whole_folder = true\n',
+    )
+
+    config = load_user_config(path=path, environ={})
+
+    assert config.index_whole_folder is True
+    rendered = user_config.render_user_config(config)
+    assert "index_whole_folder = true" in rendered
+
+
+def test_onboarding_mode_only_applies_when_config_is_new(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.toml"
+    whole = load_user_config(
+        path=missing,
+        environ={"CORTEX_KB_PATH": "kb", "CORTEX_INDEX_MODE": "whole"},
+    )
+    assert whole.index_whole_folder is True
+    assert whole.included_sections == user_config.GENERIC_INCLUDED_SECTIONS
+
+    existing = tmp_path / "existing.toml"
+    _write_config(existing, 'kb_path = "kb"\nincluded_sections = ["custom"]\n')
+    preserved = load_user_config(
+        path=existing,
+        environ={"CORTEX_INDEX_MODE": "whole"},
+    )
+    assert preserved.index_whole_folder is False
+    assert preserved.included_sections == frozenset({"custom"})
 
 
 def test_appdata_selects_per_user_config_path(tmp_path: Path) -> None:
@@ -137,6 +172,7 @@ def test_unknown_key_is_rejected(tmp_path: Path) -> None:
     "value",
     [
         'included_sections = "knowledge"',
+        "index_whole_folder = 1",
         'max_pdf_size_bytes = "large"',
         "write_lock_timeout_seconds = false",
     ],
@@ -208,6 +244,64 @@ def test_init_prompts_when_environment_is_missing(tmp_path: Path) -> None:
         input_fn=lambda _prompt: "interactive-kb",
     )
     assert load_user_config(path=path, environ={}).kb_path == "interactive-kb"
+
+
+def test_init_sections_mode_creates_generic_or_custom_folders(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    kb = tmp_path / "kb"
+
+    assert setup_config.init_user_config(
+        path=path,
+        environ={
+            "CORTEX_KB_PATH": str(kb),
+            "CORTEX_INDEX_MODE": "sections",
+            "CORTEX_INDEX_SECTIONS": "reference,work,notes",
+        },
+    )
+
+    config = load_user_config(path=path, environ={})
+    assert config.index_whole_folder is False
+    assert config.included_sections == frozenset({"reference", "work", "notes"})
+    assert {item.name for item in kb.iterdir()} == {"reference", "work", "notes"}
+
+
+def test_init_whole_mode_creates_no_section_folders(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    kb = tmp_path / "kb"
+    kb.mkdir()
+
+    assert setup_config.init_user_config(
+        path=path,
+        environ={
+            "CORTEX_KB_PATH": str(kb),
+            "CORTEX_INDEX_MODE": "whole",
+        },
+    )
+
+    assert load_user_config(path=path, environ={}).index_whole_folder is True
+    assert list(kb.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "environ",
+    [
+        {"CORTEX_INDEX_MODE": "invalid"},
+        {
+            "CORTEX_INDEX_MODE": "sections",
+            "CORTEX_INDEX_SECTIONS": "knowledge,../escape",
+        },
+    ],
+)
+def test_invalid_onboarding_mode_or_section_is_rejected(
+    tmp_path: Path, environ: dict[str, str]
+) -> None:
+    path = tmp_path / "config.toml"
+    values = {"CORTEX_KB_PATH": str(tmp_path / "kb"), **environ}
+
+    with pytest.raises(CortexConfigError):
+        setup_config.init_user_config(path=path, environ=values)
+
+    assert not path.exists()
 
 
 def test_python_sources_contain_no_machine_specific_path_literals() -> None:

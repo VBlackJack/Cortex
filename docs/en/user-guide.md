@@ -17,6 +17,9 @@ The sync is incremental: only new or modified files (detected via SHA-256 and
 the chunking contract version) are reprocessed. Deleted, emptied or newly
 excluded files are removed from the index.
 
+On a new Windows installation, this sync covers the entire knowledge-base
+folder recursively. The section filtering below only applies to advanced mode.
+
 ### Sync a single section
 
 ```powershell

@@ -140,6 +140,36 @@ def test_whole_vault_scan_restricted_to_included_sections(
     assert "newthing" in report["scope"]["out_of_policy_dirs"]
 
 
+def test_whole_folder_scope_scans_root_and_arbitrary_subfolders(tmp_path: Path) -> None:
+    root = tmp_path / "kb"
+    nested = root / "arbitrary"
+    archive = nested / "_archive"
+    archive.mkdir(parents=True)
+    (root / "root.md").write_bytes(b"# Root\nReal root content long enough to chunk.\n")
+    (nested / "nested.md").write_bytes(
+        b"# Nested\nReal nested content long enough to chunk.\n"
+    )
+    (archive / "old.md").write_bytes(b"# Old\nArchived content.\n")
+    scope = freshness.FreshnessScope(
+        kb_path=str(root),
+        included_sections=frozenset({"knowledge"}),
+        excluded_dirs=frozenset({"_archive"}),
+        exclude_files=frozenset(),
+        index_whole_folder=True,
+    )
+
+    report = freshness.cortex_freshness_report(
+        FakeCollection([]), section=None, scope=scope
+    )
+
+    statuses = {entry["path"]: entry["status"] for entry in report["entries"]}
+    assert statuses["root.md"] == "unindexed"
+    assert statuses["arbitrary/nested.md"] == "unindexed"
+    assert statuses["arbitrary/_archive/old.md"] == "excluded"
+    assert report["scope"]["index_whole_folder"] is True
+    assert report["scope"]["out_of_policy_dirs"] == []
+
+
 def test_no_chunks_is_distinct_from_unindexed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

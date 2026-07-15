@@ -29,6 +29,7 @@ _USER_CONFIG = load_user_config(script_dir=_SCRIPT_DIR)
 # the MCP server can search an existing index without source-vault access.
 KB_PATH = _USER_CONFIG.kb_path
 CHROMA_PATH = _USER_CONFIG.chroma_path
+INDEX_WHOLE_FOLDER = _USER_CONFIG.index_whole_folder
 INCLUDED_SECTIONS = _USER_CONFIG.included_sections
 EXCLUDED_DIRS = _USER_CONFIG.excluded_dirs
 EXCLUDE_FILES = _USER_CONFIG.exclude_files
@@ -43,6 +44,7 @@ LEGACY_CHROMA_PATH = str(_SCRIPT_DIR / "chroma_db")
 # Product contracts. Changing these values requires an explicit index contract
 # migration; they are intentionally not user-configurable.
 COLLECTION_NAME = "cortex"
+ROOT_SECTION = "."
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 # Explicit contract: FastEmbed exposes no reliable pooling introspection.
 # Mean pooling has applied to this model since qdrant/fastembed#436 (v0.6.0).
@@ -93,6 +95,7 @@ __all__ = [
     "FRESHNESS_CONTRACT_ID",
     "FRESHNESS_CONTRACT_VERSION",
     "INCLUDED_SECTIONS",
+    "INDEX_WHOLE_FOLDER",
     "KB_PATH",
     "LEGACY_INDEX_EMBEDDING_MODEL",
     "LEGACY_INDEX_EMBEDDING_POOLING",
@@ -105,6 +108,7 @@ __all__ = [
     "MAX_MARKDOWN_FILE_SIZE_BYTES",
     "MAX_PDF_SIZE_BYTES",
     "RERANKER_MODEL",
+    "ROOT_SECTION",
     "SEARCH_RERANK_CANDIDATES",
     "SEARCH_TOP_K_MAX",
     "SEARCH_TOP_K_MIN",

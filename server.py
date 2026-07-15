@@ -32,7 +32,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from config import CortexConfigError
+from config import INDEX_WHOLE_FOLDER, ROOT_SECTION, CortexConfigError
 from data_home import CortexDataHomeError
 from embedding_fingerprint import EmbeddingFingerprintMismatchError
 from freshness import annotate_search_hits, cortex_freshness_report
@@ -96,9 +96,14 @@ def _resolve_section(section: str | None) -> tuple[str | None, str | None]:
     matching = [s for s in available if s.lower() == section.lower()]
     if matching:
         return matching[0], None
+    available_label = (
+        "whole knowledge base (omit the section filter)"
+        if available == [ROOT_SECTION]
+        else ", ".join(sorted(available))
+    )
     return None, (
         f"Unknown section: '{section}'\n\n"
-        f"Available sections: {', '.join(sorted(available))}"
+        f"Available sections: {available_label}"
     )
 
 
@@ -147,6 +152,8 @@ def cortex_search(query: str, section: str | None = None, top_k: int = 5) -> str
         title = meta.get("title") or meta.get("path", "Unknown")
         header = meta.get("header", "")
         sec = meta.get("section", "")
+        if sec == ROOT_SECTION:
+            sec = "All documents"
         dist = hit.get("distance")
         text = hit.get("text", "")
         freshness = hit.get("freshness", "unknown")
@@ -201,7 +208,11 @@ def cortex_sync(section: str | None = None) -> str:
             "Another sync is already in progress. Refusing to write "
             "concurrently - try again once it finishes."
         )
-    sec_label = section or "all sections"
+    sec_label = (
+        "whole knowledge base"
+        if INDEX_WHOLE_FOLDER
+        else section or "all sections"
+    )
     return (
         f"## Cortex sync complete - {sec_label}\n\n"
         f"- **Published files:** {stats['published_files']}\n"
@@ -235,7 +246,10 @@ def cortex_list_sections() -> str:
         )
     lines = ["## Cortex sections\n"]
     for s in sections:
-        lines.append(f"- `{s}`")
+        if s == ROOT_SECTION:
+            lines.append("- All documents (the whole knowledge base folder)")
+        else:
+            lines.append(f"- `{s}`")
     if out_of_policy:
         lines.append("\n## Present but out of policy (opt-in required, not indexed)\n")
         for d in out_of_policy:

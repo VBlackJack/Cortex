@@ -18,9 +18,9 @@ The user configuration lives in `%APPDATA%\Cortex\config.toml` with
 variable > TOML file > product default. Historical environment variables remain
 compatible, but `install.bat` no longer creates them on a fresh install.
 
-The data home work deliberately extends schema v1 without moving to v2:
-`chroma_path` is a new optional key, so any existing v1 file stays valid. By
-default the lightweight configuration stays roaming in `%APPDATA%\Cortex`, while
+Schema v1 accepts the optional `chroma_path` and `index_whole_folder` keys, so
+any existing v1 file stays valid. By default the lightweight configuration
+stays roaming in `%APPDATA%\Cortex`, while
 the index, the lock and the bulky logs live locally in `%LOCALAPPDATA%\Cortex`.
 
 ## Example config.toml
@@ -29,7 +29,8 @@ the index, the lock and the bulky logs live locally in `%LOCALAPPDATA%\Cortex`.
 schema_version = 1
 kb_path = "D:\\Knowledge"
 chroma_path = "C:\\Users\\me\\AppData\\Local\\Cortex\\chroma_db"
-included_sections = ["knowledge", "operations", "projects", "sources", "_memory", "_drafts"]
+index_whole_folder = true
+included_sections = ["knowledge", "projects", "notes"]
 excluded_dirs = [".datacron", "_archive", "_trash", "_attachments", "zzz_Corbeille", "_inbox", "_journal"]
 exclude_files = ["00_INDEX.md"]
 max_markdown_file_size_bytes = 1000000
@@ -50,7 +51,15 @@ Search keeps working on the existing index when it is absent.
 `chroma_path` and `write_lock_path` can be omitted to use the local data home,
 or set explicitly for a specific operational need.
 
-## Sections
+## Whole folder or sections
+
+With `index_whole_folder = true`, Cortex recursively indexes all of `kb_path`
+while still honoring `excluded_dirs` and `exclude_files`. This is the Windows
+installer default for a new machine. `included_sections` remains in the file
+but is not used in this mode.
+
+An existing configuration without `index_whole_folder` keeps its historical
+behavior: the absent value means `false` and enables sections.
 
 Indexable sections are defined by `included_sections` in `config.toml`. A
 top-level folder absent from both the allowlist and the denylist is never

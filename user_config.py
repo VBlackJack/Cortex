@@ -33,6 +33,7 @@ SCHEMA_VERSION = 1
 DEFAULT_INCLUDED_SECTIONS = frozenset(
     {"knowledge", "operations", "projects", "sources", "_memory", "_drafts"}
 )
+GENERIC_INCLUDED_SECTIONS = frozenset({"knowledge", "projects", "notes"})
 DEFAULT_EXCLUDED_DIRS = frozenset(
     {
         ".datacron",
@@ -53,6 +54,7 @@ _ALLOWED_KEYS = {
     "schema_version",
     "kb_path",
     "chroma_path",
+    "index_whole_folder",
     "included_sections",
     "excluded_dirs",
     "exclude_files",
@@ -74,6 +76,7 @@ class CortexUserConfig:
     schema_version: int
     kb_path: str | None
     chroma_path: str
+    index_whole_folder: bool
     included_sections: frozenset[str]
     excluded_dirs: frozenset[str]
     exclude_files: frozenset[str]
@@ -150,6 +153,48 @@ def _non_empty_string(data: dict[str, Any], key: str, path: Path) -> str:
     if not value:
         raise _error(f"'{key}' must not be empty.", path)
     return value
+
+
+def _boolean(data: dict[str, Any], key: str, path: Path) -> bool:
+    return cast(bool, _require_exact_type(data, key, bool, path))
+
+
+def _environment_index_mode(
+    environ: Mapping[str, str], path: Path
+) -> str | None:
+    raw = environ.get("CORTEX_INDEX_MODE")
+    if raw is None or not raw.strip():
+        return None
+    mode = raw.strip().lower()
+    if mode not in {"whole", "sections"}:
+        raise _error(
+            "Environment variable CORTEX_INDEX_MODE must be 'whole' or 'sections'.",
+            path,
+        )
+    return mode
+
+
+def _environment_sections(
+    environ: Mapping[str, str], path: Path
+) -> frozenset[str] | None:
+    raw = environ.get("CORTEX_INDEX_SECTIONS")
+    if raw is None or not raw.strip():
+        return None
+    sections = [item.strip() for item in raw.split(",")]
+    if any(
+        not item
+        or item in {".", ".."}
+        or Path(item).name != item
+        or "/" in item
+        or "\\" in item
+        for item in sections
+    ):
+        raise _error(
+            "Environment variable CORTEX_INDEX_SECTIONS must contain comma-separated "
+            "single folder names.",
+            path,
+        )
+    return frozenset(sections)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:
@@ -229,6 +274,11 @@ def load_user_config(
         if "chroma_path" in data
         else str(data_home / "chroma_db")
     )
+    index_whole_folder = (
+        _boolean(data, "index_whole_folder", config_path)
+        if "index_whole_folder" in data
+        else False
+    )
     included_sections = (
         _string_list(data, "included_sections", config_path)
         if "included_sections" in data
@@ -266,6 +316,22 @@ def load_user_config(
     env_kb_path = values.get("CORTEX_KB_PATH", "").strip().strip('"')
     if env_kb_path:
         kb_path = env_kb_path
+    # Installer onboarding choices initialize a new config; they never override
+    # a persisted user decision on a later setup or reinstall.
+    if not data:
+        env_index_mode = _environment_index_mode(values, config_path)
+        env_sections = _environment_sections(values, config_path)
+        if env_index_mode == "whole":
+            index_whole_folder = True
+            included_sections = GENERIC_INCLUDED_SECTIONS
+        elif env_index_mode == "sections":
+            index_whole_folder = False
+            included_sections = env_sections or GENERIC_INCLUDED_SECTIONS
+        elif env_sections is not None:
+            raise _error(
+                "CORTEX_INDEX_SECTIONS requires CORTEX_INDEX_MODE=sections.",
+                config_path,
+            )
     env_lock_path = values.get("CORTEX_WRITE_LOCK_PATH", "").strip().strip('"')
     if env_lock_path:
         write_lock_path = env_lock_path
@@ -286,6 +352,7 @@ def load_user_config(
         schema_version=SCHEMA_VERSION,
         kb_path=kb_path,
         chroma_path=chroma_path,
+        index_whole_folder=index_whole_folder,
         included_sections=included_sections,
         excluded_dirs=excluded_dirs,
         exclude_files=exclude_files,
@@ -314,6 +381,7 @@ def render_user_config(config: CortexUserConfig) -> str:
         f"schema_version = {SCHEMA_VERSION}",
         f"kb_path = {json.dumps(require_kb_path(config.kb_path))}",
         f"chroma_path = {json.dumps(config.chroma_path)}",
+        f"index_whole_folder = {'true' if config.index_whole_folder else 'false'}",
         "included_sections = " + json.dumps(sorted(config.included_sections)),
         "excluded_dirs = " + json.dumps(sorted(config.excluded_dirs)),
         "exclude_files = " + json.dumps(sorted(config.exclude_files)),

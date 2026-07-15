@@ -587,6 +587,7 @@ def _freshness_check(
             included_sections=config.included_sections,
             excluded_dirs=config.excluded_dirs,
             exclude_files=config.exclude_files,
+            index_whole_folder=config.index_whole_folder,
         ),
     )
     summary = report.get("summary", {})

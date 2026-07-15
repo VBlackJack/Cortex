@@ -21,7 +21,7 @@ import pytest
 
 import freshness
 import server
-from config import CortexConfigError
+from config import ROOT_SECTION, CortexConfigError
 from indexer import CortexSearchError, SearchResults
 
 
@@ -203,6 +203,18 @@ def test_cortex_search_reports_vector_fallback_reason(
 
     assert "**Mode:** vector-only" in response
     assert "**Fallback reason:** lexical index absent; run cortex sync" in response
+
+
+def test_whole_folder_section_is_presented_without_internal_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(server, "discover_sections", lambda: [ROOT_SECTION])
+    monkeypatch.setattr(server, "discover_out_of_policy_sections", lambda: [])
+
+    response = server.cortex_list_sections()
+
+    assert "All documents (the whole knowledge base folder)" in response
+    assert "`.`" not in response
 
 
 def test_run_stdio_configures_logging_and_runs_server(

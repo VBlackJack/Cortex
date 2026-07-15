@@ -18,9 +18,14 @@ PATH et configure les clients MCP pris en charge.
    `Informations complementaires`, puis `Executer quand meme`.
 3. Choisir le dossier de base de connaissances. Le defaut est
    `%USERPROFILE%\Documents\Cortex-KB`; il peut rester vide au depart.
-4. Laisser `Indexer ce dossier maintenant` coche pour une premiere indexation,
+4. Garder `Tout indexer dans ce dossier` pour que les documents poses a la
+   racine ou dans n'importe quel sous-dossier soient cherchables. Le mode
+   avance `Organiser en sections` limite l'indexation aux dossiers indiques ;
+   les defauts sont `knowledge` (reference), `projects` (travail) et `notes`
+   (notes libres).
+5. Laisser `Indexer ce dossier maintenant` coche pour une premiere indexation,
    ou le decocher pour terminer plus vite et synchroniser plus tard.
-5. A la fin, redemarrer les applications IA enregistrees.
+6. A la fin, redemarrer les applications IA enregistrees.
 
 L'installation ne demande pas de droits administrateur. Cortex est installe
 dans `%LOCALAPPDATA%\Programs\Cortex`. Les nouveaux terminaux ouverts apres
@@ -52,6 +57,12 @@ premiere indexation pendant le deploiement :
 
 ```powershell
 Cortex-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB" /INDEX
+```
+
+Le defaut silencieux est `/INDEXMODE=whole`. Pour le mode avance :
+
+```powershell
+Cortex-Setup.exe /VERYSILENT /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE=sections /SECTIONS="knowledge,projects,notes"
 ```
 
 Le processus retourne un code non nul si la configuration automatique echoue.

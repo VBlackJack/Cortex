@@ -19,6 +19,7 @@ Called by sync.bat after all sections are synced.
 from typing import Any
 
 from chroma_client import iter_collection_pages
+from config import ROOT_SECTION
 from indexer import discover_sections, get_collection
 
 BATCH_LIMIT = 10_000
@@ -49,7 +50,8 @@ def main() -> None:
     for sec in sorted(discover_sections()):
         count = count_section(collection, sec)
         if count > 0:
-            print(f"    {sec}: {count} chunks")
+            label = "all documents" if sec == ROOT_SECTION else sec
+            print(f"    {label}: {count} chunks")
 
 
 if __name__ == "__main__":

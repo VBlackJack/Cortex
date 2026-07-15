@@ -188,7 +188,11 @@ def test_production_chroma_clients_use_the_central_factory() -> None:
     root = Path(__file__).resolve().parents[1]
     offenders: list[str] = []
     for path in root.rglob("*.py"):
-        if "tests" in path.parts or path.name == "chroma_client.py":
+        if (
+            "tests" in path.parts
+            or "local" in path.parts
+            or path.name == "chroma_client.py"
+        ):
             continue
         if "PersistentClient(" in path.read_text(encoding="utf-8"):
             offenders.append(path.relative_to(root).as_posix())

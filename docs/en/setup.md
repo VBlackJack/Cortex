@@ -78,6 +78,12 @@ When this command runs from the standalone executable, it registers that
 executable with `serve` as the MCP argument. When it runs from a pip or source
 installation, it preserves the Python plus `server.py` entry.
 
+The installer passes `CORTEX_INDEX_MODE=whole` while creating a new
+configuration. Advanced mode uses `CORTEX_INDEX_MODE=sections` and
+`CORTEX_INDEX_SECTIONS=knowledge,projects,notes`; Cortex then creates those
+subfolders. These onboarding variables never replace a choice already stored
+in `config.toml`.
+
 ## Connect Claude, Codex and Gemini
 
 `setup_config.py` detects installed clients, prints a summary, then registers

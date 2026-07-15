@@ -49,6 +49,19 @@ def test_installer_runs_setup_without_a_shell_and_checks_failure() -> None:
     assert "cmd /c" not in script.lower()
 
 
+def test_installer_defaults_to_whole_folder_and_supports_advanced_sections() -> None:
+    script = INSTALLER.read_text(encoding="utf-8")
+
+    assert "IndexModePage.SelectedValueIndex := 0" in script
+    assert "Index everything in this folder (recommended)" in script
+    assert "Organize into sections (advanced)" in script
+    assert "knowledge,projects,notes" in script
+    assert "CORTEX_INDEX_MODE" in script
+    assert "CORTEX_INDEX_SECTIONS" in script
+    assert "CommandLineValue('INDEXMODE')" in script
+    assert "CommandLineValue('SECTIONS')" in script
+
+
 def test_uninstaller_unregisters_before_removing_user_path() -> None:
     script = INSTALLER.read_text(encoding="utf-8")
     uninstall = script[script.index("procedure CurUninstallStepChanged") :]
