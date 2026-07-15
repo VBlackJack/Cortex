@@ -35,8 +35,8 @@ if errorlevel 2 (echo Aborted, nothing changed. & exit /b 0)
 git add _version.py || (echo git add failed. & exit /b 1)
 git commit -m "chore(version): %VER%" || (echo git commit failed. & exit /b 1)
 git tag -a "v%VER%" -m "Cortex %VER%" || (echo git tag failed. & exit /b 1)
-git push origin HEAD || (echo git push (branch) failed. & exit /b 1)
-git push origin "v%VER%" || (echo git push (tag) failed. & exit /b 1)
+git push origin HEAD || (echo git push branch failed. & exit /b 1)
+git push origin "v%VER%" || (echo git push tag failed. & exit /b 1)
 
 echo.
 echo   Released v%VER%.

@@ -19,6 +19,7 @@ from pathlib import Path
 
 SYNC_BAT = Path(__file__).resolve().parents[1] / "sync.bat"
 INSTALL_BAT = Path(__file__).resolve().parents[1] / "install.bat"
+RELEASE_BAT = Path(__file__).resolve().parents[1] / "scripts" / "release.bat"
 
 
 def _sync_script() -> str:
@@ -78,3 +79,12 @@ def test_installer_proposes_detected_client_registration() -> None:
         in script
     )
     assert 'set "CLIENT_CHECK_ARGS=--clients none"' in script
+
+
+def test_release_push_error_handlers_are_batch_safe() -> None:
+    script = RELEASE_BAT.read_text(encoding="utf-8")
+
+    assert "git push origin HEAD || (echo git push branch failed." in script
+    assert 'git push origin "v%VER%" || (echo git push tag failed.' in script
+    assert "git push (branch)" not in script
+    assert "git push (tag)" not in script
