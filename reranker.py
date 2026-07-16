@@ -19,9 +19,12 @@ import logging
 from collections.abc import Iterable, Sequence
 from typing import Any, Protocol
 
-from fastembed.rerank.cross_encoder import TextCrossEncoder
-
 from config import RERANKER_MODEL, SEARCH_RERANK_CANDIDATES
+from offline_models import activate_if_embedded
+
+_MODEL_RUNTIME = activate_if_embedded()
+
+from fastembed.rerank.cross_encoder import TextCrossEncoder  # noqa: E402
 
 log = logging.getLogger("cortex.search")
 
@@ -47,7 +50,13 @@ def warmup_reranker() -> str | None:
     if _model is not None:
         return None
     try:
-        _model = TextCrossEncoder(RERANKER_MODEL, threads=None, cuda=False)
+        _model = TextCrossEncoder(
+            RERANKER_MODEL,
+            cache_dir=str(_MODEL_RUNTIME.cache_dir),
+            threads=None,
+            cuda=False,
+            local_files_only=_MODEL_RUNTIME.local_files_only,
+        )
     except Exception as exc:  # noqa: BLE001 -- startup must degrade, never fail hard.
         _load_failure = f"reranker load failed: {type(exc).__name__}: {exc}"
         log.warning("reranker_warmup_failed reason=%s", _load_failure)

@@ -85,6 +85,7 @@ jobs:
             --hidden-import dependencies \
             --hidden-import embedding_fingerprint \
             --hidden-import freshness \
+            --hidden-import offline_models \
             --hidden-import user_config \
             --hidden-import write_lock \
             --hidden-import truststore \
@@ -178,6 +179,25 @@ jobs:
         shell: pwsh
         run: choco install innosetup --no-progress -y
 
+      - name: Prepare verified embedded model payload
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $hubVersion = & python -c `
+            'import json; print(json.load(open("models.lock"))["huggingface_hub_version"])'
+          $hubVersion = $hubVersion.Trim()
+          & python -m pip install "huggingface-hub==$hubVersion"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installing huggingface-hub $hubVersion failed with exit code $LASTEXITCODE."
+          }
+          $payload = Join-Path $env:RUNNER_TEMP "cortex-model-payload"
+          & python scripts/model_payload.py prepare --output $payload
+          if ($LASTEXITCODE -ne 0) {
+            throw "Preparing the verified model payload failed with exit code $LASTEXITCODE."
+          }
+          "CORTEX_MODEL_PAYLOAD_DIR=$payload" | Out-File `
+            -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Build Windows installer
         if: runner.os == 'Windows'
         shell: pwsh
@@ -187,13 +207,100 @@ jobs:
           if (-not (Test-Path -LiteralPath $iscc)) {
             throw "ISCC.exe was not installed at the expected path."
           }
-          & $iscc "/DAppVersion=$version" packaging\windows\cortex-installer.iss
+          & $iscc "/DAppVersion=$version" `
+            "/DModelPayloadDir=$env:CORTEX_MODEL_PAYLOAD_DIR" `
+            packaging\windows\cortex-installer.iss
           if ($LASTEXITCODE -ne 0) {
             throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
           }
           if (-not (Test-Path -LiteralPath dist-installer\Cortex-Setup.exe)) {
             throw "Inno Setup reported success but Cortex-Setup.exe is missing."
           }
+          $installer = Get-Item -LiteralPath dist-installer\Cortex-Setup.exe
+          $payloadBytes = (
+            Get-ChildItem -LiteralPath $env:CORTEX_MODEL_PAYLOAD_DIR -File -Recurse |
+              Measure-Object -Property Length -Sum
+          ).Sum
+          $installerMiB = [math]::Round($installer.Length / 1MB, 2)
+          $payloadMiB = [math]::Round($payloadBytes / 1MB, 2)
+          Write-Output "Embedded model payload: $payloadBytes bytes ($payloadMiB MiB)."
+          Write-Output "Compressed Cortex-Setup.exe: $($installer.Length) bytes ($installerMiB MiB)."
+          @"
+          ### Windows installer size
+
+          - Verified model payload: $payloadBytes bytes ($payloadMiB MiB)
+          - Compressed Cortex-Setup.exe: $($installer.Length) bytes ($installerMiB MiB)
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Smoke-test installed models with Hugging Face offline
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          HF_HUB_OFFLINE: "1"
+        run: |
+          $localDataRoot = [IO.Path]::GetFullPath($env:LOCALAPPDATA)
+          $modelRoot = [IO.Path]::GetFullPath(
+            (Join-Path $localDataRoot "Cortex\models")
+          )
+          $expectedModelRoot = Join-Path $localDataRoot "Cortex\models"
+          if ($modelRoot -ne $expectedModelRoot) {
+            throw "Refusing to clean unexpected model cache path: $modelRoot"
+          }
+          if (Test-Path -LiteralPath $modelRoot) {
+            Remove-Item -LiteralPath $modelRoot -Recurse -Force
+          }
+          if (Test-Path -LiteralPath $modelRoot) {
+            throw "Failed to clean per-user model cache before installation: $modelRoot"
+          }
+          $knowledgeBase = Join-Path $env:RUNNER_TEMP "cortex-offline-kb"
+          New-Item -ItemType Directory -Path $knowledgeBase | Out-Null
+          $document = Join-Path $knowledgeBase "offline-installer-smoke.md"
+          $content = (
+            "Cortex offline installer smoke document. " * 20
+          ) + "The embedded embedding and reranker models must load without network access."
+          Set-Content -LiteralPath $document -Value $content -Encoding utf8
+
+          $installerLog = Join-Path $env:RUNNER_TEMP "cortex-offline-install.log"
+          $installerArguments = @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/INDEX",
+            "/KBPATH=`"$knowledgeBase`"",
+            "/INDEXMODE=whole",
+            "/LOG=`"$installerLog`""
+          )
+          $installProcess = Start-Process `
+            -FilePath "dist-installer\Cortex-Setup.exe" `
+            -ArgumentList $installerArguments `
+            -Wait -PassThru -WindowStyle Hidden
+          if ($installProcess.ExitCode -ne 0) {
+            if (Test-Path -LiteralPath $installerLog -PathType Leaf) {
+              Get-Content -LiteralPath $installerLog
+            }
+            throw "Offline installer smoke failed with exit code $($installProcess.ExitCode)."
+          }
+          $installed = Join-Path $env:LOCALAPPDATA "Programs\Cortex\cortex.exe"
+          foreach ($required in @(
+            $installed,
+            (Join-Path $modelRoot "manifest.json"),
+            (Join-Path $modelRoot "licenses\Apache-2.0.txt"),
+            (Join-Path $modelRoot "licenses\THIRD_PARTY_NOTICES.md")
+          )) {
+            if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+              throw "Offline installer did not install required file: $required"
+            }
+          }
+          $searchOutput = & $installed sync --search "offline installer smoke" 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed Cortex search failed with exit code $LASTEXITCODE."
+          }
+          $searchText = $searchOutput | Out-String
+          Write-Output $searchText
+          if ($searchText -notmatch "offline-installer-smoke") {
+            throw "Installed Cortex search did not return the offline smoke document."
+          }
+          Write-Output "Offline installer embedding and reranker smoke passed."
 
       - name: Sign Windows installer when a certificate is configured
         if: runner.os == 'Windows'

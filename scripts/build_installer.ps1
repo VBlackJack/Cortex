@@ -69,6 +69,7 @@ $HiddenImports = @(
     "dependencies",
     "embedding_fingerprint",
     "freshness",
+    "offline_models",
     "user_config",
     "write_lock",
     "truststore",

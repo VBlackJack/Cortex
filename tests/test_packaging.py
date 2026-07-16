@@ -39,6 +39,7 @@ LAUNCHER = ROOT / "packaging" / "cortex_launcher.py"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 WINDOWS_BUILD_SCRIPT = ROOT / "scripts" / "build_installer.ps1"
 POSIX_BUILD_SCRIPT = ROOT / "scripts" / "build_installer.sh"
+MODEL_MANIFEST_WORKFLOW = ROOT / ".github" / "workflows" / "generate-model-manifest.yml"
 
 # Human CalVer source format: YYYY.MMDD.XX, zero-padded (e.g. 2026.0714.00).
 _CALVER_RE = re.compile(r"^\d{4}\.\d{4}\.\d{2}$")
@@ -93,10 +94,14 @@ def test_standalone_distribution_contract_is_declared() -> None:
     assert project["project"]["optional-dependencies"]["build"] == ["pyinstaller>=6.0"]
     assert "from cli import main" in launcher
     assert launcher.index("truststore.inject_into_ssl()") < launcher.index("from cli import main")
+    assert launcher.index("activate_if_embedded()") < launcher.index("from cli import main")
     assert 'tags: ["v*"]' in release
     assert "--hidden-import truststore" in release
+    assert "--hidden-import offline_models" in release
     assert '"truststore"' in WINDOWS_BUILD_SCRIPT.read_text(encoding="utf-8")
+    assert '"offline_models"' in WINDOWS_BUILD_SCRIPT.read_text(encoding="utf-8")
     assert "--hidden-import truststore" in POSIX_BUILD_SCRIPT.read_text(encoding="utf-8")
+    assert "--hidden-import offline_models" in POSIX_BUILD_SCRIPT.read_text(encoding="utf-8")
     for artifact in (
         "cortex-windows-x64.exe",
         "cortex-macos-arm64",
@@ -105,20 +110,40 @@ def test_standalone_distribution_contract_is_declared() -> None:
         assert artifact in release
 
 
+def test_model_manifest_workflow_is_manual_and_uploads_only_attestation() -> None:
+    workflow = MODEL_MANIFEST_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "workflow_dispatch:" in workflow
+    assert "scripts/model_payload.py fetch" in workflow
+    assert "scripts/model_payload.py smoke" in workflow
+    assert "scripts/model_payload.py generate" in workflow
+    assert "actions/upload-artifact@v4" in workflow
+    assert "path: model-attestation" in workflow
+    upload_step = workflow[workflow.index("uses: actions/upload-artifact@v4") :]
+    assert "cortex-model-snapshot" not in upload_step
+
+
 def test_launcher_injects_truststore_before_importing_cli(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
     truststore_module = ModuleType("truststore")
     truststore_module.inject_into_ssl = lambda: calls.append("inject")  # type: ignore[attr-defined]
+    offline_models_module = ModuleType("offline_models")
+
+    def activate() -> None:
+        calls.append("offline")
+
+    offline_models_module.activate_if_embedded = activate  # type: ignore[attr-defined]
     cli_module = ModuleType("cli")
     cli_module.main = lambda: 0  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "truststore", truststore_module)
+    monkeypatch.setitem(sys.modules, "offline_models", offline_models_module)
     monkeypatch.setitem(sys.modules, "cli", cli_module)
 
     runpy.run_path(str(LAUNCHER), run_name="test_cortex_launcher")
 
-    assert calls == ["inject"]
+    assert calls == ["inject", "offline"]
 
 
 def test_launcher_reports_truststore_injection_failure_without_crashing(
@@ -131,9 +156,12 @@ def test_launcher_reports_truststore_injection_failure_without_crashing(
         raise RuntimeError("native store unavailable")
 
     truststore_module.inject_into_ssl = fail_injection  # type: ignore[attr-defined]
+    offline_models_module = ModuleType("offline_models")
+    offline_models_module.activate_if_embedded = lambda: None  # type: ignore[attr-defined]
     cli_module = ModuleType("cli")
     cli_module.main = lambda: 0  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "truststore", truststore_module)
+    monkeypatch.setitem(sys.modules, "offline_models", offline_models_module)
     monkeypatch.setitem(sys.modules, "cli", cli_module)
 
     runpy.run_path(str(LAUNCHER), run_name="test_cortex_launcher")

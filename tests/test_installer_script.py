@@ -91,7 +91,66 @@ def test_release_builds_and_attaches_windows_installer() -> None:
 
     assert "choco install innosetup --no-progress -y" in workflow
     assert '"/DAppVersion=$version"' in workflow
+    assert '"/DModelPayloadDir=$env:CORTEX_MODEL_PAYLOAD_DIR"' in workflow
     assert "packaging\\windows\\cortex-installer.iss" in workflow
     assert "dist-installer\\Cortex-Setup.exe" in workflow
     assert "out/Cortex-Setup.exe" in workflow
     assert "WINDOWS_CERT_PFX_BASE64" in workflow
+
+
+def test_installer_embeds_models_in_the_stable_per_user_cache() -> None:
+    script = INSTALLER.read_text(encoding="utf-8")
+
+    assert "#ifndef ModelPayloadDir" in script
+    assert 'Source: "{#ModelPayloadDir}\\*"' in script
+    assert 'DestDir: "{localappdata}\\Cortex\\models"' in script
+    assert "recursesubdirs createallsubdirs" in script
+
+
+def test_installer_embeds_apache_license_and_model_notices() -> None:
+    script = INSTALLER.read_text(encoding="utf-8")
+    license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+
+    assert "Apache License" in license_text
+    assert "Version 2.0, January 2004" in license_text
+    assert 'Source: "..\\..\\LICENSE"' in script
+    assert 'DestName: "Apache-2.0.txt"' in script
+    assert 'Source: "..\\..\\THIRD_PARTY_NOTICES.md"' in script
+    assert 'DestDir: "{localappdata}\\Cortex\\models\\licenses"' in script
+    for value in (
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+        "faf4aa4225822f3bc6376869cb1164e8e3feedd0",
+        "jinaai/jina-reranker-v1-tiny-en",
+        "aca45de6945b5dc6399abcd2a9c55ded5dc9111f",
+        "Apache-2.0",
+    ):
+        assert value in notices
+
+
+def test_release_verifies_a_fresh_fetch_without_generating_its_manifest() -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "scripts/model_payload.py prepare" in workflow
+    assert "CORTEX_MODEL_PAYLOAD_DIR" in workflow
+    assert "Compressed Cortex-Setup.exe" in workflow
+    assert "model_payload.py generate" not in workflow
+    assert "upload-artifact" not in workflow
+
+
+def test_release_smokes_installed_embedding_and_reranker_offline() -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "Smoke-test installed models with Hugging Face offline" in workflow
+    assert 'HF_HUB_OFFLINE: "1"' in workflow
+    assert "Remove-Item -LiteralPath $modelRoot -Recurse -Force" in workflow
+    assert "Failed to clean per-user model cache before installation" in workflow
+    assert "$installProcess = Start-Process" in workflow
+    assert "-Wait -PassThru -WindowStyle Hidden" in workflow
+    for argument in ("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/INDEX"):
+        assert f'"{argument}"' in workflow
+    assert 'sync --search "offline installer smoke"' in workflow
+    assert "Offline installer embedding and reranker smoke passed" in workflow
+    assert "licenses\\Apache-2.0.txt" in workflow
+    assert "licenses\\THIRD_PARTY_NOTICES.md" in workflow

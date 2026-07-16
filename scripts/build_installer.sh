@@ -95,6 +95,7 @@ log "Running PyInstaller."
   --hidden-import dependencies \
   --hidden-import embedding_fingerprint \
   --hidden-import freshness \
+  --hidden-import offline_models \
   --hidden-import user_config \
   --hidden-import write_lock \
   --hidden-import truststore \

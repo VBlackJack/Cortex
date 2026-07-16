@@ -32,27 +32,38 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install locked Hugging Face client
+      - name: Install locked model runtime
         shell: bash
         run: |
           hub_version="$(python -c 'import json; print(json.load(open("models.lock"))["huggingface_hub_version"])')"
-          python -m pip install "huggingface-hub==${hub_version}"
+          fastembed_version="$(python -c 'import json; print(json.load(open("models.lock"))["fastembed_version"])')"
+          python -m pip install \
+            "huggingface-hub==${hub_version}" \
+            "fastembed==${fastembed_version}"
 
-      - name: Fetch complete pinned snapshots
+      - name: Fetch pinned FastEmbed runtime files
         shell: bash
         run: |
           python scripts/model_payload.py fetch \
             --output "${RUNNER_TEMP}/cortex-model-snapshot"
 
-      - name: Generate one-off manifest and inventory
+      - name: Prove embedding and reranker inference offline
         shell: bash
         run: |
           mkdir -p model-attestation
+          python scripts/model_payload.py smoke \
+            --snapshot-dir "${RUNNER_TEMP}/cortex-model-snapshot" \
+            --proof-out model-attestation/OFFLINE_SMOKE.md
+
+      - name: Generate one-off manifest and inventory
+        shell: bash
+        run: |
           python scripts/model_payload.py generate \
             --snapshot-dir "${RUNNER_TEMP}/cortex-model-snapshot" \
             --manifest-out model-attestation/manifest.json \
             --inventory-out model-attestation/INVENTORY.md
           cat model-attestation/INVENTORY.md >> "${GITHUB_STEP_SUMMARY}"
+          cat model-attestation/OFFLINE_SMOKE.md >> "${GITHUB_STEP_SUMMARY}"
 
       # Only the small attestation crosses the job boundary. The model payload
       # stays in RUNNER_TEMP and is destroyed with the runner.
