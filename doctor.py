@@ -24,7 +24,6 @@ import shutil
 import sqlite3
 import subprocess
 import sys
-import tempfile
 import time
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
@@ -169,11 +168,15 @@ def _check(
 
 def _default_reranker_probe() -> DiagnosticCheck:
     """Probe only an already cached reranker without network or filesystem writes."""
+    from offline_models import activate_if_embedded
+
+    model_runtime = activate_if_embedded()
+
     from fastembed.rerank.cross_encoder import TextCrossEncoder
 
     from config import RERANKER_MODEL, SEARCH_RERANK_CANDIDATES
 
-    cache_root = Path(tempfile.gettempdir()) / "fastembed_cache"
+    cache_root = model_runtime.cache_dir
     model_cache = cache_root / f"models--{RERANKER_MODEL.replace('/', '--')}"
     if not model_cache.is_dir():
         return _check(

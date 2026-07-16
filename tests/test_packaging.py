@@ -93,10 +93,14 @@ def test_standalone_distribution_contract_is_declared() -> None:
     assert project["project"]["optional-dependencies"]["build"] == ["pyinstaller>=6.0"]
     assert "from cli import main" in launcher
     assert launcher.index("truststore.inject_into_ssl()") < launcher.index("from cli import main")
+    assert launcher.index("activate_if_embedded()") < launcher.index("from cli import main")
     assert 'tags: ["v*"]' in release
     assert "--hidden-import truststore" in release
+    assert "--hidden-import offline_models" in release
     assert '"truststore"' in WINDOWS_BUILD_SCRIPT.read_text(encoding="utf-8")
+    assert '"offline_models"' in WINDOWS_BUILD_SCRIPT.read_text(encoding="utf-8")
     assert "--hidden-import truststore" in POSIX_BUILD_SCRIPT.read_text(encoding="utf-8")
+    assert "--hidden-import offline_models" in POSIX_BUILD_SCRIPT.read_text(encoding="utf-8")
     for artifact in (
         "cortex-windows-x64.exe",
         "cortex-macos-arm64",
@@ -111,14 +115,21 @@ def test_launcher_injects_truststore_before_importing_cli(
     calls: list[str] = []
     truststore_module = ModuleType("truststore")
     truststore_module.inject_into_ssl = lambda: calls.append("inject")  # type: ignore[attr-defined]
+    offline_models_module = ModuleType("offline_models")
+
+    def activate() -> None:
+        calls.append("offline")
+
+    offline_models_module.activate_if_embedded = activate  # type: ignore[attr-defined]
     cli_module = ModuleType("cli")
     cli_module.main = lambda: 0  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "truststore", truststore_module)
+    monkeypatch.setitem(sys.modules, "offline_models", offline_models_module)
     monkeypatch.setitem(sys.modules, "cli", cli_module)
 
     runpy.run_path(str(LAUNCHER), run_name="test_cortex_launcher")
 
-    assert calls == ["inject"]
+    assert calls == ["inject", "offline"]
 
 
 def test_launcher_reports_truststore_injection_failure_without_crashing(
@@ -131,9 +142,12 @@ def test_launcher_reports_truststore_injection_failure_without_crashing(
         raise RuntimeError("native store unavailable")
 
     truststore_module.inject_into_ssl = fail_injection  # type: ignore[attr-defined]
+    offline_models_module = ModuleType("offline_models")
+    offline_models_module.activate_if_embedded = lambda: None  # type: ignore[attr-defined]
     cli_module = ModuleType("cli")
     cli_module.main = lambda: 0  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "truststore", truststore_module)
+    monkeypatch.setitem(sys.modules, "offline_models", offline_models_module)
     monkeypatch.setitem(sys.modules, "cli", cli_module)
 
     runpy.run_path(str(LAUNCHER), run_name="test_cortex_launcher")

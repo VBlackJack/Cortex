@@ -37,6 +37,10 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 # Suppress fastembed pooling migration notice (mean pooling is correct for this model)
 warnings.filterwarnings("ignore", message=".*mean pooling.*", category=UserWarning)
 
+from offline_models import activate_if_embedded  # noqa: E402
+
+_MODEL_RUNTIME = activate_if_embedded()
+
 import chromadb  # noqa: E402
 from chromadb import EmbeddingFunction, Embeddings  # noqa: E402
 from fastembed import TextEmbedding  # noqa: E402
@@ -88,7 +92,11 @@ class FastEmbedFunction(EmbeddingFunction):
     def __init__(self, model_name: str) -> None:
         if self._initialized:
             return
-        self._model = TextEmbedding(model_name=model_name)
+        self._model = TextEmbedding(
+            model_name=model_name,
+            cache_dir=str(_MODEL_RUNTIME.cache_dir),
+            local_files_only=_MODEL_RUNTIME.local_files_only,
+        )
         self._model_name = model_name
         FastEmbedFunction._initialized = True
 

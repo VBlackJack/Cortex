@@ -43,6 +43,7 @@ py-modules = [
   "freshness",
   "indexer",
   "lexical_index",
+  "offline_models",
   "reranker",
   "server",
   "setup_config",

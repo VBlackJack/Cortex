@@ -19,6 +19,9 @@ import argparse
 from collections.abc import Sequence
 
 from _version import __version__
+from offline_models import activate_if_embedded
+
+activate_if_embedded()
 
 _COMMANDS = (
     "serve",

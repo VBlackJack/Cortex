@@ -24,7 +24,11 @@ except Exception as exc:  # noqa: BLE001 -- bootstrap failure must not prevent s
 
     print(f"[cortex] truststore injection failed: {exc}", file=sys.stderr)
 
-from cli import main
+from offline_models import activate_if_embedded
+
+activate_if_embedded()
+
+from cli import main  # noqa: E402
 
 if __name__ == "__main__":
     raise SystemExit(main())
