@@ -71,6 +71,7 @@ $HiddenImports = @(
     "freshness",
     "user_config",
     "write_lock",
+    "truststore",
     "_version"
 )
 

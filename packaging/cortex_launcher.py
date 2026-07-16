@@ -15,6 +15,15 @@
 
 from __future__ import annotations
 
+try:
+    import truststore
+
+    truststore.inject_into_ssl()
+except Exception as exc:  # noqa: BLE001 -- bootstrap failure must not prevent startup.
+    import sys
+
+    print(f"[cortex] truststore injection failed: {exc}", file=sys.stderr)
+
 from cli import main
 
 if __name__ == "__main__":

@@ -16,8 +16,12 @@
 from __future__ import annotations
 
 import re
+import runpy
+import sys
 from pathlib import Path
+from types import ModuleType
 
+import pytest
 from packaging.requirements import Requirement
 from packaging.version import Version
 
@@ -33,6 +37,8 @@ PYPROJECT = ROOT / "pyproject.toml"
 REQUIREMENTS = ROOT / "requirements.txt"
 LAUNCHER = ROOT / "packaging" / "cortex_launcher.py"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
+WINDOWS_BUILD_SCRIPT = ROOT / "scripts" / "build_installer.ps1"
+POSIX_BUILD_SCRIPT = ROOT / "scripts" / "build_installer.sh"
 
 # Human CalVer source format: YYYY.MMDD.XX, zero-padded (e.g. 2026.0714.00).
 _CALVER_RE = re.compile(r"^\d{4}\.\d{4}\.\d{2}$")
@@ -50,9 +56,7 @@ def test_version_is_calver_and_pyproject_uses_the_single_source() -> None:
     parsed = Version(__version__)
     assert parsed.release[0] == int(__version__.split(".", 1)[0])
     assert "version" in project["project"]["dynamic"]
-    assert project["tool"]["setuptools"]["dynamic"]["version"] == {
-        "attr": "_version.__version__"
-    }
+    assert project["tool"]["setuptools"]["dynamic"]["version"] == {"attr": "_version.__version__"}
 
 
 def test_requirements_is_the_single_runtime_dependency_source() -> None:
@@ -74,6 +78,7 @@ def test_requirements_is_the_single_runtime_dependency_source() -> None:
         "pydantic",
         "pdfplumber",
         "filelock",
+        "truststore",
         "tomli",
     }
     assert all(str(requirement.specifier).startswith("==") for requirement in parsed)
@@ -87,13 +92,56 @@ def test_standalone_distribution_contract_is_declared() -> None:
 
     assert project["project"]["optional-dependencies"]["build"] == ["pyinstaller>=6.0"]
     assert "from cli import main" in launcher
+    assert launcher.index("truststore.inject_into_ssl()") < launcher.index("from cli import main")
     assert 'tags: ["v*"]' in release
+    assert "--hidden-import truststore" in release
+    assert '"truststore"' in WINDOWS_BUILD_SCRIPT.read_text(encoding="utf-8")
+    assert "--hidden-import truststore" in POSIX_BUILD_SCRIPT.read_text(encoding="utf-8")
     for artifact in (
         "cortex-windows-x64.exe",
         "cortex-macos-arm64",
         "cortex-linux-x64",
     ):
         assert artifact in release
+
+
+def test_launcher_injects_truststore_before_importing_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    truststore_module = ModuleType("truststore")
+    truststore_module.inject_into_ssl = lambda: calls.append("inject")  # type: ignore[attr-defined]
+    cli_module = ModuleType("cli")
+    cli_module.main = lambda: 0  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "truststore", truststore_module)
+    monkeypatch.setitem(sys.modules, "cli", cli_module)
+
+    runpy.run_path(str(LAUNCHER), run_name="test_cortex_launcher")
+
+    assert calls == ["inject"]
+
+
+def test_launcher_reports_truststore_injection_failure_without_crashing(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    truststore_module = ModuleType("truststore")
+
+    def fail_injection() -> None:
+        raise RuntimeError("native store unavailable")
+
+    truststore_module.inject_into_ssl = fail_injection  # type: ignore[attr-defined]
+    cli_module = ModuleType("cli")
+    cli_module.main = lambda: 0  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "truststore", truststore_module)
+    monkeypatch.setitem(sys.modules, "cli", cli_module)
+
+    runpy.run_path(str(LAUNCHER), run_name="test_cortex_launcher")
+
+    assert (
+        capsys.readouterr().err
+        == "[cortex] truststore injection failed: native store unavailable\n"
+    )
 
 
 def test_every_python_source_has_apache_header() -> None:

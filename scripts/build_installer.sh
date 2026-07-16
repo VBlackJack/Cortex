@@ -97,6 +97,7 @@ log "Running PyInstaller."
   --hidden-import freshness \
   --hidden-import user_config \
   --hidden-import write_lock \
+  --hidden-import truststore \
   --hidden-import _version \
   --distpath "${DIST_PATH}" \
   --workpath "${WORK_PATH}" \
