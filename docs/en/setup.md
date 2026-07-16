@@ -53,7 +53,8 @@ identical dependency chains), see
 ### One-command setup
 
 Once the package is installed, `cortex setup` chains the three steps in a single
-call: initialize the config, build the index, then register the MCP clients.
+call: initialize the config, register the MCP clients, then build the index. An
+indexing failure is reported as deferred and does not undo client registration.
 
 ```powershell
 # Config + index + registration of every detected client

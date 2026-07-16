@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Guided end-to-end Cortex setup: init config, build the index, register clients.
+"""Guided end-to-end Cortex setup: init config, register clients, build the index.
 
 `run_setup` is the non-interactive orchestration behind the `cortex setup`
-command: it initializes the per-user config, builds the search index (optional),
-then registers the MCP clients. Keeping the logic here as a pure function over a
+command: it initializes the per-user config, registers the MCP clients, then
+builds the search index (optional). Keeping the logic here as a pure function over a
 `SetupPlan` - with injectable steps - makes the whole flow unit testable without
 loading the vector store or simulating prompts; the CLI layer only builds the
 plan and renders the result.
@@ -70,6 +70,7 @@ class SetupResult:
     Attributes:
         config_created: Whether a new per-user config was created.
         indexed: Whether the search index was built.
+        index_error: Index failure details, or None when built or intentionally skipped.
         client_results: Per-client registration outcomes.
         warnings: Non-fatal messages (one per non-successful client).
         reset: Whether an explicit reset ran before initialization.
@@ -77,6 +78,7 @@ class SetupResult:
 
     config_created: bool
     indexed: bool
+    index_error: str | None
     client_results: list[ClientResult]
     warnings: list[str] = field(default_factory=list)
     reset: bool = False
@@ -110,9 +112,10 @@ def run_setup(
     """Run the full setup sequence for `plan` and return a summary.
 
     Steps run in order: reset when explicitly requested, initialize the per-user
-    config, build the index when requested, then register the selected MCP
-    clients. Client registration failures are captured as warnings rather than
-    aborting an otherwise successful setup, matching the guided-setup contract.
+    config, register the selected MCP clients, then build the index when requested.
+    Index failures are deferred so they never roll back successful registration.
+    Client registration failures are captured as warnings rather than aborting an
+    otherwise successful setup, matching the guided-setup contract.
 
     Args:
         plan: The resolved setup choices.
@@ -128,11 +131,6 @@ def run_setup(
         reset_fn()
     config_created = init_fn(assume_yes=plan.assume_yes)
 
-    indexed = False
-    if plan.build_index:
-        index_fn()
-        indexed = True
-
     python_exe = plan.python_exe or detect_python()
     client_results = register_fn(python_exe, clients=plan.clients)
     warnings = [
@@ -140,9 +138,20 @@ def run_setup(
         for result in client_results
         if not result.successful
     ]
+
+    indexed = False
+    index_error: str | None = None
+    if plan.build_index:
+        try:
+            index_fn()
+            indexed = True
+        except Exception as exc:  # noqa: BLE001 -- registration must remain usable.
+            index_error = f"{type(exc).__name__}: {exc}"
+
     return SetupResult(
         config_created=config_created,
         indexed=indexed,
+        index_error=index_error,
         client_results=client_results,
         warnings=warnings,
         reset=plan.reset,
@@ -156,9 +165,15 @@ def _render_result(result: SetupResult) -> None:
     config_label = "OK" if result.config_created else "INFO"
     config_state = "created" if result.config_created else "already present"
     print(f"[{config_label}] config {config_state}")
-    index_label = "OK" if result.indexed else "SKIP"
-    index_state = "built" if result.indexed else "skipped (--no-index)"
-    print(f"[{index_label}] index {index_state}")
+    if result.indexed:
+        print("[OK] index built")
+    elif result.index_error is not None:
+        print(
+            f"[WARN] index deferred: {result.index_error}. "
+            "Run `cortex sync` when the model is available."
+        )
+    else:
+        print("[SKIP] index skipped (--no-index)")
     for result_item in result.client_results:
         label = result_item.status if result_item.status != "SKIP" else "SKIP not installed"
         print(f"[{label}] {result_item.client}: {result_item.message}")

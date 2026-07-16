@@ -87,6 +87,7 @@ jobs:
             --hidden-import freshness \
             --hidden-import user_config \
             --hidden-import write_lock \
+            --hidden-import truststore \
             --hidden-import _version \
             packaging/cortex_launcher.py
 
