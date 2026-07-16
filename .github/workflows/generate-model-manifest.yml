@@ -1,0 +1,65 @@
+# Copyright 2026 Julien Bombled
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+name: generate-model-manifest
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  attest:
+    name: Generate pinned model attestation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install locked Hugging Face client
+        shell: bash
+        run: |
+          hub_version="$(python -c 'import json; print(json.load(open("models.lock"))["huggingface_hub_version"])')"
+          python -m pip install "huggingface-hub==${hub_version}"
+
+      - name: Fetch complete pinned snapshots
+        shell: bash
+        run: |
+          python scripts/model_payload.py fetch \
+            --output "${RUNNER_TEMP}/cortex-model-snapshot"
+
+      - name: Generate one-off manifest and inventory
+        shell: bash
+        run: |
+          mkdir -p model-attestation
+          python scripts/model_payload.py generate \
+            --snapshot-dir "${RUNNER_TEMP}/cortex-model-snapshot" \
+            --manifest-out model-attestation/manifest.json \
+            --inventory-out model-attestation/INVENTORY.md
+          cat model-attestation/INVENTORY.md >> "${GITHUB_STEP_SUMMARY}"
+
+      # Only the small attestation crosses the job boundary. The model payload
+      # stays in RUNNER_TEMP and is destroyed with the runner.
+      - name: Upload attestation for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-model-attestation
+          path: model-attestation
+          if-no-files-found: error
+          retention-days: 1
