@@ -1,0 +1,40 @@
+{
+  "files": {
+    "models--jinaai--jina-reranker-v1-tiny-en/refs/main": "6d12d1848583316c62c537b84e7b4743dbc95490f750763747d1e1abd98b751d",
+    "models--jinaai--jina-reranker-v1-tiny-en/snapshots/aca45de6945b5dc6399abcd2a9c55ded5dc9111f/config.json": "dc70646aa6c9e75e3c513cc9c037f35ad54308001c3961d45c0f69749bcfb022",
+    "models--jinaai--jina-reranker-v1-tiny-en/snapshots/aca45de6945b5dc6399abcd2a9c55ded5dc9111f/onnx/model.onnx": "e0e743251c7566e2b1e4f5ad091c681a700d7d7a3d85541ea56ca3acf43d1afa",
+    "models--jinaai--jina-reranker-v1-tiny-en/snapshots/aca45de6945b5dc6399abcd2a9c55ded5dc9111f/special_tokens_map.json": "06e405a36dfe4b9604f484f6a1e619af1a7f7d09e34a8555eb0b77b66318067f",
+    "models--jinaai--jina-reranker-v1-tiny-en/snapshots/aca45de6945b5dc6399abcd2a9c55ded5dc9111f/tokenizer.json": "0046da43cc8c424b317f56b092b0512aaaa65c4f925d2f16af9d9eeb4d0ef902",
+    "models--jinaai--jina-reranker-v1-tiny-en/snapshots/aca45de6945b5dc6399abcd2a9c55ded5dc9111f/tokenizer_config.json": "d291c6652d96d56ffdbcf1ea19d9bae5ed79003f7648c627e725a619227ce8fa",
+    "models--qdrant--paraphrase-multilingual-MiniLM-L12-v2-onnx-Q/refs/main": "f5719ccbb70b50cf31f07542d53c3f498e8ee4f420527130b74c666f8dd80860",
+    "models--qdrant--paraphrase-multilingual-MiniLM-L12-v2-onnx-Q/snapshots/faf4aa4225822f3bc6376869cb1164e8e3feedd0/config.json": "c8ec081fdad2df991bf5abbf18418fec7a5cdaa421f60ffb060a30040b8c376f",
+    "models--qdrant--paraphrase-multilingual-MiniLM-L12-v2-onnx-Q/snapshots/faf4aa4225822f3bc6376869cb1164e8e3feedd0/model_optimized.onnx": "634d0f66c29dc934c8fa72b8a4fe91dd4d420a22f1d82a241058d4316e659a99",
+    "models--qdrant--paraphrase-multilingual-MiniLM-L12-v2-onnx-Q/snapshots/faf4aa4225822f3bc6376869cb1164e8e3feedd0/special_tokens_map.json": "8c785abebea9ae3257b61681b4e6fd8365ceafde980c21970d001e834cf10835",
+    "models--qdrant--paraphrase-multilingual-MiniLM-L12-v2-onnx-Q/snapshots/faf4aa4225822f3bc6376869cb1164e8e3feedd0/tokenizer.json": "fa685fc160bbdbab64058d4fc91b60e62d207e8dc60b9af5c002c5ab946ded00",
+    "models--qdrant--paraphrase-multilingual-MiniLM-L12-v2-onnx-Q/snapshots/faf4aa4225822f3bc6376869cb1164e8e3feedd0/tokenizer_config.json": "0666eebf692422757e1dddf3c9fb1ded73ba3dc726c5828671fc89e45bf3609f"
+  },
+  "models": [
+    {
+      "license": "apache-2.0",
+      "product_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "repository": "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+      "revision": "faf4aa4225822f3bc6376869cb1164e8e3feedd0",
+      "role": "embedding"
+    },
+    {
+      "license": "apache-2.0",
+      "product_id": "jinaai/jina-reranker-v1-tiny-en",
+      "repository": "jinaai/jina-reranker-v1-tiny-en",
+      "revision": "aca45de6945b5dc6399abcd2a9c55ded5dc9111f",
+      "role": "reranker"
+    }
+  ],
+  "runtime": {
+    "fastembed_version": "0.8.0"
+  },
+  "schema_version": 1,
+  "totals": {
+    "bytes": 386522634,
+    "file_count": 12
+  }
+}

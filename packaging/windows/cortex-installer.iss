@@ -16,6 +16,10 @@
   #error AppVersion must be provided with ISCC /DAppVersion=<version>
 #endif
 
+#ifndef ModelPayloadDir
+  #error ModelPayloadDir must be provided with ISCC /DModelPayloadDir=<path>
+#endif
+
 [Setup]
 AppId=Cortex
 AppName=Cortex
@@ -102,6 +106,9 @@ french.UnregisterFailed=Cortex n'a pas pu retirer toutes les entrees des clients
 
 [Files]
 Source: "..\..\dist\cortex.exe"; DestDir: "{app}"; DestName: "cortex.exe"; Flags: ignoreversion
+Source: "{#ModelPayloadDir}\*"; DestDir: "{localappdata}\Cortex\models"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\LICENSE"; DestDir: "{localappdata}\Cortex\models\licenses"; DestName: "Apache-2.0.txt"; Flags: ignoreversion
+Source: "..\..\THIRD_PARTY_NOTICES.md"; DestDir: "{localappdata}\Cortex\models\licenses"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Cortex Doctor"; Filename: "{cmd}"; Parameters: "/k """"{app}\cortex.exe"" doctor"""

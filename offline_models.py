@@ -74,7 +74,8 @@ def model_cache_dir(environ: Mapping[str, str] | None = None) -> Path:
     return local_data_home(environ) / "models"
 
 
-def _manifest_entries(manifest_path: Path) -> list[tuple[str, str]]:
+def manifest_entries(manifest_path: Path) -> list[tuple[str, str]]:
+    """Load and validate the integrity entries from a model manifest."""
     try:
         raw_manifest: object = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -133,16 +134,19 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def verify_manifest(cache_dir: Path) -> Path:
+def verify_manifest(cache_dir: Path, manifest_path: Path | None = None) -> Path:
     """Verify every manifest entry locally and return the manifest path."""
     cache_root = Path(cache_dir).resolve()
-    manifest_path = cache_root / MANIFEST_FILENAME
+    if manifest_path is None:
+        manifest_path = cache_root / MANIFEST_FILENAME
+    else:
+        manifest_path = Path(manifest_path).resolve()
     if not manifest_path.is_file():
         raise ModelManifestError(
             f"Embedded model manifest is missing or is not a file: '{manifest_path}'."
         )
 
-    for relative_path, expected_digest in _manifest_entries(manifest_path):
+    for relative_path, expected_digest in manifest_entries(manifest_path):
         candidate = cache_root.joinpath(*PurePosixPath(relative_path).parts)
         resolved = candidate.resolve()
         try:
@@ -206,6 +210,7 @@ __all__ = [
     "ModelRuntime",
     "OfflineModelsError",
     "activate_if_embedded",
+    "manifest_entries",
     "model_cache_dir",
     "verify_manifest",
 ]

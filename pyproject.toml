@@ -78,6 +78,7 @@ module = [
   "chromadb.*",
   "fastembed.*",
   "filelock.*",
+  "huggingface_hub.*",
   "mcp.*",
   "pdfplumber.*",
   "tomli",

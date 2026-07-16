@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "fastembed_version": "0.8.0",
+  "huggingface_hub_version": "1.9.2",
+  "models": [
+    {
+      "role": "embedding",
+      "product_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "repository": "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+      "revision": "faf4aa4225822f3bc6376869cb1164e8e3feedd0",
+      "license": "apache-2.0",
+      "required_files": [
+        "config.json",
+        "model_optimized.onnx",
+        "special_tokens_map.json",
+        "tokenizer.json",
+        "tokenizer_config.json"
+      ]
+    },
+    {
+      "role": "reranker",
+      "product_id": "jinaai/jina-reranker-v1-tiny-en",
+      "repository": "jinaai/jina-reranker-v1-tiny-en",
+      "revision": "aca45de6945b5dc6399abcd2a9c55ded5dc9111f",
+      "license": "apache-2.0",
+      "required_files": [
+        "config.json",
+        "onnx/model.onnx",
+        "special_tokens_map.json",
+        "tokenizer.json",
+        "tokenizer_config.json"
+      ]
+    }
+  ]
+}

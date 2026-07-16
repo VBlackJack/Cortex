@@ -39,6 +39,7 @@ LAUNCHER = ROOT / "packaging" / "cortex_launcher.py"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 WINDOWS_BUILD_SCRIPT = ROOT / "scripts" / "build_installer.ps1"
 POSIX_BUILD_SCRIPT = ROOT / "scripts" / "build_installer.sh"
+MODEL_MANIFEST_WORKFLOW = ROOT / ".github" / "workflows" / "generate-model-manifest.yml"
 
 # Human CalVer source format: YYYY.MMDD.XX, zero-padded (e.g. 2026.0714.00).
 _CALVER_RE = re.compile(r"^\d{4}\.\d{4}\.\d{2}$")
@@ -107,6 +108,19 @@ def test_standalone_distribution_contract_is_declared() -> None:
         "cortex-linux-x64",
     ):
         assert artifact in release
+
+
+def test_model_manifest_workflow_is_manual_and_uploads_only_attestation() -> None:
+    workflow = MODEL_MANIFEST_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "workflow_dispatch:" in workflow
+    assert "scripts/model_payload.py fetch" in workflow
+    assert "scripts/model_payload.py smoke" in workflow
+    assert "scripts/model_payload.py generate" in workflow
+    assert "actions/upload-artifact@v4" in workflow
+    assert "path: model-attestation" in workflow
+    upload_step = workflow[workflow.index("uses: actions/upload-artifact@v4") :]
+    assert "cortex-model-snapshot" not in upload_step
 
 
 def test_launcher_injects_truststore_before_importing_cli(

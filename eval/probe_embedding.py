@@ -40,7 +40,7 @@ import onnxruntime as ort  # type: ignore[import-not-found]  # noqa: E402
 from fastembed import TextEmbedding  # noqa: E402
 from fastembed.common.model_description import ModelSource, PoolingType  # noqa: E402
 from fastembed.rerank.cross_encoder import TextCrossEncoder  # noqa: E402
-from huggingface_hub import snapshot_download  # type: ignore[import-not-found]  # noqa: E402
+from huggingface_hub import snapshot_download  # noqa: E402
 from tokenizers import Tokenizer  # type: ignore[import-not-found]  # noqa: E402
 
 from chroma_client import create_persistent_client, iter_collection_pages  # noqa: E402
