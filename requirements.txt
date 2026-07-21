@@ -1,4 +1,4 @@
-mcp[cli]==1.27.0
+mcp[cli]==1.28.1
 chromadb==1.5.7
 fastembed==0.8.0
 pydantic==2.12.5
