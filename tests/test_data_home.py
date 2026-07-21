@@ -87,6 +87,7 @@ def test_setup_offers_and_atomically_moves_legacy_index(
     _config(config_path, target)
     real_replace = os.replace
     replacements: list[tuple[Path, Path]] = []
+    events: list[tuple[str, str]] = []
 
     def recording_replace(source: str | Path, destination: str | Path) -> None:
         replacements.append((Path(source), Path(destination)))
@@ -94,17 +95,30 @@ def test_setup_offers_and_atomically_moves_legacy_index(
 
     monkeypatch.setattr(data_home.os, "replace", recording_replace)
 
+    def output(message: str) -> None:
+        events.append(("output", message))
+
+    def answer(prompt: str) -> str:
+        events.append(("prompt", prompt))
+        return "y"
+
     moved = setup_config.offer_legacy_data_migration(
         config_path=config_path,
         script_dir=script_dir,
         environ={"LOCALAPPDATA": str(tmp_path / "local")},
-        input_fn=lambda _prompt: "y",
+        input_fn=answer,
+        output_fn=output,
     )
 
     assert moved
     assert replacements == [(legacy, target)]
     assert not legacy.exists()
     assert (target / "chroma.sqlite3").read_bytes() == b"index"
+    prompt_index = next(index for index, event in enumerate(events) if event[0] == "prompt")
+    guidance = [message for _, message in events[prompt_index - 3 : prompt_index]]
+    assert guidance[0].startswith("  Option:")
+    assert guidance[1].startswith("  Default:")
+    assert guidance[2].startswith("  Consequence:")
 
 
 def test_migration_refuses_existing_target_without_changes(tmp_path: Path) -> None:

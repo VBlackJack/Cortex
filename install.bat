@@ -72,7 +72,10 @@ if defined CORTEX_KB_PATH (
 )
 
 if not defined CORTEX_KB_PATH (
-    echo        Cortex needs the absolute path to your markdown knowledge base.
+    echo        Option: choose the folder Cortex reads for markdown documents.
+    echo        Default: no folder is assumed, so an absolute path is required.
+    echo        Consequence: documents stay in place; Cortex stores only the path
+    echo        in %%APPDATA%%\Cortex and generated data in %%LOCALAPPDATA%%\Cortex.
     echo        Example: D:\Confluence_Export   or   C:\Users\me\Documents\KB
     echo.
     set /p KB_INPUT="        Path to your knowledge base : "
@@ -126,7 +129,10 @@ if not exist "!CORTEX_CONFIG_FILE!" (
 )
 
 echo        Supported clients: Claude Desktop, Claude Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf and VS Code.
-echo        Existing client settings are backed up and preserved.
+echo        Option: add Cortex to each supported client detected on this PC.
+echo        Default: yes. Press Enter to register every detected client.
+echo        Consequence: only the Cortex entry changes; existing settings are
+echo        backed up and preserved. Choose no to leave all clients unchanged.
 set "CLIENT_CHECK_ARGS="
 set /p REGISTER_CLIENTS="        Register detected clients? [Y/n] : "
 if /i "!REGISTER_CLIENTS!"=="n" (
@@ -146,9 +152,10 @@ echo.
 :: -- Step 5 : Optional - wipe vector database ---------------------------------
 echo [5/6] Reset vector database?
 echo.
-echo        WARNING: This deletes all indexed vectors. You will need to
-echo        re-run sync.bat (or cortex_sync via Claude) to rebuild the index.
-echo        Required if you changed the embedding model.
+echo        Option: delete the repository-local legacy chroma_db directory.
+echo        Default: no, which preserves the current directory.
+echo        Consequence: yes deletes only %%CORTEX_DIR%%\chroma_db. Documents and
+echo        %%LOCALAPPDATA%%\Cortex stay unchanged; run sync.bat to rebuild later.
 echo.
 set /p WIPE="        Wipe chroma_db? [y/N] : "
 

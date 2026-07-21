@@ -184,3 +184,76 @@ def test_setup_main_reports_deferred_index_and_exits_zero(
     output = capsys.readouterr().out
     assert "index deferred: RuntimeError: model unavailable" in output
     assert "Run `cortex sync` when the model is available." in output
+
+
+def test_interactive_setup_explains_prompts_and_preserves_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[tuple[str, str]] = []
+    plans: list[SetupPlan] = []
+
+    def output(message: str) -> None:
+        events.append(("output", message))
+
+    def answer(prompt: str) -> str:
+        events.append(("prompt", prompt))
+        return ""
+
+    def run(plan: SetupPlan) -> SetupResult:
+        plans.append(plan)
+        return SetupResult(True, True, None, [_ok()])
+
+    monkeypatch.setattr(setup_wizard, "run_setup", run)
+
+    assert setup_wizard.main([], input_fn=answer, output_fn=output) == 0
+    assert plans == [SetupPlan(clients="all", build_index=True)]
+    prompt_indexes = [index for index, event in enumerate(events) if event[0] == "prompt"]
+    assert len(prompt_indexes) == 2
+    for prompt_index in prompt_indexes:
+        guidance = [message for _, message in events[prompt_index - 3 : prompt_index]]
+        assert guidance[0].startswith("  Option:")
+        assert guidance[1].startswith("  Default:")
+        assert guidance[2].startswith("  Consequence:")
+
+
+def test_interactive_reset_defaults_to_cancel_before_any_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output: list[str] = []
+
+    def forbidden(_plan: SetupPlan) -> SetupResult:
+        raise AssertionError("setup must not run after reset is declined")
+
+    monkeypatch.setattr(setup_wizard, "run_setup", forbidden)
+
+    assert setup_wizard.main(
+        ["--reset", "--clients", "all", "--no-index"],
+        input_fn=lambda _prompt: "",
+        output_fn=output.append,
+    ) == 0
+    assert output[-1] == "Reset cancelled; nothing changed."
+    assert output[-3].startswith("  Default: no")
+
+
+def test_setup_yes_keeps_defaults_without_guidance_or_prompts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plans: list[SetupPlan] = []
+    guidance: list[str] = []
+
+    def forbidden(_prompt: str) -> str:
+        raise AssertionError("input must not be called in non-interactive mode")
+
+    def run(plan: SetupPlan) -> SetupResult:
+        plans.append(plan)
+        return SetupResult(True, True, None, [_ok()])
+
+    monkeypatch.setattr(setup_wizard, "run_setup", run)
+
+    assert setup_wizard.main(
+        ["--yes"],
+        input_fn=forbidden,
+        output_fn=guidance.append,
+    ) == 0
+    assert plans == [SetupPlan(clients="all", build_index=True, assume_yes=True)]
+    assert guidance == []

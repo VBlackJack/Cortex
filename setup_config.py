@@ -29,8 +29,9 @@ import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -70,6 +71,71 @@ CLIENT_NAMES = (
     "windsurf",
     "vscode",
 )
+
+
+class _SetupPrompt(str, Enum):
+    """Stable identifiers for centralized interactive setup guidance."""
+
+    KNOWLEDGE_BASE = "knowledge-base"
+    LEGACY_MIGRATION = "legacy-migration"
+    CLIENTS = "clients"
+    INDEX = "index"
+    RESET = "reset"
+
+
+@dataclass(frozen=True)
+class _SetupPromptExplanation:
+    """What one setup choice does, its default, and its concrete consequence."""
+
+    option: str
+    default: str
+    consequence: str
+
+
+_SETUP_PROMPT_EXPLANATIONS: Final[dict[_SetupPrompt, _SetupPromptExplanation]] = {
+    _SetupPrompt.KNOWLEDGE_BASE: _SetupPromptExplanation(
+        option="Choose the folder Cortex reads for Markdown and PDF source documents.",
+        default=(
+            "no folder is assumed; an existing CORTEX_KB_PATH is reused without prompting."
+        ),
+        consequence=(
+            "Cortex saves only the path in %APPDATA%\\Cortex\\config.toml. Documents stay "
+            "in place; generated data lives under %LOCALAPPDATA%\\Cortex."
+        ),
+    ),
+    _SetupPrompt.LEGACY_MIGRATION: _SetupPromptExplanation(
+        option="Move the existing repository-local index from {legacy} to {target}.",
+        default="no, which leaves the existing index untouched.",
+        consequence=(
+            "Yes performs one atomic move with no copy. No is reversible, but search and sync "
+            "stay blocked until the legacy index is moved or configured explicitly."
+        ),
+    ),
+    _SetupPrompt.CLIENTS: _SetupPromptExplanation(
+        option="Choose which supported client configurations receive the Cortex MCP entry.",
+        default="{default_clients}.",
+        consequence=(
+            "Cortex changes only its user-scoped entry and preserves other settings. Choose "
+            "none to leave every client unchanged; restart registered clients afterward."
+        ),
+    ),
+    _SetupPrompt.INDEX: _SetupPromptExplanation(
+        option="Choose whether Cortex indexes the knowledge base during this setup.",
+        default="yes, which makes documents searchable immediately.",
+        consequence=(
+            "Choosing no keeps configuration and client registration, and you can build the "
+            "index later with cortex sync, sync.bat, or the cortex_sync MCP tool."
+        ),
+    ),
+    _SetupPrompt.RESET: _SetupPromptExplanation(
+        option="Remove the current Cortex configuration and generated data before setup.",
+        default="no, which preserves the current configuration, index, models, and logs.",
+        consequence=(
+            "Choosing yes removes Cortex state under %APPDATA%\\Cortex and "
+            "%LOCALAPPDATA%\\Cortex, but never deletes knowledge-base documents."
+        ),
+    ),
+}
 _TABLE_HEADER_RE = re.compile(r"^\s*\[\s*([^\]]+)\s*\]\s*(?:#.*)?$")
 _TOML_ASSIGNMENT_RE = re.compile(r"^(\s*)(command|args)(\s*=).*$")
 
@@ -120,6 +186,23 @@ class ClientResult:
 
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
+OutputFn = Callable[[str], None]
+
+
+def _explain(
+    prompt: _SetupPrompt,
+    *,
+    output_fn: OutputFn = print,
+    **values: str,
+) -> None:
+    """Render centralized guidance immediately before an interactive prompt."""
+    explanation = _SETUP_PROMPT_EXPLANATIONS[prompt]
+    for label, message in (
+        ("Option", explanation.option),
+        ("Default", explanation.default),
+        ("Consequence", explanation.consequence),
+    ):
+        output_fn(f"  {label}: {message.format_map(values)}")
 
 
 def detect_python() -> str:
@@ -814,6 +897,7 @@ def init_user_config(
     environ: dict[str, str] | None = None,
     input_fn: Callable[[str], str] = input,
     *,
+    output_fn: OutputFn = print,
     assume_yes: bool = False,
 ) -> bool:
     """Create schema-v1 user config atomically without overwriting."""
@@ -823,6 +907,7 @@ def init_user_config(
     values = dict(os.environ if environ is None else environ)
     kb_path = values.get("CORTEX_KB_PATH", "").strip().strip('"')
     if not kb_path and not assume_yes:
+        _explain(_SetupPrompt.KNOWLEDGE_BASE, output_fn=output_fn)
         kb_path = input_fn("Path to your Cortex knowledge base: ").strip().strip('"')
     if not kb_path:
         raise CortexConfigError(
@@ -853,6 +938,7 @@ def offer_legacy_data_migration(
     script_dir: Path = SCRIPT_DIR,
     environ: Mapping[str, str] | None = None,
     input_fn: Callable[[str], str] = input,
+    output_fn: OutputFn = print,
 ) -> bool:
     """Offer an explicit atomic move from the repository to the data home."""
     config = load_user_config(
@@ -871,22 +957,46 @@ def offer_legacy_data_migration(
     if state != "required":
         return False
 
-    print("\n=== Cortex data migration required ===")
-    print(f"  legacy index : {legacy}")
-    print(f"  data home    : {target}")
-    print("  action       : atomic move; no copy and no second active index")
+    output_fn("\n=== Cortex data migration required ===")
+    _explain(
+        _SetupPrompt.LEGACY_MIGRATION,
+        output_fn=output_fn,
+        legacy=str(legacy),
+        target=str(target),
+    )
     answer = input_fn("Move the legacy index now? [y/N] : ").strip().lower()
     if answer not in {"y", "yes"}:
-        print(
+        output_fn(
             "[SKIP] Legacy index kept in place. Search and sync will refuse to "
             "open a second index until migration is completed."
         )
         return False
     moved = move_legacy_index(legacy, target)
     if moved:
-        print(f"[OK] Moved Cortex index to {target}")
-        print(f"     Rollback: close all Cortex clients and move it back to {legacy}")
+        output_fn(f"[OK] Moved Cortex index to {target}")
+        output_fn(f"     Rollback: close all Cortex clients and move it back to {legacy}")
     return moved
+
+
+def _prompt_client_selection(
+    clients: str | None,
+    *,
+    assume_yes: bool,
+    input_fn: Callable[[str], str] = input,
+    output_fn: OutputFn = print,
+) -> str | None:
+    """Resolve registration while preserving the detected-client default."""
+    if clients is not None or assume_yes:
+        return clients
+    _explain(
+        _SetupPrompt.CLIENTS,
+        output_fn=output_fn,
+        default_clients="detected clients only (press Enter)",
+    )
+    answer = input_fn(
+        "MCP clients [detected/all/none/name,...] (default: detected): "
+    ).strip()
+    return None if not answer or answer.casefold() == "detected" else answer
 
 
 def check_python(python_exe: str, *, frozen: bool = False) -> bool:
@@ -1060,7 +1170,12 @@ def run_check(
     return 1
 
 
-def main(argv: Sequence[str] | None = None) -> None:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    input_fn: Callable[[str], str] = input,
+    output_fn: OutputFn = print,
+) -> None:
     parser = argparse.ArgumentParser(description="Cortex MCP setup helper")
     parser.add_argument(
         "--python", default=None, help="Python executable (default: current interpreter)"
@@ -1118,10 +1233,14 @@ def main(argv: Sequence[str] | None = None) -> None:
                 doctor_args.append("--json")
             raise SystemExit(doctor_main(doctor_args))
         if args.init:
-            init_user_config(assume_yes=args.yes)
+            init_user_config(
+                input_fn=input_fn,
+                output_fn=output_fn,
+                assume_yes=args.yes,
+            )
             raise SystemExit(0)
         if args.migrate_data:
-            offer_legacy_data_migration()
+            offer_legacy_data_migration(input_fn=input_fn, output_fn=output_fn)
             raise SystemExit(0)
         if args.unregister:
             clients = args.clients if args.clients is not None else "all"
@@ -1130,8 +1249,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         if args.check:
             raise SystemExit(run_check(python_exe, clients=args.clients))
         if not args.yes:
-            offer_legacy_data_migration()
-        results = register_clients(python_exe, clients=args.clients)
+            offer_legacy_data_migration(input_fn=input_fn, output_fn=output_fn)
+        clients = _prompt_client_selection(
+            args.clients,
+            assume_yes=args.yes,
+            input_fn=input_fn,
+            output_fn=output_fn,
+        )
+        results = register_clients(python_exe, clients=clients)
         raise SystemExit(0 if all(result.successful for result in results) else 1)
     except (ClientConfigError, CortexConfigError, CortexDataHomeError) as exc:
         print(f"[FAIL] {exc}")

@@ -31,6 +31,8 @@ from setup_config import (
     ClientConfigError,
     ClientResult,
     ResetResult,
+    _explain,
+    _SetupPrompt,
     detect_python,
     init_user_config,
     register_clients,
@@ -92,6 +94,60 @@ InitFn = Callable[..., bool]
 IndexFn = Callable[[], dict[str, int]]
 RegisterFn = Callable[..., list[ClientResult]]
 ResetFn = Callable[[], ResetResult]
+InputFn = Callable[[str], str]
+OutputFn = Callable[[str], None]
+
+
+def _confirm_reset(
+    requested: bool,
+    *,
+    assume_yes: bool,
+    input_fn: InputFn,
+    output_fn: OutputFn,
+) -> bool:
+    if not requested or assume_yes:
+        return requested
+    _explain(_SetupPrompt.RESET, output_fn=output_fn)
+    answer = input_fn(
+        "Reset Cortex configuration and generated data before setup? [y/N] : "
+    ).strip()
+    return answer.casefold() in {"y", "yes"}
+
+
+def _prompt_clients(
+    clients: str | None,
+    *,
+    assume_yes: bool,
+    input_fn: InputFn,
+    output_fn: OutputFn,
+) -> str:
+    if clients is not None:
+        return clients
+    if assume_yes:
+        return "all"
+    _explain(
+        _SetupPrompt.CLIENTS,
+        output_fn=output_fn,
+        default_clients="all supported clients (press Enter)",
+    )
+    answer = input_fn("MCP clients [all/none/name,...] (default: all): ").strip()
+    return answer or "all"
+
+
+def _prompt_index(
+    skip_index: bool,
+    *,
+    assume_yes: bool,
+    input_fn: InputFn,
+    output_fn: OutputFn,
+) -> bool:
+    if skip_index:
+        return False
+    if assume_yes:
+        return True
+    _explain(_SetupPrompt.INDEX, output_fn=output_fn)
+    answer = input_fn("Build the search index now? [Y/n] : ").strip()
+    return answer.casefold() not in {"n", "no"}
 
 
 def _default_index() -> dict[str, int]:
@@ -183,12 +239,17 @@ def _render_result(result: SetupResult) -> None:
         print("=== Setup finished with client warnings (see above). ===")
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    input_fn: InputFn = input,
+    output_fn: OutputFn = print,
+) -> int:
     """Parse flags, run the guided setup, and return a process exit code."""
     parser = argparse.ArgumentParser(description="Cortex guided setup")
     parser.add_argument(
         "--clients",
-        default="all",
+        default=None,
         help="all, none, or a comma-separated list (default: all)",
     )
     parser.add_argument(
@@ -212,11 +273,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Python executable (default: current interpreter)",
     )
     args = parser.parse_args(argv)
-    plan = SetupPlan(
-        clients=args.clients,
-        build_index=not args.no_index,
+    reset = _confirm_reset(
+        args.reset,
         assume_yes=args.yes,
-        reset=args.reset,
+        input_fn=input_fn,
+        output_fn=output_fn,
+    )
+    if args.reset and not reset:
+        output_fn("Reset cancelled; nothing changed.")
+        return 0
+    plan = SetupPlan(
+        clients=_prompt_clients(
+            args.clients,
+            assume_yes=args.yes,
+            input_fn=input_fn,
+            output_fn=output_fn,
+        ),
+        build_index=_prompt_index(
+            args.no_index,
+            assume_yes=args.yes,
+            input_fn=input_fn,
+            output_fn=output_fn,
+        ),
+        assume_yes=args.yes,
+        reset=reset,
         python_exe=args.python,
     )
     try:

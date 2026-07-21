@@ -96,6 +96,14 @@ def test_registry_declares_paths_formats_and_entries(tmp_path: Path) -> None:
     assert registry["gemini"].entry["args"] == [str(setup_config.SERVER_PY)]
 
 
+def test_setup_prompt_catalog_covers_every_python_interactive_choice() -> None:
+    assert set(setup_config._SETUP_PROMPT_EXPLANATIONS) == set(setup_config._SetupPrompt)
+    for explanation in setup_config._SETUP_PROMPT_EXPLANATIONS.values():
+        assert explanation.option
+        assert explanation.default
+        assert explanation.consequence
+
+
 def test_build_server_entry_preserves_python_and_frozen_forms(tmp_path: Path) -> None:
     python_exe = tmp_path / "python"
     server_py = tmp_path / "server.py"
@@ -631,6 +639,75 @@ def test_init_non_interactive_without_kb_path_fails_without_prompting(
         )
 
     assert not path.exists()
+
+
+def test_knowledge_base_prompt_is_preceded_by_centralized_guidance(
+    tmp_path: Path,
+) -> None:
+    events: list[tuple[str, str]] = []
+    kb_path = tmp_path / "knowledge"
+    kb_path.mkdir()
+
+    def output(message: str) -> None:
+        events.append(("output", message))
+
+    def answer(prompt: str) -> str:
+        events.append(("prompt", prompt))
+        return str(kb_path)
+
+    assert setup_config.init_user_config(
+        path=tmp_path / "config.toml",
+        environ={"LOCALAPPDATA": str(tmp_path / "local")},
+        input_fn=answer,
+        output_fn=output,
+    )
+
+    prompt_index = next(index for index, event in enumerate(events) if event[0] == "prompt")
+    guidance = [message for _, message in events[prompt_index - 3 : prompt_index]]
+    assert guidance[0].startswith("  Option:")
+    assert guidance[1].startswith("  Default:")
+    assert guidance[2].startswith("  Consequence:")
+    assert "%LOCALAPPDATA%\\Cortex" in guidance[2]
+
+
+def test_register_client_prompt_preserves_detected_default_and_is_explained() -> None:
+    events: list[tuple[str, str]] = []
+
+    def output(message: str) -> None:
+        events.append(("output", message))
+
+    def answer(prompt: str) -> str:
+        events.append(("prompt", prompt))
+        return ""
+
+    selected = setup_config._prompt_client_selection(
+        None,
+        assume_yes=False,
+        input_fn=answer,
+        output_fn=output,
+    )
+
+    assert selected is None
+    assert [kind for kind, _ in events] == ["output", "output", "output", "prompt"]
+    assert "detected clients only" in events[1][1]
+
+
+def test_register_yes_mode_has_no_guidance_or_prompt() -> None:
+    output: list[str] = []
+
+    def forbidden(_prompt: str) -> str:
+        raise AssertionError("input must not be called in non-interactive mode")
+
+    assert (
+        setup_config._prompt_client_selection(
+            None,
+            assume_yes=True,
+            input_fn=forbidden,
+            output_fn=output.append,
+        )
+        is None
+    )
+    assert output == []
 
 
 def test_yes_flag_skips_interactive_legacy_migration(

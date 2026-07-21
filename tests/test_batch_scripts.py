@@ -80,6 +80,23 @@ def test_installer_proposes_detected_client_registration() -> None:
         in script
     )
     assert 'set "CLIENT_CHECK_ARGS=--clients none"' in script
+    explanation = "Option: add Cortex to each supported client detected on this PC."
+    assert script.index(explanation) < script.index("Register detected clients? [Y/n]")
+    assert "Default: yes. Press Enter to register every detected client." in script
+    assert "Choose no to leave all clients unchanged." in script
+
+
+def test_installer_explains_additional_batch_choices_without_changing_defaults() -> None:
+    script = INSTALL_BAT.read_text(encoding="utf-8")
+
+    assert script.index("Option: choose the folder Cortex reads") < script.index(
+        "Path to your knowledge base :"
+    )
+    assert "Default: no folder is assumed" in script
+    assert script.index("Option: delete the repository-local legacy chroma_db") < script.index(
+        "Wipe chroma_db? [y/N]"
+    )
+    assert "Default: no, which preserves the current directory." in script
 
 
 def test_release_push_error_handlers_are_batch_safe() -> None:
