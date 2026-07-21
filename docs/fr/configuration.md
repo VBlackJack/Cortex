@@ -9,7 +9,7 @@
 | Variable | Role | Defaut |
 |---|---|---|
 | `CORTEX_KB_PATH` | Surcharge optionnelle de `kb_path` | aucune |
-| `CORTEX_WRITE_LOCK_PATH` | Surcharge du chemin de verrou | a cote de l'installation |
+| `CORTEX_WRITE_LOCK_PATH` | Surcharge du chemin de verrou | `<data_home>/chroma_db.write.lock` |
 | `CORTEX_WRITE_LOCK_TIMEOUT_SECONDS` | Surcharge du timeout de verrou | `30` |
 | `CORTEX_MAX_MARKDOWN_FILE_SIZE_BYTES` | Surcharge de la limite Markdown | `1000000` |
 
@@ -106,7 +106,7 @@ EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 EMBEDDING_POOLING = "mean"
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64
-CHUNKING_CONTRACT_VERSION = "v1"
+CHUNKING_CONTRACT_VERSION = "v3"
 SEARCH_TOP_K_MIN = 1
 SEARCH_TOP_K_MAX = 10
 ```

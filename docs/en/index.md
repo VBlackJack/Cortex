@@ -14,8 +14,9 @@ the source text. Search is semantic (by meaning, not keyword), in French and in
 English, thanks to the multilingual ONNX model
 `paraphrase-multilingual-MiniLM-L12-v2`.
 
-Everything is local: the vector index (ChromaDB) lives on your machine, and no
-content from the knowledge base ever leaves it.
+The vector index (ChromaDB) and Cortex processing stay on your machine. Cortex
+does not send knowledge-base content; the MCP client may still pass requested
+chunks to its model under its own policy.
 
 ## Table of contents
 
@@ -32,8 +33,10 @@ content from the knowledge base ever leaves it.
   sections, data home, index migration.
 - [Reproducible install](reproducible-install.md): `requirements.lock`,
   `pip install --require-hashes`, regenerating the lock.
+- [Public specification](spec.md): MCP surface, index contracts, data,
+  distribution, and limits.
 - [Architecture](architecture.md): end-to-end behavior and technical choices.
-- [Security](security.md): no outbound traffic, telemetry disabled, bounded
+- [Security](security.md): local runtime, telemetry disabled, bounded
   logs, single-writer writes.
 
 ## At a glance

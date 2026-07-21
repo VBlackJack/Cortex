@@ -4,14 +4,15 @@
 
 [Back to table of contents](index.md)
 
-## No outbound data flow
+## Local runtime and bounded network access
 
 All Chroma clients are built with `Settings(anonymized_telemetry=False)`: no
-Chroma/PostHog telemetry is emitted. Indexing and search do not initiate any
-outbound network flow from Cortex. The MCP clients remain distinct products:
-depending on their policy, they may pass the tool results they requested to the
-model. Installing the dependencies and the first model download are naturally
-network operations, without transmitting the content of the knowledge base.
+Chroma/PostHog telemetry is emitted. Cortex does not send knowledge-base
+content during indexing or search. The verified Windows installer bundles the
+models and operates offline; a source installation or standalone binary may
+contact Hugging Face when a model is absent from the local cache. MCP clients
+remain distinct products: depending on their policy, they may pass requested
+tool results to the model.
 
 ## Ignored ChromaDB vulnerability (PYSEC-2026-311)
 

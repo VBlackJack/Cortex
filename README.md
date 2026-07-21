@@ -6,8 +6,9 @@ Cortex est un serveur MCP (Model Context Protocol) qui expose une recherche
 semantique sur une base de connaissance locale. Il permet a Claude, Codex et
 Gemini de retrouver le bon passage dans vos documents sans consommer inutilement
 leur fenetre de contexte. La recherche est semantique (par sens, pas par
-mot-cle), en francais comme en anglais, et tout reste local : aucun contenu de la
-base ne quitte le poste.
+mot-cle), en francais comme en anglais. Cortex traite et indexe la base en local
+sans envoyer son contenu ; le client MCP peut toutefois transmettre au modele
+les passages qu'il a demandes, selon sa propre politique.
 
 ## Installation
 
@@ -64,7 +65,9 @@ Dossier de documents (.md, .pdf)   <- vos fichiers
 ```
 
 Le modele d'embedding est le multilingue ONNX
-`paraphrase-multilingual-MiniLM-L12-v2`, telecharge au premier usage.
+`paraphrase-multilingual-MiniLM-L12-v2`. L'installeur Windows l'embarque ; une
+installation depuis les sources ou un binaire autonome le telecharge si son
+cache local est vide.
 
 ## Deux modes d'indexation
 
@@ -112,8 +115,10 @@ Le paquet installe expose une commande unique :
   sections, data home, migration.
 - [Installation reproductible](docs/fr/install-reproductible.md) :
   `requirements.lock`, `--require-hashes`, regeneration du verrou.
+- [Specification publique](docs/fr/spec.md) : surface MCP, contrats de l'index,
+  donnees, distribution et limites.
 - [Architecture](docs/fr/architecture.md) : bout en bout et choix techniques.
-- [Securite](docs/fr/security.md) : zero flux sortant, telemetrie off,
+- [Securite](docs/fr/security.md) : runtime local, telemetrie off,
   single-writer.
 
 ## Prerequis

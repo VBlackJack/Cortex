@@ -5,8 +5,9 @@
 Cortex is an MCP (Model Context Protocol) server that exposes semantic search
 over a local knowledge base. It lets Claude, Codex and Gemini find the right
 passage in your documents without wasting their context window. Search is
-semantic (by meaning, not keyword), in French and in English, and everything
-stays local: no content from the knowledge base ever leaves the machine.
+semantic (by meaning, not keyword), in French and in English. Cortex processes
+and indexes the knowledge base locally without sending its content; the MCP
+client may still pass requested chunks to its model under its own policy.
 
 ## Installation
 
@@ -62,7 +63,9 @@ Documents folder (.md, .pdf)       <- your files
 ```
 
 The embedding model is the multilingual ONNX
-`paraphrase-multilingual-MiniLM-L12-v2`, downloaded on first use.
+`paraphrase-multilingual-MiniLM-L12-v2`. The Windows installer bundles it; a
+source installation or standalone binary downloads it when the local cache is
+empty.
 
 ## Two indexing modes
 
@@ -108,8 +111,10 @@ The installed package exposes a single command:
   sections, data home, migration.
 - [Reproducible install](docs/en/reproducible-install.md): `requirements.lock`,
   `--require-hashes`, regenerating the lock.
+- [Public specification](docs/en/spec.md): MCP surface, index contracts, data,
+  distribution, and limits.
 - [Architecture](docs/en/architecture.md): end-to-end and technical choices.
-- [Security](docs/en/security.md): no outbound traffic, telemetry off,
+- [Security](docs/en/security.md): local runtime, telemetry off,
   single-writer.
 
 ## Prerequisites

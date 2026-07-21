@@ -4,15 +4,16 @@
 
 [Retour au sommaire](index.md)
 
-## Aucun flux sortant de donnees
+## Runtime local et acces reseau bornes
 
 Tous les clients Chroma sont construits avec
 `Settings(anonymized_telemetry=False)` : aucune telemetrie Chroma/PostHog n'est
-emise. L'indexation et la recherche n'initient aucun flux reseau sortant depuis
-Cortex. Les clients MCP restent des produits distincts : selon leur politique,
-ils peuvent transmettre au modele les resultats d'outils qu'ils ont demandes.
-L'installation des dependances et le premier telechargement du modele restent
-naturellement des operations reseau, sans transmission du contenu de la base.
+emise. Cortex n'envoie pas le contenu de la base pendant l'indexation ou la
+recherche. L'installeur Windows verifie embarque les modeles et fonctionne hors
+ligne ; une installation depuis les sources ou un binaire autonome peut joindre
+Hugging Face si un modele manque dans le cache local. Les clients MCP restent
+des produits distincts : selon leur politique, ils peuvent transmettre au
+modele les resultats d'outils qu'ils ont demandes.
 
 ## Vulnerabilite ChromaDB ignoree (PYSEC-2026-311)
 

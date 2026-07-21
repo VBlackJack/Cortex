@@ -29,9 +29,9 @@ Installation does not require administrator privileges. Cortex is installed
 under `%LOCALAPPDATA%\Programs\Cortex`. New terminals opened after installation
 can resolve the `cortex` command through PATH.
 
-The first synchronization containing documents may download the FastEmbed/ONNX
-models. Network access is required once when their cache is empty. The corpus
-and generated index remain local.
+The installer bundles FastEmbed/ONNX models verified against its manifest. The
+first synchronization therefore works offline and downloads no model. The
+corpus and generated index remain local.
 
 ## Terminal-free use
 

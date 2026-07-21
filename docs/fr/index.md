@@ -15,8 +15,9 @@ dans le texte d'origine. La recherche est semantique (par sens, pas par
 mot-cle), en francais comme en anglais, grace au modele ONNX multilingue
 `paraphrase-multilingual-MiniLM-L12-v2`.
 
-Tout est local : l'index vectoriel (ChromaDB) vit sur ton poste, aucun contenu
-de la base ne quitte la machine.
+L'index vectoriel (ChromaDB) et le traitement Cortex restent sur ton poste.
+Cortex n'envoie pas le contenu de la base ; le client MCP peut toutefois
+transmettre au modele les passages qu'il a demandes, selon sa propre politique.
 
 ## Sommaire
 
@@ -33,9 +34,11 @@ de la base ne quitte la machine.
   d'environnement, sections, data home, migration de l'index.
 - [Installation reproductible](install-reproductible.md) : `requirements.lock`,
   `pip install --require-hashes`, regeneration du verrou.
+- [Specification publique](spec.md) : surface MCP, contrats de l'index,
+  donnees, distribution et limites.
 - [Architecture](architecture.md) : fonctionnement de bout en bout et choix
   techniques.
-- [Securite](security.md) : absence de flux sortant, telemetrie desactivee,
+- [Securite](security.md) : runtime local, telemetrie desactivee,
   logs bornes, ecriture single-writer.
 
 ## En un coup d'oeil
