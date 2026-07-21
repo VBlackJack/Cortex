@@ -64,6 +64,8 @@ CLIENT_NAMES = (
     "claude-code",
     "codex",
     "gemini",
+    "antigravity",
+    "lmstudio",
     "cursor",
     "windsurf",
     "vscode",
@@ -86,13 +88,21 @@ class ResetResult:
 
 @dataclass(frozen=True)
 class ClientTarget:
-    """Declarative registration contract for one supported MCP client."""
+    """Declarative registration contract for one supported MCP client.
+
+    When ``detect_path`` is set, detection requires that directory (the
+    client's live profile) or an existing config file, instead of the
+    default config-parent heuristic. This keeps clients that share a
+    parent directory with another client (Antigravity under ``.gemini``)
+    from being falsely detected.
+    """
 
     name: str
     config_path: Path | None
     config_format: str
     entry: Mapping[str, Any]
     executable: str | None = None
+    detect_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -195,6 +205,19 @@ def client_registry(
             entry=entry,
             executable=which("gemini"),
         ),
+        "antigravity": ClientTarget(
+            name="antigravity",
+            config_path=user_home / ".gemini" / "config" / "mcp_config.json",
+            config_format="json",
+            entry=entry,
+            detect_path=user_home / ".gemini" / "antigravity",
+        ),
+        "lmstudio": ClientTarget(
+            name="lmstudio",
+            config_path=user_home / ".lmstudio" / "mcp.json",
+            config_format="json",
+            entry=entry,
+        ),
         "cursor": ClientTarget(
             name="cursor",
             config_path=user_home / ".cursor" / "mcp.json",
@@ -223,6 +246,8 @@ def _client_is_detected(target: ClientTarget) -> bool:
     if target.name == "claude-code":
         return target.executable is not None
     assert target.config_path is not None
+    if target.detect_path is not None:
+        return target.detect_path.is_dir() or target.config_path.exists()
     return (
         target.config_path.exists()
         or target.config_path.parent.exists()
@@ -243,8 +268,19 @@ def _read_json_config(path: Path, key: str = "mcpServers") -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        data = json.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        text = path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ClientConfigError(
+            f"Invalid or unreadable JSON at '{path}': {exc}. Fix or restore the "
+            "client configuration, then retry; Cortex did not write anything."
+        ) from exc
+    if not text.strip():
+        # An existing but empty client file (for example Antigravity's global
+        # mcp_config.json before any server is added) is a valid empty config.
+        return {}
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
         raise ClientConfigError(
             f"Invalid or unreadable JSON at '{path}': {exc}. Fix or restore the "
             "client configuration, then retry; Cortex did not write anything."

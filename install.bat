@@ -125,7 +125,7 @@ if not exist "!CORTEX_CONFIG_FILE!" (
     )
 )
 
-echo        Supported clients: Claude Desktop, Claude Code, Codex, Gemini, Cursor, Windsurf and VS Code.
+echo        Supported clients: Claude Desktop, Claude Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf and VS Code.
 echo        Existing client settings are backed up and preserved.
 set "CLIENT_CHECK_ARGS="
 set /p REGISTER_CLIENTS="        Register detected clients? [Y/n] : "

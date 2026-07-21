@@ -494,6 +494,70 @@ def test_registry_declares_extra_user_scope_clients(tmp_path: Path) -> None:
     assert registry["vscode"].entry["type"] == "stdio"
 
 
+def test_antigravity_and_lmstudio_registry_paths(tmp_path: Path) -> None:
+    registry = setup_config.client_registry(
+        sys.executable,
+        environ={"APPDATA": str(tmp_path / "appdata")},
+        home=tmp_path / "home",
+        which=_which({}),
+    )
+
+    antigravity = registry["antigravity"]
+    assert antigravity.config_path == (
+        tmp_path / "home" / ".gemini" / "config" / "mcp_config.json"
+    )
+    assert antigravity.config_format == "json"
+    assert antigravity.detect_path == tmp_path / "home" / ".gemini" / "antigravity"
+    lmstudio = registry["lmstudio"]
+    assert lmstudio.config_path == tmp_path / "home" / ".lmstudio" / "mcp.json"
+    assert lmstudio.config_format == "json"
+    assert lmstudio.detect_path is None
+
+
+def test_antigravity_is_not_detected_from_gemini_footprint_alone(tmp_path: Path) -> None:
+    (tmp_path / "home" / ".gemini").mkdir(parents=True)
+    registry = setup_config.client_registry(
+        sys.executable,
+        environ={"APPDATA": str(tmp_path / "appdata")},
+        home=tmp_path / "home",
+        which=_which({}),
+    )
+    target = registry["antigravity"]
+
+    assert not setup_config._client_is_detected(target)
+
+    (tmp_path / "home" / ".gemini" / "antigravity").mkdir()
+    assert setup_config._client_is_detected(target)
+
+
+def test_antigravity_and_lmstudio_write_mcpservers_entry(tmp_path: Path) -> None:
+    (tmp_path / "home" / ".gemini" / "antigravity").mkdir(parents=True)
+    (tmp_path / "home" / ".lmstudio").mkdir(parents=True)
+    _register(tmp_path, "antigravity")
+    _register(tmp_path, "lmstudio")
+
+    antigravity = tmp_path / "home" / ".gemini" / "config" / "mcp_config.json"
+    lmstudio = tmp_path / "home" / ".lmstudio" / "mcp.json"
+    for path in (antigravity, lmstudio):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        entry = data["mcpServers"]["cortex"]
+        assert entry["command"] == str(Path(sys.executable).resolve())
+        assert entry["args"] == [str(setup_config.SERVER_PY)]
+        assert "type" not in entry
+
+
+def test_registration_into_existing_empty_json_file_succeeds(tmp_path: Path) -> None:
+    config = tmp_path / "home" / ".gemini" / "config" / "mcp_config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text("", encoding="utf-8")
+
+    results = _register(tmp_path, "antigravity")
+
+    assert [result.status for result in results] == ["OK"]
+    data = json.loads(config.read_text(encoding="utf-8"))
+    assert data["mcpServers"]["cortex"]["command"] == str(Path(sys.executable).resolve())
+
+
 def test_all_selection_includes_every_known_client(tmp_path: Path) -> None:
     registry = setup_config.client_registry(
         sys.executable,
@@ -505,7 +569,7 @@ def test_all_selection_includes_every_known_client(tmp_path: Path) -> None:
     selected = setup_config.parse_client_selection("all", registry)
 
     assert selected == list(setup_config.CLIENT_NAMES)
-    assert len(selected) == 7
+    assert len(selected) == 9
 
 
 def test_cursor_and_windsurf_write_mcpservers_entry(tmp_path: Path) -> None:

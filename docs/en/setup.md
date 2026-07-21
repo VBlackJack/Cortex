@@ -101,13 +101,18 @@ atomically; other settings and MCP servers are preserved.
 | Claude Code | Managed by `claude mcp add --scope user` | never written directly by Cortex |
 | Codex CLI and IDE extension | `~/.codex/config.toml` | `[mcp_servers.cortex]` |
 | Gemini CLI and Gemini Code Assist (VS Code agent mode) | `~/.gemini/settings.json` | `mcpServers.cortex` |
+| Antigravity | `~/.gemini/config/mcp_config.json` | `mcpServers.cortex` |
+| LM Studio | `~/.lmstudio/mcp.json` | `mcpServers.cortex` |
 | Cursor | `%USERPROFILE%\.cursor\mcp.json` | `mcpServers.cortex` |
 | Windsurf | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` | `mcpServers.cortex` |
 | VS Code | `%APPDATA%\Code\User\mcp.json` | `servers.cortex` (with `type: stdio`) |
 
-Registration is done at user scope for all seven clients. Cursor and Windsurf
-use the same `mcpServers` key as Claude; VS Code uses the `servers` key with a
-`type: stdio` field (VS Code's native MCP format).
+Registration is done at user scope for all nine clients. Antigravity, LM Studio,
+Cursor and Windsurf use the same `mcpServers` key as Claude; VS Code uses the
+`servers` key with a `type: stdio` field (VS Code's native MCP format).
+Antigravity is detected through its live profile directory
+(`~/.gemini/antigravity`), so a Gemini CLI installation alone is never
+registered as Antigravity.
 
 These locations and formats follow the official documentation for
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/mcp),

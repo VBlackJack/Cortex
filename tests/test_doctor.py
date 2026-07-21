@@ -493,11 +493,13 @@ def test_extra_clients_report_auth_hints_without_keyerror(tmp_path: Path) -> Non
         tmp_path,
         which_map={"cursor": "cursor", "windsurf": "windsurf", "code": "code"},
     )
+    (context.home / ".gemini" / "antigravity").mkdir(parents=True)
+    (context.home / ".lmstudio").mkdir(parents=True)
 
     report = run_doctor(context)
 
     checks = _checks(report)
-    for name in ("cursor", "windsurf", "vscode"):
+    for name in ("cursor", "windsurf", "vscode", "antigravity", "lmstudio"):
         assert checks[f"client.{name}.auth"]["status"] == "UNKNOWN"
 
 

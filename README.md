@@ -60,7 +60,7 @@ Dossier de documents (.md, .pdf)   <- vos fichiers
   cortex serve          <- Serveur MCP (FastMCP)
       |
       v
-  Clients MCP           <- Claude / Codex / Gemini / Cursor / Windsurf / VS Code
+  Clients MCP           <- Claude / Codex / Gemini / Antigravity / LM Studio / Cursor / Windsurf / VS Code
 ```
 
 Le modele d'embedding est le multilingue ONNX
@@ -121,7 +121,7 @@ Le paquet installe expose une commande unique :
 |---|---|
 | Installeur Windows / binaire autonome | Aucun Python. ~500 Mo d'espace (modele + index). |
 | Depuis les sources | Python 3.10+. ~500 Mo d'espace. |
-| Client | Claude Desktop/Code, Codex, Gemini, Cursor, Windsurf ou VS Code (support MCP). |
+| Client | Claude Desktop/Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf ou VS Code (support MCP). |
 
 ## Licence
 

@@ -43,5 +43,5 @@ content from the knowledge base ever leaves it.
 | Search | Semantic, FR and EN |
 | Index | ChromaDB in `%LOCALAPPDATA%\Cortex\chroma_db` |
 | Runtime | Standalone binary, or Python 3.10+ |
-| Clients | Claude Desktop/Code, Codex, Gemini, Cursor, Windsurf, VS Code |
+| Clients | Claude Desktop/Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf, VS Code |
 | License | Apache 2.0 |

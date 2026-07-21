@@ -75,7 +75,8 @@ def test_installer_proposes_detected_client_registration() -> None:
     assert "Register Cortex with detected AI clients?" in script
     assert "Register detected clients? [Y/n]" in script
     assert (
-        "Claude Desktop, Claude Code, Codex, Gemini, Cursor, Windsurf and VS Code"
+        "Claude Desktop, Claude Code, Codex, Gemini, Antigravity, LM Studio, Cursor, "
+        "Windsurf and VS Code"
         in script
     )
     assert 'set "CLIENT_CHECK_ARGS=--clients none"' in script
