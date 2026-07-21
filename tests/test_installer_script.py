@@ -90,9 +90,11 @@ def test_release_builds_and_attaches_windows_installer() -> None:
     workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
     assert "choco install innosetup --no-progress -y" in workflow
-    assert '"/DAppVersion=$version"' in workflow
-    assert '"/DModelPayloadDir=$env:CORTEX_MODEL_PAYLOAD_DIR"' in workflow
-    assert "packaging\\windows\\cortex-installer.iss" in workflow
+    assert "packaging\\windows\\build_installer.py" in workflow
+    assert "--app-version $version" in workflow
+    assert "--model-payload-dir $env:CORTEX_MODEL_PAYLOAD_DIR" in workflow
+    assert "--iscc $iscc" in workflow
+    assert "& $iscc" not in workflow
     assert "dist-installer\\Cortex-Setup.exe" in workflow
     assert "out/Cortex-Setup.exe" in workflow
     assert "WINDOWS_CERT_PFX_BASE64" in workflow

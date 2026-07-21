@@ -70,7 +70,7 @@ select = ["E", "F", "I", "UP", "BLE001", "S110"]
 python_version = "3.10"
 strict = true
 no_site_packages = true
-files = ["*.py", "scripts", "eval"]
+files = ["*.py", "scripts", "eval", "packaging/windows/build_installer.py"]
 exclude = ["^tests/", "^local/"]
 
 [[tool.mypy.overrides]]

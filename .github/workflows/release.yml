@@ -207,11 +207,12 @@ jobs:
           if (-not (Test-Path -LiteralPath $iscc)) {
             throw "ISCC.exe was not installed at the expected path."
           }
-          & $iscc "/DAppVersion=$version" `
-            "/DModelPayloadDir=$env:CORTEX_MODEL_PAYLOAD_DIR" `
-            packaging\windows\cortex-installer.iss
+          & python packaging\windows\build_installer.py `
+            --app-version $version `
+            --model-payload-dir $env:CORTEX_MODEL_PAYLOAD_DIR `
+            --iscc $iscc
           if ($LASTEXITCODE -ne 0) {
-            throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
+            throw "Windows installer build failed with exit code $LASTEXITCODE."
           }
           if (-not (Test-Path -LiteralPath dist-installer\Cortex-Setup.exe)) {
             throw "Inno Setup reported success but Cortex-Setup.exe is missing."

@@ -20,10 +20,10 @@ On Windows, after building `dist/cortex.exe`, the local fallback is:
 $env:CORTEX_MODEL_SNAPSHOT_DIR = "D:\cortex-model-snapshot"
 python scripts/model_payload.py prepare --output build/model-payload
 $version = (python -c "from _version import __version__; print(__version__)").Trim()
-& "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" `
-  "/DAppVersion=$version" `
-  "/DModelPayloadDir=$((Resolve-Path build/model-payload).Path)" `
-  packaging\windows\cortex-installer.iss
+python packaging\windows\build_installer.py `
+  --app-version $version `
+  --model-payload-dir $((Resolve-Path build/model-payload).Path) `
+  --iscc "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe"
 ```
 
 The fallback does not generate or modify the committed manifest and never needs network

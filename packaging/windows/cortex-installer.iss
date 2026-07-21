@@ -15,6 +15,15 @@
 #ifndef AppVersion
   #error AppVersion must be provided with ISCC /DAppVersion=<version>
 #endif
+#ifndef PayloadVersionVerified
+  #error Compile through build_installer.py to validate dist/cortex.exe first
+#endif
+#if !SameStr(AppVersion, PayloadVersionVerified)
+  #error AppVersion does not match the validated dist/cortex.exe version
+#endif
+
+; Direct ISCC compilation is intentionally blocked above. The shared local and
+; CI wrapper validates dist/cortex.exe --version before supplying the proof.
 
 #ifndef ModelPayloadDir
   #error ModelPayloadDir must be provided with ISCC /DModelPayloadDir=<path>
@@ -41,6 +50,8 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 SetupLogging=yes
+CloseApplications=force
+CloseApplicationsFilter=cortex.exe
 #ifdef InstallerSignTool
 SignTool={#InstallerSignTool}
 SignedUninstaller=yes
