@@ -138,7 +138,26 @@ def test_release_verifies_a_fresh_fetch_without_generating_its_manifest() -> Non
     assert "CORTEX_MODEL_PAYLOAD_DIR" in workflow
     assert "Compressed Cortex-Setup.exe" in workflow
     assert "model_payload.py generate" not in workflow
-    assert "upload-artifact" not in workflow
+    assert "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f" in workflow
+
+
+def test_release_publishes_checksums_and_attested_artifacts_once() -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    for pinned_action in (
+        "actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd",
+        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+        "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f",
+        "actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131",
+        "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a",
+        "softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228",
+    ):
+        assert pinned_action in workflow
+    assert "merge-multiple: true" in workflow
+    assert "find . -type f -print0 | sort -z | xargs -0 -r sha256sum" in workflow
+    assert "test -s SHA256SUMS" in workflow
+    assert "subject-path: 'dist-artifacts/**/*'" in workflow
+    assert workflow.count("softprops/action-gh-release@") == 1
 
 
 def test_release_smokes_installed_embedding_and_reranker_offline() -> None:

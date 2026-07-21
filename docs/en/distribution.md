@@ -87,6 +87,8 @@ artifacts without publishing a release.
 The Windows leg also compiles `Cortex-Setup.exe` with Inno Setup and attaches it
 to the release. When the Windows signing secrets are configured, the workflow
 signs the Windows binary before packaging and then signs the resulting installer.
+The publish job generates `SHA256SUMS` for every artifact and creates a GitHub
+build provenance attestation before publishing the release once.
 
 The release job must never publish a binary from a failed platform build or a
 failed smoke-test.

@@ -27,7 +27,7 @@ jobs:
     name: Build executable (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -43,10 +43,10 @@ jobs:
             binary: dist/cortex
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.12"
           cache: pip
@@ -341,16 +341,48 @@ jobs:
             cp "dist-installer/Cortex-Setup.exe" "out/Cortex-Setup.exe"
           fi
 
-      - name: Attach binary to the GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+      - name: Upload build artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6
         with:
-          files: out/${{ matrix.artifact }}
-          generate_release_notes: true
+          name: ${{ matrix.artifact }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
 
-      - name: Attach Windows installer to the GitHub Release
-        if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+  release:
+    name: Attach binaries to the GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
         with:
-          files: out/Cortex-Setup.exe
+          path: dist-artifacts
+          merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        shell: bash
+        run: |
+          (
+            cd dist-artifacts
+            find . -type f -print0 | sort -z | xargs -0 -r sha256sum
+          ) | sed 's#  \./#  #' > SHA256SUMS
+          test -s SHA256SUMS
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3
+        with:
+          subject-path: 'dist-artifacts/**/*'
+
+      - name: Publish release with binaries
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228  # v3
+        with:
+          files: |
+            dist-artifacts/**/*
+            SHA256SUMS
           generate_release_notes: true

@@ -87,6 +87,8 @@ serveur, puis attache les trois binaires a la GitHub Release.
 Le leg Windows compile aussi `Cortex-Setup.exe` avec Inno Setup et l'attache a
 la release. Si les secrets de signature Windows sont configures, le workflow
 signe le binaire Windows avant son emballage, puis signe l'installeur produit.
+Le job de publication genere `SHA256SUMS` pour tous les artefacts et produit
+une attestation de provenance GitHub avant de publier la release en une fois.
 `workflow_dispatch` peut construire les memes artefacts sans publier de release.
 
 Le job de release ne doit jamais publier le binaire d'une plateforme dont le
