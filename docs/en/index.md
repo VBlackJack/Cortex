@@ -27,6 +27,7 @@ content from the knowledge base ever leaves it.
   PyInstaller builds and release artifacts.
 - [User guide](user-guide.md): indexing and sync, search, the four MCP tools,
   the doctor, logs.
+- [FAQ](faq.md): installation, local data, sync, diagnostics, and security.
 - [Configuration](configuration.md): `config.toml`, environment variables,
   sections, data home, index migration.
 - [Reproducible install](reproducible-install.md): `requirements.lock`,

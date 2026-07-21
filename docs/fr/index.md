@@ -28,6 +28,7 @@ de la base ne quitte la machine.
   PyInstaller locaux et artefacts de release.
 - [Guide d'utilisation](user-guide.md) : indexation et sync, recherche, les
   quatre outils MCP, le doctor, les logs.
+- [FAQ](faq.md) : installation, donnees locales, sync, diagnostic et securite.
 - [Configuration](configuration.md) : `config.toml`, variables
   d'environnement, sections, data home, migration de l'index.
 - [Installation reproductible](install-reproductible.md) : `requirements.lock`,

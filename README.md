@@ -107,6 +107,7 @@ Le paquet installe expose une commande unique :
 - [Installation depuis les sources](docs/fr/setup.md) : prerequis, clients MCP.
 - [Guide d'utilisation](docs/fr/user-guide.md) : sync, recherche, outils,
   doctor, logs.
+- [FAQ](docs/fr/faq.md) : installation, donnees locales, sync et diagnostic.
 - [Configuration](docs/fr/configuration.md) : `config.toml`, modes d'indexation,
   sections, data home, migration.
 - [Installation reproductible](docs/fr/install-reproductible.md) :

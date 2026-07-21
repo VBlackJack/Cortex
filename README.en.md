@@ -103,6 +103,7 @@ The installed package exposes a single command:
 - [Standalone distribution](docs/en/distribution.md): one-file binaries and builds.
 - [Install from source](docs/en/setup.md): prerequisites, MCP clients.
 - [User guide](docs/en/user-guide.md): sync, search, tools, doctor, logs.
+- [FAQ](docs/en/faq.md): installation, local data, sync, and diagnostics.
 - [Configuration](docs/en/configuration.md): `config.toml`, indexing modes,
   sections, data home, migration.
 - [Reproducible install](docs/en/reproducible-install.md): `requirements.lock`,
