@@ -15,6 +15,7 @@
 
 from ingestion.engine import GenerationEngine
 from ingestion.models import (
+    CollectedArtifact,
     CollectedDocument,
     DocumentFailure,
     GenerationAttempt,
@@ -23,6 +24,7 @@ from ingestion.models import (
 )
 
 __all__ = [
+    "CollectedArtifact",
     "CollectedDocument",
     "DocumentFailure",
     "GenerationAttempt",

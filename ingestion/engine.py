@@ -34,6 +34,7 @@ from ingestion.constants import (
     SCHEMA_VERSION,
 )
 from ingestion.models import (
+    ArtifactRecord,
     AttemptResult,
     CollectedDocument,
     DocumentRecord,
@@ -213,6 +214,7 @@ class GenerationEngine:
             for item in (() if current_manifest is None else current_manifest.tombstones)
         }
         successful = self._unique_documents(attempt.documents)
+        self._validate_output_paths(successful)
         failed_ids = self._unique_failures(attempt)
         if set(successful) & failed_ids:
             raise GenerationContractError(
@@ -248,6 +250,16 @@ class GenerationEngine:
             for source_uid, collected in sorted(successful.items()):
                 content_hash = hashlib.sha256(collected.content).hexdigest()
                 _write_document(destination_root / collected.path, collected.content)
+                artifacts: list[ArtifactRecord] = []
+                for artifact in collected.artifacts:
+                    artifact_hash = hashlib.sha256(artifact.content).hexdigest()
+                    _write_document(destination_root / artifact.path, artifact.content)
+                    artifacts.append(
+                        ArtifactRecord(
+                            path=artifact.path,
+                            content_hash=artifact_hash,
+                        )
+                    )
                 documents.append(
                     DocumentRecord(
                         source_uid=source_uid,
@@ -255,6 +267,7 @@ class GenerationEngine:
                         content_hash=content_hash,
                         status=DocumentStatus.FRESH,
                         last_success_at=published_at,
+                        artifacts=tuple(artifacts),
                     )
                 )
 
@@ -286,6 +299,11 @@ class GenerationEngine:
                     self.storage.document_path(current_id, previous.path),
                     destination_root / previous.path,
                 )
+                for artifact in previous.artifacts:
+                    _copy_document(
+                        self.storage.document_path(current_id, artifact.path),
+                        destination_root / artifact.path,
+                    )
                 documents.append(previous.model_copy(update={"status": next_status}))
 
             for key, previous in sorted(
@@ -330,6 +348,20 @@ class GenerationEngine:
             ),
             counts,
         )
+
+    @staticmethod
+    def _validate_output_paths(documents: dict[str, CollectedDocument]) -> None:
+        """Reject collisions before any generation file is written."""
+        owners: dict[str, str] = {}
+        for source_uid, document in documents.items():
+            paths = (document.path, *(artifact.path for artifact in document.artifacts))
+            for path in paths:
+                previous_owner = owners.get(path)
+                if previous_owner is not None:
+                    raise GenerationContractError(
+                        f"output path '{path}' is shared by {previous_owner} and {source_uid}"
+                    )
+                owners[path] = source_uid
 
     @staticmethod
     def _unique_documents(
