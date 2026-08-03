@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -23,11 +24,14 @@ import pdfplumber
 
 from chunker_utils import (
     ChunkResult,
+    build_contract_metadata,
     compute_hash,
     get_relative_path,
     get_section,
+    normalize_rfc3339,
     sha256_bytes,
     split_fixed_size,
+    storage_metadata,
 )
 from config import (
     CHUNK_MIN_CHARS,
@@ -46,7 +50,8 @@ def chunk_pdf_file(file_path: Path) -> ChunkResult:
     """Extract and chunk a PDF while hashing the exact bytes being parsed."""
     file_path = Path(file_path)
     try:
-        if file_path.stat().st_size > MAX_PDF_SIZE_BYTES:
+        source_stat = file_path.stat()
+        if source_stat.st_size > MAX_PDF_SIZE_BYTES:
             return ChunkResult(status="too_large")
         raw_bytes = file_path.read_bytes()
     except OSError as exc:
@@ -74,6 +79,18 @@ def chunk_pdf_file(file_path: Path) -> ChunkResult:
     section = get_section(file_path, kb_path)
     rel_path = get_relative_path(file_path, kb_path)
     title = file_path.stem.replace("-", " ").replace("_", " ").title()
+    contract = build_contract_metadata(
+        {},
+        default_source_kind="doc",
+        rel_path=rel_path,
+        section=section,
+        fallback_title=title,
+        content_hash=content_hash,
+        captured_at=datetime.now(timezone.utc),
+    )
+    file_modified_at = normalize_rfc3339(
+        datetime.fromtimestamp(source_stat.st_mtime, timezone.utc)
+    )
     chunks: list[dict[str, Any]] = []
 
     for page_num, page_text in pages_text:
@@ -93,20 +110,21 @@ def chunk_pdf_file(file_path: Path) -> ChunkResult:
                         f"{CHUNKING_CONTRACT_VERSION}::{chunk_index}"
                     ),
                     "text": segment,
-                    "metadata": {
-                        "path": rel_path,
-                        "section": section,
-                        "title": title,
-                        "header": f"Page {page_num}",
-                        "chunk_index": chunk_index,
-                        "file_hash": file_hash,
-                        "content_hash": content_hash,
-                        "contract_id": FRESHNESS_CONTRACT_ID,
-                        "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
-                        "chunking_contract_version": CHUNKING_CONTRACT_VERSION,
-                        "format": "pdf",
-                        "page": page_num,
-                    },
+                    "metadata": storage_metadata(
+                        contract,
+                        chunk_index=chunk_index,
+                        extras={
+                            "header": f"Page {page_num}",
+                            "file_hash": file_hash,
+                            "file_content_hash": content_hash,
+                            "file_modified_at": file_modified_at,
+                            "contract_id": FRESHNESS_CONTRACT_ID,
+                            "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+                            "chunking_contract_version": CHUNKING_CONTRACT_VERSION,
+                            "format": "pdf",
+                            "page": page_num,
+                        },
+                    ),
                 }
             )
 

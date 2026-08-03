@@ -20,10 +20,30 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-from config import EXCLUDE_FILES, EXCLUDED_DIRS, INCLUDED_SECTIONS
+from config import EXCLUDE_FILES, EXCLUDED_DIRS, INCLUDED_SECTIONS, METADATA_SCHEMA_VERSION
+
+METADATA_CONTRACT_FIELDS = (
+    "schema_version",
+    "source_kind",
+    "source_system",
+    "source_uid",
+    "container_uid",
+    "title",
+    "author",
+    "occurred_at",
+    "updated_at",
+    "canonical_uri",
+    "path",
+    "section",
+    "captured_at",
+    "content_hash",
+    "chunk_index",
+)
+SOURCE_KINDS = frozenset({"note", "doc", "message"})
 
 ChunkStatus = Literal[
     "ok",
@@ -101,6 +121,123 @@ def compute_hash(content: str) -> str:
 def sha256_bytes(data: bytes) -> str:
     """Return the lowercase SHA-256 digest of exact input bytes."""
     return hashlib.sha256(data).hexdigest()
+
+
+def normalize_rfc3339(value: Any) -> str | None:
+    """Normalize an offset timestamp or ISO date to RFC 3339 UTC."""
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, date):
+        parsed = datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+    elif isinstance(value, str):
+        candidate = value.strip()
+        if not candidate:
+            return None
+        try:
+            if len(candidate) == 10:
+                parsed_date = date.fromisoformat(candidate)
+                parsed = datetime(
+                    parsed_date.year,
+                    parsed_date.month,
+                    parsed_date.day,
+                    tzinfo=timezone.utc,
+                )
+            else:
+                parsed = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def timestamp_epoch_ms(value: str | None) -> int | None:
+    """Convert one normalized RFC 3339 timestamp to Unix epoch milliseconds."""
+    if value is None:
+        return None
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return int(parsed.timestamp() * 1_000)
+
+
+def _string_value(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
+def _first_timestamp(frontmatter: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        normalized = normalize_rfc3339(frontmatter.get(key))
+        if normalized is not None:
+            return normalized
+    return None
+
+
+def build_contract_metadata(
+    frontmatter: dict[str, Any],
+    *,
+    default_source_kind: str,
+    rel_path: str,
+    section: str,
+    fallback_title: str,
+    content_hash: str,
+    captured_at: datetime,
+) -> dict[str, Any]:
+    """Build the complete metadata v2 contract before storage normalization."""
+    explicit_kind = _string_value(frontmatter.get("source_kind"))
+    source_kind = explicit_kind if explicit_kind in SOURCE_KINDS else default_source_kind
+    return {
+        "schema_version": METADATA_SCHEMA_VERSION,
+        "source_kind": source_kind,
+        "source_system": _string_value(frontmatter.get("source_system")) or "vault",
+        "source_uid": _string_value(frontmatter.get("source_uid")) or rel_path,
+        "container_uid": _string_value(frontmatter.get("container_uid")) or section,
+        "title": _string_value(frontmatter.get("title")) or fallback_title,
+        "author": _string_value(frontmatter.get("author")),
+        "occurred_at": _first_timestamp(frontmatter, "occurred_at", "date", "created"),
+        "updated_at": _first_timestamp(frontmatter, "updated_at", "updated"),
+        "canonical_uri": (
+            _string_value(frontmatter.get("canonical_uri"))
+            or _string_value(frontmatter.get("url"))
+        ),
+        "path": rel_path,
+        "section": section,
+        "captured_at": (
+            normalize_rfc3339(frontmatter.get("captured_at"))
+            or normalize_rfc3339(captured_at)
+        ),
+        "content_hash": content_hash,
+        "chunk_index": None,
+    }
+
+
+def storage_metadata(
+    contract: dict[str, Any],
+    *,
+    chunk_index: int,
+    extras: dict[str, Any],
+) -> dict[str, Any]:
+    """Omit contract nulls for Chroma and add numeric filter projections."""
+    metadata = {
+        key: value
+        for key, value in contract.items()
+        if key in METADATA_CONTRACT_FIELDS and value is not None
+    }
+    metadata["chunk_index"] = chunk_index
+    for timestamp_field in ("occurred_at", "updated_at"):
+        epoch_ms = timestamp_epoch_ms(metadata.get(timestamp_field))
+        if epoch_ms is not None:
+            metadata[f"{timestamp_field}_epoch_ms"] = epoch_ms
+    metadata.update({key: value for key, value in extras.items() if value is not None})
+    return metadata
+
+
+def reconstruct_contract_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Reconstruct all public v2 keys from null-omitting storage metadata."""
+    return {field: metadata.get(field) for field in METADATA_CONTRACT_FIELDS}
 
 
 def get_section(file_path: Path, kb_path: str) -> str:
