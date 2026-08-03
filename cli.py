@@ -26,6 +26,7 @@ activate_if_embedded()
 _COMMANDS = (
     "serve",
     "sync",
+    "ingestion",
     "doctor",
     "setup",
     "init",
@@ -63,6 +64,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from indexer import main as sync_main
 
         return sync_main(arguments)
+    if namespace.command == "ingestion":
+        from ingestion.cli import main as ingestion_main
+
+        return ingestion_main(arguments)
     if namespace.command == "doctor":
         from doctor import main as doctor_main
 

@@ -27,6 +27,7 @@ build = [
 cortex = "cli:main"
 
 [tool.setuptools]
+packages = ["ingestion"]
 py-modules = [
   "_version",
   "chroma_client",
@@ -70,7 +71,7 @@ select = ["E", "F", "I", "UP", "BLE001", "S110"]
 python_version = "3.10"
 strict = true
 no_site_packages = true
-files = ["*.py", "scripts", "eval", "packaging/windows/build_installer.py"]
+files = ["*.py", "ingestion", "scripts", "eval", "packaging/windows/build_installer.py"]
 exclude = ["^tests/", "^local/"]
 
 [[tool.mypy.overrides]]
@@ -81,6 +82,7 @@ module = [
   "huggingface_hub.*",
   "mcp.*",
   "pdfplumber.*",
+  "pydantic.*",
   "tomli",
 ]
 ignore_missing_imports = true
