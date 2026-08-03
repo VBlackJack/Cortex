@@ -47,7 +47,10 @@ from fastembed import TextEmbedding  # noqa: E402
 
 from chroma_client import create_persistent_client  # noqa: E402
 from chunker_utils import (  # noqa: E402
+    SOURCE_KINDS,
     discover_out_of_policy_dirs,
+    normalize_rfc3339,
+    timestamp_epoch_ms,
 )
 from config import (  # noqa: E402
     CHROMA_PATH,
@@ -269,6 +272,81 @@ class SearchResults(list[dict[str, Any]]):
         self.fallback_reason = fallback_reason
 
 
+def _filter_values(values: Sequence[str] | None, *, field: str) -> tuple[str, ...]:
+    if values is None:
+        return ()
+    normalized = tuple(dict.fromkeys(value.strip() for value in values if value.strip()))
+    if field == "source_kinds":
+        invalid = sorted(set(normalized) - SOURCE_KINDS)
+        if invalid:
+            raise CortexSearchError(f"Invalid source kind filter: {', '.join(invalid)}")
+    return normalized
+
+
+def _filter_timestamp(value: str | None, *, field: str) -> int | None:
+    if value is None:
+        return None
+    normalized = normalize_rfc3339(value)
+    if normalized is None:
+        raise CortexSearchError(f"Invalid RFC 3339 timestamp for {field}: {value}")
+    return timestamp_epoch_ms(normalized)
+
+
+def build_chroma_where(
+    *,
+    section: str | None,
+    source_kinds: Sequence[str] | None,
+    authors: Sequence[str] | None,
+    occurred_at_from: str | None,
+    occurred_at_to: str | None,
+    updated_at_from: str | None,
+    updated_at_to: str | None,
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """Build one equivalent filter plan for Chroma and the lexical branch."""
+    kinds = _filter_values(source_kinds, field="source_kinds")
+    author_values = _filter_values(authors, field="authors")
+    epoch_filters = {
+        "occurred_at_from_ms": _filter_timestamp(
+            occurred_at_from, field="occurred_at_from"
+        ),
+        "occurred_at_to_ms": _filter_timestamp(occurred_at_to, field="occurred_at_to"),
+        "updated_at_from_ms": _filter_timestamp(updated_at_from, field="updated_at_from"),
+        "updated_at_to_ms": _filter_timestamp(updated_at_to, field="updated_at_to"),
+    }
+    conditions: list[dict[str, Any]] = []
+    if section is not None:
+        conditions.append({"section": section})
+    if kinds:
+        conditions.append({"source_kind": {"$in": list(kinds)}})
+    if author_values:
+        conditions.append({"author": {"$in": list(author_values)}})
+    for field, operator, value in (
+        ("occurred_at_epoch_ms", "$gte", epoch_filters["occurred_at_from_ms"]),
+        ("occurred_at_epoch_ms", "$lte", epoch_filters["occurred_at_to_ms"]),
+        ("updated_at_epoch_ms", "$gte", epoch_filters["updated_at_from_ms"]),
+        ("updated_at_epoch_ms", "$lte", epoch_filters["updated_at_to_ms"]),
+    ):
+        if value is not None:
+            conditions.append({field: {operator: value}})
+    has_v2_filter = bool(
+        kinds
+        or author_values
+        or any(value is not None for value in epoch_filters.values())
+    )
+    if has_v2_filter:
+        conditions.append({"schema_version": 2})
+    where = None
+    if len(conditions) == 1:
+        where = conditions[0]
+    elif conditions:
+        where = {"$and": conditions}
+    return where, {
+        "source_kinds": kinds,
+        "authors": author_values,
+        **epoch_filters,
+    }
+
+
 def reciprocal_rank_fusion(
     vector_hits: list[dict[str, Any]],
     lexical_hits: list[dict[str, Any]],
@@ -322,13 +400,35 @@ def reciprocal_rank_fusion(
     return fused
 
 
+def _hydrate_lexical_metadata(collection: Any, hits: list[dict[str, Any]]) -> None:
+    """Attach authoritative Chroma metadata to lexical-only candidates."""
+    get_method = getattr(collection, "get", None)
+    if not hits or not callable(get_method):
+        return
+    try:
+        result = get_method(ids=[str(hit["id"]) for hit in hits], include=["metadatas"])
+    except Exception as exc:  # noqa: BLE001 -- search remains available with null reconstruction.
+        log.warning("lexical_metadata_hydration_failed reason=%s", exc)
+        return
+    metadata_by_id = {
+        str(chunk_id): metadata
+        for chunk_id, metadata in zip(
+            result.get("ids") or [], result.get("metadatas") or [], strict=True
+        )
+        if isinstance(metadata, dict)
+    }
+    for hit in hits:
+        metadata = metadata_by_id.get(str(hit["id"]))
+        if metadata is not None:
+            hit["metadata"] = dict(metadata)
+
+
 def _vector_search(
     collection: Any,
     query: str,
-    section: str | None,
+    where: dict[str, Any] | None,
     candidate_count: int,
 ) -> list[dict[str, Any]]:
-    where = {"section": section} if section else None
     try:
         results = collection.query(
             query_texts=[query],
@@ -337,7 +437,7 @@ def _vector_search(
             include=["documents", "metadatas", "distances"],
         )
     except Exception as exc:
-        log.error("search_query_error section=%s reason=%s", section, exc)
+        log.error("search_query_error where=%s reason=%s", where, exc)
         raise CortexSearchError(f"Cortex search failed: {exc}") from exc
     ids = results.get("ids", [[]])[0]
     docs = results.get("documents", [[]])[0]
@@ -350,10 +450,28 @@ def _vector_search(
 
 
 def search(
-    query: str, section: str | None = None, top_k: int = 5
+    query: str,
+    section: str | None = None,
+    top_k: int = 5,
+    *,
+    source_kinds: Sequence[str] | None = None,
+    authors: Sequence[str] | None = None,
+    occurred_at_from: str | None = None,
+    occurred_at_to: str | None = None,
+    updated_at_from: str | None = None,
+    updated_at_to: str | None = None,
 ) -> SearchResults:
     """Return hybrid results, explicitly degrading to vector-only when needed."""
     collection = get_collection()
+    where, lexical_filters = build_chroma_where(
+        section=section,
+        source_kinds=source_kinds,
+        authors=authors,
+        occurred_at_from=occurred_at_from,
+        occurred_at_to=occurred_at_to,
+        updated_at_from=updated_at_from,
+        updated_at_to=updated_at_to,
+    )
     bounded_top_k = max(SEARCH_TOP_K_MIN, min(top_k, SEARCH_TOP_K_MAX))
     lexical = LexicalIndex()
     fallback_reason: str | None = None
@@ -367,13 +485,15 @@ def search(
             lexical_hits = lexical.search(
                 query,
                 section=section,
+                **lexical_filters,
                 limit=SEARCH_HYBRID_CANDIDATES,
             )
+            _hydrate_lexical_metadata(collection, lexical_hits)
         except (OSError, sqlite3.Error) as exc:
             fallback_reason = f"lexical query failed: {exc}"
     if fallback_reason is not None:
         log.warning("search_mode_vector_only reason=%s", fallback_reason)
-        vector_hits = _vector_search(collection, query, section, bounded_top_k)
+        vector_hits = _vector_search(collection, query, where, bounded_top_k)
         return SearchResults(
             vector_hits,
             mode="vector-only",
@@ -383,7 +503,7 @@ def search(
     vector_hits = _vector_search(
         collection,
         query,
-        section,
+        where,
         SEARCH_HYBRID_CANDIDATES,
     )
     fused = reciprocal_rank_fusion(vector_hits, lexical_hits)

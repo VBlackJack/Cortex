@@ -29,6 +29,7 @@ from config import (
     CHUNKING_CONTRACT_VERSION,
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
+    METADATA_SCHEMA_VERSION,
     ROOT_SECTION,
 )
 from lexical_index import LexicalIndex
@@ -45,6 +46,10 @@ CHUNKERS: dict[str, Chunker] = {
     ".md": chunk_markdown_file,
     ".pdf": chunk_pdf_file,
 }
+
+
+def _file_content_hash(metadata: dict[str, Any]) -> Any:
+    return metadata.get("file_content_hash", metadata.get("content_hash"))
 
 
 class SyncCheckpoint:
@@ -115,13 +120,14 @@ def _validate_chunks(chunks: list[dict[str, Any]]) -> tuple[str, str, set[str]]:
         raise ValueError("cannot publish an empty chunk set")
     metadata = [chunk["metadata"] for chunk in chunks]
     paths = {item.get("path") for item in metadata}
-    hashes = {item.get("content_hash") for item in metadata}
+    hashes = {_file_content_hash(item) for item in metadata}
     freshness_contracts = {item.get("contract_id") for item in metadata}
     freshness_versions = {
         item.get("content_hash_contract_version") for item in metadata
     }
     chunking_versions = {item.get("chunking_contract_version") for item in metadata}
     expected_counts = {item.get("expected_chunk_count") for item in metadata}
+    metadata_versions = {item.get("schema_version") for item in metadata}
     expected_ids = {chunk["id"] for chunk in chunks}
     if len(expected_ids) != len(chunks):
         raise ValueError("new chunks contain duplicate IDs")
@@ -135,6 +141,8 @@ def _validate_chunks(chunks: list[dict[str, Any]]) -> tuple[str, str, set[str]]:
         raise ValueError("new chunks use an unexpected freshness contract version")
     if chunking_versions != {CHUNKING_CONTRACT_VERSION}:
         raise ValueError("new chunks use an unexpected chunking contract version")
+    if metadata_versions not in ({METADATA_SCHEMA_VERSION}, {None}):
+        raise ValueError("new chunks use an unexpected metadata schema version")
     if expected_counts != {len(chunks)}:
         raise ValueError("new chunks contain an incoherent expected chunk count")
     return next(iter(paths)), next(iter(hashes)), expected_ids
@@ -151,7 +159,7 @@ def sync_file(
     complete version. A later retry upserts the complete expected set and then
     removes both superseded versions and any partial version left by a crash.
     """
-    path, content_hash, expected_ids = _validate_chunks(chunks)
+    path, file_content_hash, expected_ids = _validate_chunks(chunks)
     for start in range(0, len(chunks), _UPSERT_BATCH_SIZE):
         batch = chunks[start : start + _UPSERT_BATCH_SIZE]
         collection.upsert(
@@ -164,12 +172,17 @@ def sync_file(
     coherent_metadata = (
         len(found_metadata) == len(chunks)
         and all(meta.get("path") == path for meta in found_metadata)
-        and all(meta.get("content_hash") == content_hash for meta in found_metadata)
+        and all(_file_content_hash(meta) == file_content_hash for meta in found_metadata)
         and all(
             meta.get("chunking_contract_version") == CHUNKING_CONTRACT_VERSION
             for meta in found_metadata
         )
         and all(meta.get("expected_chunk_count") == len(chunks) for meta in found_metadata)
+        and all(
+            chunks[0]["metadata"].get("schema_version") is None
+            or meta.get("schema_version") == METADATA_SCHEMA_VERSION
+            for meta in found_metadata
+        )
     )
     if found_ids != expected_ids or not coherent_metadata:
         raise RuntimeError(f"published file verification failed for {path}")
@@ -208,10 +221,15 @@ def _is_complete_current_version(
     expected_ids = {chunk["id"] for chunk in chunks}
     if set(old_ids) != expected_ids or len(old_metadata) != len(chunks):
         return False
-    content_hash = chunks[0]["metadata"]["content_hash"]
+    content_hash = _file_content_hash(chunks[0]["metadata"])
+    metadata_schema_version = chunks[0]["metadata"].get("schema_version")
     return all(
-        meta.get("content_hash") == content_hash
+        _file_content_hash(meta) == content_hash
         and meta.get("chunking_contract_version") == CHUNKING_CONTRACT_VERSION
+        and (
+            metadata_schema_version is None
+            or meta.get("schema_version") == metadata_schema_version
+        )
         and meta.get("expected_chunk_count") == len(chunks)
         for meta in old_metadata
     )

@@ -31,6 +31,8 @@ chunks to its model under its own policy.
 - [FAQ](faq.md): installation, local data, sync, diagnostics, and security.
 - [Configuration](configuration.md): `config.toml`, environment variables,
   sections, data home, index migration.
+- [Metadata v2 migration](metadata-v2-migration.md): storage contract,
+  one-pass rechunk, measured backup and restore.
 - [Reproducible install](reproducible-install.md): `requirements.lock`,
   `pip install --require-hashes`, regenerating the lock.
 - [Public specification](spec.md): MCP surface, index contracts, data,

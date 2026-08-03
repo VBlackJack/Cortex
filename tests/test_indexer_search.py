@@ -20,6 +20,7 @@ from typing import Any
 import pytest
 
 import indexer
+from config import SEARCH_HYBRID_CANDIDATES
 
 
 class Collection:
@@ -118,7 +119,7 @@ def test_lexical_only_hit_carries_freshness_contract_metadata() -> None:
     assert metadata["content_hash_contract_version"] == "v1"
 
 
-def test_hybrid_search_uses_twenty_candidates_and_bounds_final_top_k(
+def test_hybrid_search_uses_candidate_budget_and_bounds_final_top_k(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class HybridCollection(Collection):
@@ -150,7 +151,7 @@ def test_hybrid_search_uses_twenty_candidates_and_bounds_final_top_k(
 
     assert results.mode == "hybrid"
     assert len(results) == 10
-    assert collection.n_results == [20]
+    assert collection.n_results == [SEARCH_HYBRID_CANDIDATES]
 
 
 def test_hybrid_search_exposes_rerank_mode_and_bounds_final_top_k(
@@ -186,8 +187,8 @@ def test_hybrid_search_exposes_rerank_mode_and_bounds_final_top_k(
 
     assert results.mode == "hybrid+rerank"
     assert len(results) == 10
-    assert observed == [20]
-    assert collection.n_results == [20]
+    assert observed == [SEARCH_HYBRID_CANDIDATES]
+    assert collection.n_results == [SEARCH_HYBRID_CANDIDATES]
     assert all("rerank_score" in hit and "rrf_score" in hit for hit in results)
 
 

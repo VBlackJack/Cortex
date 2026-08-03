@@ -32,6 +32,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from chunker_utils import reconstruct_contract_metadata
 from config import INDEX_WHOLE_FOLDER, ROOT_SECTION, CortexConfigError
 from data_home import CortexDataHomeError
 from embedding_fingerprint import EmbeddingFingerprintMismatchError
@@ -50,6 +51,15 @@ from reranker import warmup_reranker
 from write_lock import CortexWriteLockedError
 
 _LOG = logging.getLogger("cortex.server")
+
+
+class SearchResponse(dict[str, Any]):
+    """Structured MCP payload with compatibility membership over Markdown."""
+
+    def __contains__(self, key: object) -> bool:
+        if super().__contains__(key):
+            return True
+        return isinstance(key, str) and key in str(self.get("markdown", ""))
 
 
 # -- Lifespan: warm up the model at startup ------------------------------------
@@ -113,7 +123,17 @@ def _resolve_section(section: str | None) -> tuple[str | None, str | None]:
 
 
 @mcp.tool()
-def cortex_search(query: str, section: str | None = None, top_k: int = 5) -> str:
+def cortex_search(
+    query: str,
+    section: str | None = None,
+    top_k: int = 5,
+    source_kinds: list[str] | None = None,
+    authors: list[str] | None = None,
+    occurred_at_from: str | None = None,
+    occurred_at_to: str | None = None,
+    updated_at_from: str | None = None,
+    updated_at_to: str | None = None,
+) -> dict[str, Any] | str:
     """
     Search the internal knowledge base using semantic similarity.
     Use this tool whenever the user asks about anything that may be documented
@@ -127,7 +147,17 @@ def cortex_search(query: str, section: str | None = None, top_k: int = 5) -> str
         return err
 
     try:
-        hits = search(query=query, section=section, top_k=top_k)
+        hits = search(
+            query=query,
+            section=section,
+            top_k=top_k,
+            source_kinds=source_kinds,
+            authors=authors,
+            occurred_at_from=occurred_at_from,
+            occurred_at_to=occurred_at_to,
+            updated_at_from=updated_at_from,
+            updated_at_to=updated_at_to,
+        )
     except EmbeddingFingerprintMismatchError as exc:
         return f"## Cortex search refused\n\n{exc}"
     except CortexDataHomeError as exc:
@@ -139,7 +169,24 @@ def cortex_search(query: str, section: str | None = None, top_k: int = 5) -> str
         mode = getattr(hits, "mode", "vector-only")
         reason = getattr(hits, "fallback_reason", None)
         suffix = f" ({reason})" if reason else ""
-        return f"No results found.\n\nMode: {mode}{suffix}"
+        markdown = f"No results found.\n\nMode: {mode}{suffix}"
+        return SearchResponse(
+            schema_version=2,
+            query=query,
+            mode=mode,
+            fallback_reason=reason,
+            filters={
+                "section": section,
+                "source_kinds": source_kinds,
+                "authors": authors,
+                "occurred_at_from": occurred_at_from,
+                "occurred_at_to": occurred_at_to,
+                "updated_at_from": updated_at_from,
+                "updated_at_to": updated_at_to,
+            },
+            results=[],
+            markdown=markdown,
+        )
 
     annotate_search_hits(hits)
 
@@ -149,16 +196,20 @@ def cortex_search(query: str, section: str | None = None, top_k: int = 5) -> str
     if fallback_reason:
         lines.append(f"**Fallback reason:** {fallback_reason}")
     lines.append("")
+    structured_hits: list[dict[str, Any]] = []
     for i, hit in enumerate(hits, 1):
         meta = hit.get("metadata", {})
-        title = meta.get("title") or meta.get("path", "Unknown")
+        contract = reconstruct_contract_metadata(meta)
+        title = contract.get("title") or contract.get("path") or "Unknown"
         header = meta.get("header", "")
-        sec = meta.get("section", "")
+        sec = contract.get("section") or ""
         if sec == ROOT_SECTION:
             sec = "All documents"
         dist = hit.get("distance")
         text = hit.get("text", "")
         freshness = hit.get("freshness", "unknown")
+        citation = contract.get("canonical_uri") or contract.get("path")
+        relevance: float | str | None = None
 
         lines.append(f"### [{i}] {title}")
         if header:
@@ -166,15 +217,55 @@ def cortex_search(query: str, section: str | None = None, top_k: int = 5) -> str
         else:
             lines.append(f"**Section:** {sec}")
         if dist is not None:
-            lines.append(f"**Relevance:** {1 - dist:.0%}")
+            relevance = 1 - dist
+            lines.append(f"**Relevance:** {relevance:.0%}")
         elif hit.get("lexical_only"):
+            relevance = "lexical-only"
             lines.append("**Relevance:** lexical-only")
+        lines.append(
+            "**Source:** "
+            f"{contract.get('source_kind') or 'unknown'} / "
+            f"{contract.get('source_system') or 'unknown'}"
+        )
+        lines.append(f"**Occurred:** {contract.get('occurred_at') or 'unknown'}")
+        lines.append(f"**Updated:** {contract.get('updated_at') or 'unknown'}")
+        if citation:
+            if contract.get("canonical_uri"):
+                lines.append(f"**Citation:** [{title}]({citation})")
+            else:
+                lines.append(f"**Citation:** `{citation}`")
         lines.append(f"**Freshness:** {freshness}")
         lines.append("")
         lines.append(text)
         lines.append("")
+        structured_hits.append(
+            {
+                "id": hit.get("id"),
+                "text": text,
+                "metadata": contract,
+                "citation": citation,
+                "relevance": relevance,
+                "freshness": freshness,
+            }
+        )
 
-    return "\n".join(lines)
+    return SearchResponse(
+        schema_version=2,
+        query=query,
+        mode=mode,
+        fallback_reason=fallback_reason,
+        filters={
+            "section": section,
+            "source_kinds": source_kinds,
+            "authors": authors,
+            "occurred_at_from": occurred_at_from,
+            "occurred_at_to": occurred_at_to,
+            "updated_at_from": updated_at_from,
+            "updated_at_to": updated_at_to,
+        },
+        results=structured_hits,
+        markdown="\n".join(lines),
+    )
 
 
 # -- Tool: cortex_sync ---------------------------------------------------------

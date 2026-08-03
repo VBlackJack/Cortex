@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from collections.abc import Sequence
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,7 +30,7 @@ from config import (
     LEXICAL_INDEX_CONTRACT_VERSION,
 )
 
-LEXICAL_SCHEMA_VERSION = "1"
+LEXICAL_SCHEMA_VERSION = "2"
 DEFAULT_LEXICAL_PATH = Path(CHROMA_PATH).parent / "lexical.db"
 _TOKEN_PATTERN = re.compile(r"\w+", re.UNICODE)
 
@@ -66,7 +67,9 @@ class LexicalIndex:
     def _create_schema(connection: sqlite3.Connection) -> None:
         connection.execute(
             "CREATE VIRTUAL TABLE chunks USING fts5("
-            "id UNINDEXED, path UNINDEXED, section UNINDEXED, text, "
+            "id UNINDEXED, path UNINDEXED, section UNINDEXED, "
+            "source_kind UNINDEXED, author UNINDEXED, "
+            "occurred_at_epoch_ms UNINDEXED, updated_at_epoch_ms UNINDEXED, text, "
             "tokenize='unicode61 remove_diacritics 2')"
         )
         connection.execute(
@@ -124,6 +127,10 @@ class LexicalIndex:
                 chunk["id"],
                 path,
                 chunk["metadata"].get("section", ""),
+                chunk["metadata"].get("source_kind"),
+                chunk["metadata"].get("author"),
+                chunk["metadata"].get("occurred_at_epoch_ms"),
+                chunk["metadata"].get("updated_at_epoch_ms"),
                 chunk["text"],
             )
             for chunk in chunks
@@ -131,7 +138,10 @@ class LexicalIndex:
         with closing(self._connect_write()) as connection, connection:
             connection.execute("DELETE FROM chunks WHERE path = ?", (path,))
             connection.executemany(
-                "INSERT INTO chunks(id, path, section, text) VALUES (?, ?, ?, ?)",
+                "INSERT INTO chunks("
+                "id, path, section, source_kind, author, occurred_at_epoch_ms, "
+                "updated_at_epoch_ms, text"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
 
@@ -140,33 +150,82 @@ class LexicalIndex:
             connection.execute("DELETE FROM chunks WHERE path = ?", (path,))
 
     def search(
-        self, query: str, *, section: str | None = None, limit: int = 20
+        self,
+        query: str,
+        *,
+        section: str | None = None,
+        source_kinds: Sequence[str] | None = None,
+        authors: Sequence[str] | None = None,
+        occurred_at_from_ms: int | None = None,
+        occurred_at_to_ms: int | None = None,
+        updated_at_from_ms: int | None = None,
+        updated_at_to_ms: int | None = None,
+        limit: int = 20,
     ) -> list[dict[str, Any]]:
         sanitized = sanitize_fts5_query(query)
         if sanitized is None or limit <= 0:
             return []
         sql = (
-            "SELECT id, path, section, text, bm25(chunks) FROM chunks "
+            "SELECT id, path, section, source_kind, author, "
+            "occurred_at_epoch_ms, updated_at_epoch_ms, text, bm25(chunks) "
+            "FROM chunks "
             "WHERE chunks MATCH ?"
         )
         params: list[Any] = [sanitized]
         if section is not None:
             sql += " AND section = ?"
             params.append(section)
+        for column, values in (("source_kind", source_kinds), ("author", authors)):
+            if values:
+                placeholders = ", ".join("?" for _value in values)
+                sql += f" AND {column} IN ({placeholders})"
+                params.extend(values)
+        for column, operator, value in (
+            ("occurred_at_epoch_ms", ">=", occurred_at_from_ms),
+            ("occurred_at_epoch_ms", "<=", occurred_at_to_ms),
+            ("updated_at_epoch_ms", ">=", updated_at_from_ms),
+            ("updated_at_epoch_ms", "<=", updated_at_to_ms),
+        ):
+            if value is not None:
+                sql += f" AND CAST({column} AS INTEGER) {operator} ?"
+                params.append(value)
         sql += " ORDER BY bm25(chunks), id LIMIT ?"
         params.append(limit)
         with closing(_read_only_connection(self.path)) as connection:
             rows = connection.execute(sql, params).fetchall()
-        return [
-            {
-                "id": str(chunk_id),
+        hits: list[dict[str, Any]] = []
+        for (
+            chunk_id,
+            path,
+            row_section,
+            source_kind,
+            author,
+            occurred_at_epoch_ms,
+            updated_at_epoch_ms,
+            text,
+            score,
+        ) in rows:
+            metadata = {
                 "path": str(path),
                 "section": str(row_section),
-                "text": str(text),
-                "bm25": float(score),
+                "source_kind": source_kind,
+                "author": author,
+                "occurred_at_epoch_ms": occurred_at_epoch_ms,
+                "updated_at_epoch_ms": updated_at_epoch_ms,
             }
-            for chunk_id, path, row_section, text, score in rows
-        ]
+            hits.append(
+                {
+                    "id": str(chunk_id),
+                    "path": str(path),
+                    "section": str(row_section),
+                    "text": str(text),
+                    "bm25": float(score),
+                    "metadata": {
+                        key: value for key, value in metadata.items() if value is not None
+                    },
+                }
+            )
+        return hits
 
     def rebuild(self, collection: Any) -> None:
         with closing(self._connect_write()) as connection, connection:
@@ -192,11 +251,18 @@ class LexicalIndex:
                             chunk_id,
                             metadata.get("path", ""),
                             metadata.get("section", ""),
+                            metadata.get("source_kind"),
+                            metadata.get("author"),
+                            metadata.get("occurred_at_epoch_ms"),
+                            metadata.get("updated_at_epoch_ms"),
                             document,
                         )
                     )
                 connection.executemany(
-                    "INSERT INTO chunks(id, path, section, text) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO chunks("
+                    "id, path, section, source_kind, author, occurred_at_epoch_ms, "
+                    "updated_at_epoch_ms, text"
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     rows,
                 )
 

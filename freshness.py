@@ -282,7 +282,9 @@ def classify_hash(live_content_hash: str, metadata: list[dict[str, Any]]) -> str
     the current contract id/version. Returns "fresh", "stale", or "unknown"
     (incoherent or legacy metadata - fail-safe, never silently "fresh").
     """
-    hashes = {item.get("content_hash") for item in metadata}
+    hashes = {
+        item.get("file_content_hash", item.get("content_hash")) for item in metadata
+    }
     contracts = {item.get("contract_id") for item in metadata}
     versions = {item.get("content_hash_contract_version") for item in metadata}
     valid_hashes = {

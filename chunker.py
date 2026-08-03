@@ -17,16 +17,21 @@ Cortex - Markdown Chunker
 Splits .md files into semantically meaningful chunks with metadata.
 """
 
+import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 from chunker_utils import (
     ChunkResult,
+    build_contract_metadata,
     compute_hash,
     get_relative_path,
     get_section,
+    normalize_rfc3339,
     sha256_bytes,
     split_fixed_size,
+    storage_metadata,
 )
 from config import (
     CHUNK_MIN_CHARS,
@@ -52,12 +57,12 @@ _compute_hash = compute_hash
 _split_fixed_size = split_fixed_size
 
 
-def _parse_frontmatter(content: str) -> tuple[dict[str, str], str]:
+def _parse_frontmatter(content: str) -> tuple[dict[str, object], str]:
     """
     Extract YAML frontmatter from markdown content.
     Returns (metadata_dict, remaining_content).
     """
-    metadata: dict[str, str] = {}
+    metadata: dict[str, object] = {}
     if not content.startswith("---"):
         return metadata, content
 
@@ -71,7 +76,11 @@ def _parse_frontmatter(content: str) -> tuple[dict[str, str], str]:
     for line in frontmatter.splitlines():
         if ":" in line:
             key, _, value = line.partition(":")
-            metadata[key.strip()] = value.strip().strip("'\"")
+            raw_value = value.strip()
+            try:
+                metadata[key.strip()] = json.loads(raw_value)
+            except json.JSONDecodeError:
+                metadata[key.strip()] = raw_value.strip("'\"")
 
     return metadata, body
 
@@ -156,7 +165,8 @@ def chunk_markdown_file(file_path: Path) -> ChunkResult:
     """
     # Skip files that are too large
     try:
-        if file_path.stat().st_size > MAX_FILE_SIZE_BYTES:
+        source_stat = file_path.stat()
+        if source_stat.st_size > MAX_FILE_SIZE_BYTES:
             return ChunkResult(status="too_large")
     except OSError as exc:
         return ChunkResult(status="read_error", error=str(exc))
@@ -175,7 +185,26 @@ def chunk_markdown_file(file_path: Path) -> ChunkResult:
     section = get_section(file_path, kb_path)
     rel_path = get_relative_path(file_path, kb_path)
 
-    title = frontmatter.get("title") or file_path.stem
+    explicit_content_hash = frontmatter.get("content_hash")
+    contract_content_hash = (
+        explicit_content_hash.lower()
+        if isinstance(explicit_content_hash, str)
+        and re.fullmatch(r"[0-9a-fA-F]{64}", explicit_content_hash)
+        else content_hash
+    )
+    captured_at = datetime.now(timezone.utc)
+    file_modified_at = normalize_rfc3339(
+        datetime.fromtimestamp(source_stat.st_mtime, timezone.utc)
+    )
+    contract = build_contract_metadata(
+        frontmatter,
+        default_source_kind="note",
+        rel_path=rel_path,
+        section=section,
+        fallback_title=file_path.stem,
+        content_hash=contract_content_hash,
+        captured_at=captured_at,
+    )
 
     if len(body.strip()) < 20:
         return ChunkResult(status="empty")
@@ -202,18 +231,19 @@ def chunk_markdown_file(file_path: Path) -> ChunkResult:
                         f"{CHUNKING_CONTRACT_VERSION}::{chunk_index}"
                     ),
                     "text": sub_chunk,
-                    "metadata": {
-                        "path": rel_path,
-                        "section": section,
-                        "title": title,
-                        "header": header,
-                        "chunk_index": chunk_index,
-                        "file_hash": file_hash,
-                        "content_hash": content_hash,
-                        "contract_id": FRESHNESS_CONTRACT_ID,
-                        "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
-                        "chunking_contract_version": CHUNKING_CONTRACT_VERSION,
-                    },
+                    "metadata": storage_metadata(
+                        contract,
+                        chunk_index=chunk_index,
+                        extras={
+                            "header": header,
+                            "file_hash": file_hash,
+                            "file_content_hash": content_hash,
+                            "file_modified_at": file_modified_at,
+                            "contract_id": FRESHNESS_CONTRACT_ID,
+                            "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+                            "chunking_contract_version": CHUNKING_CONTRACT_VERSION,
+                        },
+                    ),
                 }
             )
             chunk_index += 1
