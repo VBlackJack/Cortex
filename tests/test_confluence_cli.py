@@ -112,6 +112,7 @@ def test_store_credential_accepts_secret_only_from_getpass_and_redacts_output(
 
 def test_sync_stops_before_credentials_when_metadata_v2_is_absent(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     config_path = tmp_path / "confluence.toml"
@@ -126,11 +127,35 @@ def test_sync_stops_before_credentials_when_metadata_v2_is_absent(
         'classification = "perso-non-sensible"\n',
         encoding="utf-8",
     )
+    ingestion_root = tmp_path / "ingestion"
+    ingestion_config_path = tmp_path / "ingestion.toml"
+    ingestion_config_path.write_text(
+        "schema_version = 1\n"
+        f'data_root = "{ingestion_root.as_posix()}"\n',
+        encoding="utf-8",
+    )
 
-    exit_code = confluence_cli.main(["--config", str(config_path), "sync", "--force"])
+    def unexpected_boundary_call(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("metadata gate crossed a credential or network boundary")
+
+    monkeypatch.setattr(confluence_cli, "_rechunk_v2_ready", lambda: False)
+    monkeypatch.setattr(confluence_cli, "WindowsCredentialReader", unexpected_boundary_call)
+    monkeypatch.setattr(confluence_cli, "ConfluenceWriter", unexpected_boundary_call)
+
+    exit_code = confluence_cli.main(
+        [
+            "--config",
+            str(config_path),
+            "--ingestion-config",
+            str(ingestion_config_path),
+            "sync",
+            "--force",
+        ]
+    )
 
     assert exit_code == 1
     assert "metadata v2 rechunk is not deployed" in capsys.readouterr().err
+    assert not ingestion_root.exists()
 
 
 def test_root_cli_routes_confluence_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
