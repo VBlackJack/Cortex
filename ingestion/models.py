@@ -61,6 +61,8 @@ class DocumentRecord(StrictModel):
     content_hash: Annotated[str, Field(pattern=_SHA256_PATTERN)]
     status: DocumentStatus
     last_success_at: datetime
+    artifacts: tuple[ArtifactRecord, ...] = ()
+    source_revision: str | None = None
 
     @field_validator("path")  # type: ignore[untyped-decorator]
     @classmethod
@@ -166,12 +168,40 @@ class CurrentGenerationPointer(StrictModel):
     generation_id: Annotated[str, Field(min_length=1)]
 
 
+class ArtifactRecord(StrictModel):
+    """One immutable non-document file owned by a published document."""
+
+    path: Annotated[str, Field(min_length=1)]
+    content_hash: Annotated[str, Field(pattern=_SHA256_PATTERN)]
+
+    @field_validator("path")  # type: ignore[untyped-decorator]
+    @classmethod
+    def validate_relative_path(cls, value: str) -> str:
+        """Reuse the persisted document containment contract."""
+        return str(DocumentRecord.validate_relative_path(value))
+
+
+class CollectedArtifact(StrictModel):
+    """One non-document file collected together with its owning document."""
+
+    path: Annotated[str, Field(min_length=1)]
+    content: bytes
+
+    @field_validator("path")  # type: ignore[untyped-decorator]
+    @classmethod
+    def validate_relative_path(cls, value: str) -> str:
+        """Reuse the persisted document containment contract."""
+        return str(DocumentRecord.validate_relative_path(value))
+
+
 class CollectedDocument(StrictModel):
     """Successful source document provided to the generation engine."""
 
     source_uid: Annotated[str, Field(min_length=1)]
     path: Annotated[str, Field(min_length=1)]
     content: bytes
+    artifacts: tuple[CollectedArtifact, ...] = ()
+    source_revision: str | None = None
 
     @field_validator("path")  # type: ignore[untyped-decorator]
     @classmethod
@@ -219,7 +249,9 @@ class AttemptResult(StrictModel):
 
 
 __all__ = [
+    "ArtifactRecord",
     "AttemptResult",
+    "CollectedArtifact",
     "CollectedDocument",
     "CurrentGenerationPointer",
     "DocumentFailure",

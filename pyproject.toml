@@ -27,7 +27,7 @@ build = [
 cortex = "cli:main"
 
 [tool.setuptools]
-packages = ["ingestion"]
+packages = ["confluence_writer", "confluence_writer.resources", "ingestion"]
 py-modules = [
   "_version",
   "chroma_client",
@@ -55,6 +55,9 @@ py-modules = [
 ]
 license-files = ["LICENSE"]
 
+[tool.setuptools.package-data]
+"confluence_writer.resources" = ["*.schema.json"]
+
 [tool.setuptools.dynamic]
 version = { attr = "_version.__version__" }
 dependencies = { file = ["requirements.txt"] }
@@ -80,6 +83,7 @@ module = [
   "fastembed.*",
   "filelock.*",
   "huggingface_hub.*",
+  "jsonschema.*",
   "mcp.*",
   "pdfplumber.*",
   "pydantic.*",

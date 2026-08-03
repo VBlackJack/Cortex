@@ -11,24 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Source-agnostic ingestion infrastructure."""
-
-from ingestion.engine import GenerationEngine
-from ingestion.models import (
-    CollectedArtifact,
-    CollectedDocument,
-    DocumentFailure,
-    GenerationAttempt,
-    GenerationManifest,
-    SourceHealth,
-)
-
-__all__ = [
-    "CollectedArtifact",
-    "CollectedDocument",
-    "DocumentFailure",
-    "GenerationAttempt",
-    "GenerationEngine",
-    "GenerationManifest",
-    "SourceHealth",
-]
+"""Frozen ConfluenceRAGBuilder console JSON Schemas."""

@@ -40,6 +40,8 @@ transmettre au modele les passages qu'il a demandes, selon sa propre politique.
   techniques.
 - [Securite](security.md) : runtime local, telemetrie desactivee,
   logs bornes, ecriture single-writer.
+- [Writer Confluence](writer-confluence.md) : ingestion REST sur liste blanche,
+  stockage interactif du PAT, conversion et planification.
 
 ## En un coup d'oeil
 
