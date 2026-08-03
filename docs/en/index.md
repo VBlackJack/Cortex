@@ -38,6 +38,8 @@ chunks to its model under its own policy.
 - [Architecture](architecture.md): end-to-end behavior and technical choices.
 - [Security](security.md): local runtime, telemetry disabled, bounded
   logs, single-writer writes.
+- [Confluence writer](confluence-writer.md): allowlisted REST ingestion,
+  interactive PAT storage, conversion, and scheduling.
 
 ## At a glance
 
