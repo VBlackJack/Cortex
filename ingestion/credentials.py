@@ -31,11 +31,16 @@ from ingestion.constants import (
 from ingestion.models import HealthStatus
 
 _CRED_TYPE_GENERIC = 1
+_CRED_PERSIST_LOCAL_MACHINE = 2
 _LOG = logging.getLogger("cortex.ingestion.credentials")
 
 
 class CredentialReadError(RuntimeError):
     """Raised without secret material when a credential cannot be read."""
+
+
+class CredentialWriteError(RuntimeError):
+    """Raised without secret material when a credential cannot be stored."""
 
 
 @final
@@ -64,6 +69,14 @@ class CredentialReader(Protocol):
 
     def read(self, target_name: str) -> SecretValue:
         """Read one named credential from the operating-system vault."""
+        ...
+
+
+class CredentialWriter(Protocol):
+    """Store a generic credential without accepting clear text as a CLI argument."""
+
+    def write(self, target_name: str, secret: SecretValue) -> None:
+        """Write one named credential to the operating-system vault."""
         ...
 
 
@@ -138,6 +151,45 @@ class WindowsCredentialReader:
             cred_free(credential_pointer)
 
 
+@final
+class WindowsCredentialWriter:
+    """Write generic credentials through the native CredWriteW API."""
+
+    def write(self, target_name: str, secret: SecretValue) -> None:
+        """Persist one UTF-16 generic credential for the current Windows user."""
+        if os.name != "nt":
+            raise CredentialWriteError("Windows Credential Manager is unavailable.")
+        if not target_name.strip():
+            raise CredentialWriteError("Credential target name must not be empty.")
+        raw = secret.reveal().encode("utf-16-le", errors="strict")
+        if len(raw) > 2560:
+            raise CredentialWriteError("Credential value exceeds the Windows generic limit.")
+        blob = ctypes.create_string_buffer(raw)
+        credential = _CredentialW()
+        credential.Type = _CRED_TYPE_GENERIC
+        credential.TargetName = target_name
+        credential.Comment = "Cortex Confluence personal access token"
+        credential.CredentialBlobSize = len(raw)
+        credential.CredentialBlob = ctypes.cast(blob, ctypes.POINTER(ctypes.c_ubyte))
+        credential.Persist = _CRED_PERSIST_LOCAL_MACHINE
+        credential.UserName = "Cortex"
+        advapi32 = ctypes.WinDLL("Advapi32.dll", use_last_error=True)
+        cred_write = advapi32.CredWriteW
+        cred_write.argtypes = [ctypes.POINTER(_CredentialW), wintypes.DWORD]
+        cred_write.restype = wintypes.BOOL
+        if not cred_write(ctypes.byref(credential), 0):
+            error_code = ctypes.get_last_error()
+            _LOG.error(
+                "credential_write_failed target=%s system_error=%d",
+                target_name,
+                error_code,
+            )
+            raise CredentialWriteError(
+                f"Windows Credential Manager write failed with system error {error_code}."
+            )
+        _LOG.info("credential_write_succeeded target=%s", target_name)
+
+
 @dataclass(frozen=True)
 class CredentialCheck:
     """Credential availability and expiry without serialized secret material."""
@@ -206,7 +258,10 @@ __all__ = [
     "CredentialCheck",
     "CredentialReadError",
     "CredentialReader",
+    "CredentialWriteError",
+    "CredentialWriter",
     "SecretValue",
     "WindowsCredentialReader",
+    "WindowsCredentialWriter",
     "check_credential",
 ]

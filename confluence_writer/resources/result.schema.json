@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/VBlackJack/confluence-rag-builder/contracts/result.schema.json",
+  "title": "Confluence conversion result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tool_version",
+    "pages"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "tool_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "pages": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "$ref": "#/$defs/page_result"
+      }
+    }
+  },
+  "$defs": {
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$"
+    },
+    "page_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page_id",
+        "status"
+      ],
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "status": {
+          "enum": [
+            "converted",
+            "failed"
+          ]
+        },
+        "markdown_paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/relative_path"
+          }
+        },
+        "error_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9_]+$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "converted"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "markdown_paths"
+            ],
+            "not": {
+              "required": [
+                "error_code"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "error_code"
+            ],
+            "not": {
+              "required": [
+                "markdown_paths"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

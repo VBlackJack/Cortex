@@ -62,6 +62,7 @@ class DocumentRecord(StrictModel):
     status: DocumentStatus
     last_success_at: datetime
     artifacts: tuple[ArtifactRecord, ...] = ()
+    source_revision: str | None = None
 
     @field_validator("path")  # type: ignore[untyped-decorator]
     @classmethod
@@ -200,6 +201,7 @@ class CollectedDocument(StrictModel):
     path: Annotated[str, Field(min_length=1)]
     content: bytes
     artifacts: tuple[CollectedArtifact, ...] = ()
+    source_revision: str | None = None
 
     @field_validator("path")  # type: ignore[untyped-decorator]
     @classmethod

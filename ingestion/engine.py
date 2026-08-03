@@ -92,9 +92,7 @@ class GenerationEngine:
         if attempted_at.tzinfo is None or attempted_at.utcoffset() is None:
             raise ValueError("now must include a UTC offset")
         previous_health = self.storage.load_health()
-        previous_success = (
-            previous_health.last_success_at if previous_health is not None else None
-        )
+        previous_success = previous_health.last_success_at if previous_health is not None else None
         initial_counts = HealthCounts(
             seen=len(attempt.remote_seen_source_uids),
             converted=len(attempt.documents),
@@ -214,19 +212,17 @@ class GenerationEngine:
             for item in (() if current_manifest is None else current_manifest.tombstones)
         }
         successful = self._unique_documents(attempt.documents)
-        self._validate_output_paths(successful)
         failed_ids = self._unique_failures(attempt)
         if set(successful) & failed_ids:
             raise GenerationContractError(
                 "a source_uid cannot be both successful and failed in one attempt"
             )
-        unknown_seen = (
-            set(successful) | failed_ids
-        ) - set(attempt.remote_seen_source_uids)
+        unknown_seen = (set(successful) | failed_ids) - set(attempt.remote_seen_source_uids)
         if unknown_seen:
             raise GenerationContractError(
                 "successful and failed source_uids must be present in remote_seen_source_uids"
             )
+        self._validate_output_paths(successful, current_documents, attempt)
 
         documents: list[DocumentRecord] = []
         tombstones: list[TombstoneRecord] = []
@@ -234,9 +230,7 @@ class GenerationEngine:
         destination_root = pending / DOCUMENTS_DIRECTORY_NAME
 
         if attempt.source_disabled:
-            prior = current_tombstones.get(
-                (TombstoneKind.SOURCE, self.storage.source_kind)
-            )
+            prior = current_tombstones.get((TombstoneKind.SOURCE, self.storage.source_kind))
             tombstones.append(
                 prior
                 if prior is not None
@@ -268,6 +262,7 @@ class GenerationEngine:
                         status=DocumentStatus.FRESH,
                         last_success_at=published_at,
                         artifacts=tuple(artifacts),
+                        source_revision=collected.source_revision,
                     )
                 )
 
@@ -350,10 +345,27 @@ class GenerationEngine:
         )
 
     @staticmethod
-    def _validate_output_paths(documents: dict[str, CollectedDocument]) -> None:
-        """Reject collisions before any generation file is written."""
+    def _validate_output_paths(
+        documents: dict[str, CollectedDocument],
+        current_documents: dict[str, DocumentRecord],
+        attempt: GenerationAttempt,
+    ) -> None:
+        """Reject fresh and carry-forward collisions before writing files."""
         owners: dict[str, str] = {}
         for source_uid, document in documents.items():
+            paths = (document.path, *(artifact.path for artifact in document.artifacts))
+            for path in paths:
+                previous_owner = owners.get(path)
+                if previous_owner is not None:
+                    raise GenerationContractError(
+                        f"output path '{path}' is shared by {previous_owner} and {source_uid}"
+                    )
+                owners[path] = source_uid
+        for source_uid, document in current_documents.items():
+            if source_uid in documents:
+                continue
+            if attempt.enumeration_complete and source_uid not in attempt.remote_seen_source_uids:
+                continue
             paths = (document.path, *(artifact.path for artifact in document.artifacts))
             for path in paths:
                 previous_owner = owners.get(path)

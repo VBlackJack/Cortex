@@ -27,6 +27,7 @@ _COMMANDS = (
     "serve",
     "sync",
     "ingestion",
+    "confluence",
     "doctor",
     "setup",
     "init",
@@ -68,6 +69,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from ingestion.cli import main as ingestion_main
 
         return ingestion_main(arguments)
+    if namespace.command == "confluence":
+        from confluence_writer.cli import main as confluence_main
+
+        return confluence_main(arguments)
     if namespace.command == "doctor":
         from doctor import main as doctor_main
 
