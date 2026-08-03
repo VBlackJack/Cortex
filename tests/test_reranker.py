@@ -76,20 +76,26 @@ def test_rerank_exact_order_tie_break_scores_and_single_batch(
     assert [hit["rerank_score"] for hit in result] == [0.9, 0.9, 0.1]
     assert all("rrf_score" in hit for hit in result)
     assert model.calls == [
-        ("query", ["document 0", "document 1", "document 2"], 10)
+        ("query", ["document 0", "document 1", "document 2"], SEARCH_RERANK_CANDIDATES)
     ]
 
 
-def test_rerank_is_bounded_to_ten_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
-    model = FakeCrossEncoder([float(index) for index in range(10)])
+def test_rerank_is_bounded_to_candidate_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    model = FakeCrossEncoder(
+        [float(index) for index in range(SEARCH_RERANK_CANDIDATES)]
+    )
     monkeypatch.setattr(reranker, "_model", model)
 
-    result, failure = reranker.rerank_fused_hits("query", _hits(12))
+    result, failure = reranker.rerank_fused_hits(
+        "query", _hits(SEARCH_RERANK_CANDIDATES + 2)
+    )
 
     assert failure is None
-    assert len(result) == 10
-    assert len(model.calls[0][1]) == 10
-    assert [hit["id"] for hit in result] == [f"c{index}" for index in range(9, -1, -1)]
+    assert len(result) == SEARCH_RERANK_CANDIDATES
+    assert len(model.calls[0][1]) == SEARCH_RERANK_CANDIDATES
+    assert [hit["id"] for hit in result] == [
+        f"c{index}" for index in range(SEARCH_RERANK_CANDIDATES - 1, -1, -1)
+    ]
 
 
 def test_unwarmed_model_preserves_rrf_order_with_reason() -> None:
