@@ -44,6 +44,8 @@ from indexer import (
     search,
     sync,
 )
+from ingestion.config import IngestionConfigError, load_ingestion_settings
+from ingestion.freshness import augment_freshness_report
 from reranker import warmup_reranker
 from write_lock import CortexWriteLockedError
 
@@ -274,9 +276,18 @@ def cortex_freshness(
     except (EmbeddingFingerprintMismatchError, CortexDataHomeError) as exc:
         return {"error": str(exc)}
     try:
-        return cortex_freshness_report(
+        report = cortex_freshness_report(
             collection,
             section=section,
+            include_entries=include_entries,
+        )
+        try:
+            settings = load_ingestion_settings()
+        except IngestionConfigError as exc:
+            return {**report, "ingestion_error": str(exc)}
+        return augment_freshness_report(
+            report,
+            ingestion_root=settings.data_root,
             include_entries=include_entries,
         )
     except CortexConfigError as exc:
