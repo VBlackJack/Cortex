@@ -48,10 +48,12 @@ class FakeRestClient:
         *,
         include_attachments: bool = True,
         xhtml: str | None = None,
+        attachments: tuple[RemoteAttachment, ...] | None = None,
     ) -> None:
         self.pages = pages
         self.include_attachments = include_attachments
         self.xhtml = xhtml
+        self.attachments = attachments
         self.content_calls: list[str] = []
         self.download_calls: list[str] = []
 
@@ -61,11 +63,16 @@ class FakeRestClient:
     def page_content(self, page_id: str) -> RemotePageContent:
         self.content_calls.append(page_id)
         if self.xhtml is not None:
-            return RemotePageContent(xhtml=self.xhtml, attachments=())
+            return RemotePageContent(xhtml=self.xhtml, attachments=self.attachments or ())
         if not self.include_attachments:
             return RemotePageContent(
                 xhtml=f"<p>Crème brûlée {page_id}</p>",
                 attachments=(),
+            )
+        if self.attachments is not None:
+            return RemotePageContent(
+                xhtml=f"<p>Crème brûlée {page_id}</p>",
+                attachments=self.attachments,
             )
         attachment = RemoteAttachment(
             attachment_id=f"attachment-{page_id}",
@@ -99,6 +106,7 @@ class FakeConsole:
         self.jobs: list[list[str]] = []
         self.job_payloads: list[dict[str, object]] = []
         self.xhtml_payloads: dict[str, bytes] = {}
+        self.attachment_payloads: dict[str, bytes] = {}
         self.working_directories: list[Path] = []
 
     def __call__(self, console_path: Path, working_directory: Path) -> int:
@@ -108,6 +116,11 @@ class FakeConsole:
         for page in job["pages"]:
             relative_path = Path(*page["xhtml_path"].split("/"))
             self.xhtml_payloads[page["page_id"]] = (working_directory / relative_path).read_bytes()
+            for attachment in page["attachments"]:
+                attachment_path = Path(*attachment["path"].split("/"))
+                self.attachment_payloads[attachment["path"]] = (
+                    working_directory / attachment_path
+                ).read_bytes()
         self.jobs.append(page_ids)
         self.working_directories.append(working_directory)
         results: list[dict[str, object]] = []
@@ -410,6 +423,63 @@ def test_empty_page_body_traverses_valid_job_and_is_published(tmp_path: Path) ->
     document = next(item for item in manifest.documents if item.source_uid == "1001")
     assert document.status is DocumentStatus.FRESH
     assert storage.document_path(generation_id, document.path).is_file()
+
+
+def test_hostile_windows_attachment_names_stage_distinct_valid_job_and_publish(
+    tmp_path: Path,
+) -> None:
+    file_names = (
+        "Spreadsheet-2023-03-13T13:40:03.render",
+        "Spreadsheet-2023-03-13T13-40-03.render",
+        "collision:name.txt",
+        "collision?name.txt",
+        "CON.txt",
+        "rapport.",
+        f"{'x' * 248}.render",
+    )
+    attachments = tuple(
+        RemoteAttachment(
+            attachment_id=str(5001 + index),
+            file_name=file_name,
+            media_type="application/octet-stream",
+            file_size=24,
+            download_uri=f"https://confluence.example.test/download/{5001 + index}",
+            is_drawio_source=False,
+        )
+        for index, file_name in enumerate(file_names)
+    )
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
+    console = FakeConsole(write_artifacts=False)
+
+    result = _run(
+        storage,
+        _settings(tmp_path),
+        FakeRestClient([_page("574050555", _NOW)], attachments=attachments),
+        console,
+        _NOW,
+    )
+
+    assert result.published  # type: ignore[attr-defined]
+    job = console.job_payloads[0]
+    job_schema = json.loads((_RESOURCES / "job.schema.json").read_text(encoding="utf-8"))
+    Draft202012Validator(job_schema, format_checker=FormatChecker()).validate(job)
+    job_attachments = job["pages"][0]["attachments"]  # type: ignore[index]
+    assert [attachment["file_name"] for attachment in job_attachments] == list(file_names)  # type: ignore[index]
+    staged_paths = [attachment["path"] for attachment in job_attachments]  # type: ignore[index]
+    staged_names = [Path(path).name for path in staged_paths]
+    assert staged_names[:6] == [
+        "5001-Spreadsheet-2023-03-13T13_40_03.render",
+        "5002-Spreadsheet-2023-03-13T13-40-03.render",
+        "5003-collision_name.txt",
+        "5004-collision_name.txt",
+        "5005-_CON.txt",
+        "5006-rapport",
+    ]
+    assert len(staged_names[6]) == 255
+    assert staged_names[6].endswith(".render")
+    assert len({name.casefold() for name in staged_names}) == len(staged_names)
+    assert set(console.attachment_payloads) == set(staged_paths)
+    assert all(console.attachment_payloads[path] for path in staged_paths)
 
 
 def test_incremental_skips_unchanged_page_and_reprocesses_modified_page(

@@ -47,6 +47,19 @@ _ZONE_UID_PREFIX = "zone:"
 _BATCH_DIRECTORY_PREFIX = "batch-"
 _STAGING_DIRECTORY_NAME = "staging"
 _OVERSIZED_JOB_ERROR_CODE = "job_payload_too_large"
+_WINDOWS_FILE_NAME_LIMIT = 255
+_WINDOWS_INVALID_FILE_NAME_CHARACTERS = frozenset('<>:"/\\|?*')
+_WINDOWS_RESERVED_FILE_NAMES = frozenset(
+    {
+        "con",
+        "prn",
+        "aux",
+        "nul",
+        *(f"com{index}" for index in range(1, 10)),
+        *(f"lpt{index}" for index in range(1, 10)),
+    }
+)
+_STAGED_FILE_NAME_FALLBACK = "file"
 _PAGE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
@@ -76,6 +89,28 @@ def _safe_file_name(value: str) -> bool:
         and "\\" not in value
         and "\x00" not in value
     )
+
+
+def _staged_attachment_file_name(attachment_id: str, file_name: str) -> str:
+    sanitized = "".join(
+        "_"
+        if ord(character) < 0x20 or character in _WINDOWS_INVALID_FILE_NAME_CHARACTERS
+        else character
+        for character in file_name
+    ).rstrip(" .")
+    if not sanitized:
+        sanitized = _STAGED_FILE_NAME_FALLBACK
+    if sanitized.split(".", maxsplit=1)[0].casefold() in _WINDOWS_RESERVED_FILE_NAMES:
+        sanitized = f"_{sanitized}"
+
+    prefix = f"{attachment_id}-"
+    maximum_name_length = _WINDOWS_FILE_NAME_LIMIT - len(prefix)
+    extension = Path(sanitized).suffix
+    maximum_stem_length = maximum_name_length - len(extension)
+    if maximum_stem_length < 1:
+        raise ConfluenceRestError("Attachment file extension is too long for staging.")
+    stem = sanitized[: -len(extension)] if extension else sanitized
+    return f"{prefix}{stem[:maximum_stem_length]}{extension}"
 
 
 def _source_revision(page: RemotePage) -> str:
@@ -343,12 +378,18 @@ class ConfluenceWriter:
         for attachment in content.attachments:
             if not _safe_file_name(attachment.file_name):
                 raise ConfluenceRestError("Attachment file name is unsafe.")
+            if not _PAGE_ID.fullmatch(attachment.attachment_id):
+                raise ConfluenceRestError("Attachment ID is unsafe for staging.")
             normalized_name = attachment.file_name.casefold()
             if normalized_name in seen_names:
                 raise ConfluenceRestError("Attachment file names collide case-insensitively.")
             seen_names.add(normalized_name)
             payload = client.download_attachment(attachment, maximum_bytes=maximum_bytes)
-            relative = Path("input") / "attachments" / page.page_id / attachment.file_name
+            staged_file_name = _staged_attachment_file_name(
+                attachment.attachment_id,
+                attachment.file_name,
+            )
+            relative = Path("input") / "attachments" / page.page_id / staged_file_name
             target = root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(payload)
