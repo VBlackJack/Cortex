@@ -20,8 +20,11 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from confluence_writer.constants import JOB_SCHEMA_SHA256, RESULT_SCHEMA_SHA256
-from confluence_writer.rest import ConfluenceRestClient
+from confluence_writer.models import RemotePageContent
+from confluence_writer.rest import ConfluenceRestClient, ConfluenceRestError
 from ingestion.credentials import SecretValue
 
 _FAKE_SECRET = "fixture-only-fake-secret-confluence-rest-6d6f"
@@ -92,6 +95,46 @@ def test_space_enumeration_follows_multi_page_links_at_limit_250() -> None:
     assert len(transport.json_calls) == 2
     assert "limit=250" in transport.json_calls[0]
     assert transport.json_calls[1].endswith("start=250&limit=250")
+
+
+def test_page_content_accepts_empty_storage_body() -> None:
+    transport = QueueTransport(
+        [
+            {"body": {"storage": {"value": ""}}},
+            {"results": [], "_links": {}},
+        ]
+    )
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=transport,
+    )
+
+    content = client.page_content("1001")
+
+    assert content == RemotePageContent(xhtml="", attachments=())
+
+
+@pytest.mark.parametrize(
+    "storage",
+    [
+        pytest.param({}, id="absent"),
+        pytest.param({"value": None}, id="null"),
+        pytest.param({"value": 42}, id="wrong-type"),
+    ],
+)
+def test_page_content_rejects_missing_or_non_string_storage_body(
+    storage: dict[str, object],
+) -> None:
+    transport = QueueTransport([{"body": {"storage": storage}}])
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=transport,
+    )
+
+    with pytest.raises(ConfluenceRestError, match=r"body\.storage\.value"):
+        client.page_content("1001")
 
 
 def test_vendored_schema_bytes_match_frozen_3a_provenance() -> None:

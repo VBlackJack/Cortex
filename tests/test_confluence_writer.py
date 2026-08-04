@@ -21,6 +21,8 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from jsonschema import Draft202012Validator, FormatChecker
+
 from confluence_writer.config import ConfluenceSettings, SpaceMapping
 from confluence_writer.converter import ConsoleConverter
 from confluence_writer.frontmatter import parse_frontmatter
@@ -34,14 +36,22 @@ from ingestion.storage import IngestionStorage
 
 _NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
 _FAKE_SECRET = "fixture-only-fake-secret-confluence-writer-f37c"
+_RESOURCES = Path(__file__).parents[1] / "confluence_writer" / "resources"
 
 
 class FakeRestClient:
     """Mock REST source with explicit enumeration, content, and download counters."""
 
-    def __init__(self, pages: list[RemotePage], *, include_attachments: bool = True) -> None:
+    def __init__(
+        self,
+        pages: list[RemotePage],
+        *,
+        include_attachments: bool = True,
+        xhtml: str | None = None,
+    ) -> None:
         self.pages = pages
         self.include_attachments = include_attachments
+        self.xhtml = xhtml
         self.content_calls: list[str] = []
         self.download_calls: list[str] = []
 
@@ -50,6 +60,8 @@ class FakeRestClient:
 
     def page_content(self, page_id: str) -> RemotePageContent:
         self.content_calls.append(page_id)
+        if self.xhtml is not None:
+            return RemotePageContent(xhtml=self.xhtml, attachments=())
         if not self.include_attachments:
             return RemotePageContent(
                 xhtml=f"<p>Crème brûlée {page_id}</p>",
@@ -85,11 +97,17 @@ class FakeConsole:
         self.write_artifacts = write_artifacts
         self.failed_ids: set[str] = set()
         self.jobs: list[list[str]] = []
+        self.job_payloads: list[dict[str, object]] = []
+        self.xhtml_payloads: dict[str, bytes] = {}
         self.working_directories: list[Path] = []
 
     def __call__(self, console_path: Path, working_directory: Path) -> int:
         job = json.loads((working_directory / "job.json").read_text(encoding="utf-8"))
+        self.job_payloads.append(job)
         page_ids = [page["page_id"] for page in job["pages"]]
+        for page in job["pages"]:
+            relative_path = Path(*page["xhtml_path"].split("/"))
+            self.xhtml_payloads[page["page_id"]] = (working_directory / relative_path).read_bytes()
         self.jobs.append(page_ids)
         self.working_directories.append(working_directory)
         results: list[dict[str, object]] = []
@@ -361,6 +379,37 @@ def test_failure_threshold_is_global_across_console_jobs(tmp_path: Path) -> None
     assert below.published
     assert above_attempt.failure_threshold_exceeded
     assert not above.published
+
+
+def test_empty_page_body_traverses_valid_job_and_is_published(tmp_path: Path) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
+    console = FakeConsole(write_artifacts=False)
+
+    result = _run(
+        storage,
+        _settings(tmp_path),
+        FakeRestClient(
+            [_page("1001", _NOW)],
+            include_attachments=False,
+            xhtml="",
+        ),
+        console,
+        _NOW,
+    )
+
+    assert result.published  # type: ignore[attr-defined]
+    assert console.jobs == [["1001"]]
+    assert console.xhtml_payloads == {"1001": b""}
+    job_schema = json.loads((_RESOURCES / "job.schema.json").read_text(encoding="utf-8"))
+    Draft202012Validator(job_schema, format_checker=FormatChecker()).validate(
+        console.job_payloads[0]
+    )
+    manifest = storage.load_current_manifest()
+    generation_id = storage.current_generation_id()
+    assert manifest is not None and generation_id is not None
+    document = next(item for item in manifest.documents if item.source_uid == "1001")
+    assert document.status is DocumentStatus.FRESH
+    assert storage.document_path(generation_id, document.path).is_file()
 
 
 def test_incremental_skips_unchanged_page_and_reprocesses_modified_page(
