@@ -22,13 +22,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from confluence_writer.config import ConfluenceSettings, SpaceMapping
+from confluence_writer.converter import ConsoleConverter
 from confluence_writer.frontmatter import parse_frontmatter
 from confluence_writer.models import RemoteAttachment, RemotePage, RemotePageContent
 from confluence_writer.writer import ConfluenceWriter
 from cortex_logging import configure_logging
 from ingestion.credentials import SecretValue
 from ingestion.engine import GenerationEngine
-from ingestion.models import DocumentStatus, HealthStatus
+from ingestion.models import DocumentStatus, GenerationAttempt, HealthStatus
 from ingestion.storage import IngestionStorage
 
 _NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
@@ -38,8 +39,9 @@ _FAKE_SECRET = "fixture-only-fake-secret-confluence-writer-f37c"
 class FakeRestClient:
     """Mock REST source with explicit enumeration, content, and download counters."""
 
-    def __init__(self, pages: list[RemotePage]) -> None:
+    def __init__(self, pages: list[RemotePage], *, include_attachments: bool = True) -> None:
         self.pages = pages
+        self.include_attachments = include_attachments
         self.content_calls: list[str] = []
         self.download_calls: list[str] = []
 
@@ -48,6 +50,11 @@ class FakeRestClient:
 
     def page_content(self, page_id: str) -> RemotePageContent:
         self.content_calls.append(page_id)
+        if not self.include_attachments:
+            return RemotePageContent(
+                xhtml=f"<p>Crème brûlée {page_id}</p>",
+                attachments=(),
+            )
         attachment = RemoteAttachment(
             attachment_id=f"attachment-{page_id}",
             file_name=f"pièce-{page_id}.txt",
@@ -74,26 +81,30 @@ class FakeRestClient:
 class FakeConsole:
     """Frozen-contract console substitute that can leave failed-page artifacts."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, write_artifacts: bool = True) -> None:
+        self.write_artifacts = write_artifacts
         self.failed_ids: set[str] = set()
         self.jobs: list[list[str]] = []
+        self.working_directories: list[Path] = []
 
     def __call__(self, console_path: Path, working_directory: Path) -> int:
         job = json.loads((working_directory / "job.json").read_text(encoding="utf-8"))
         page_ids = [page["page_id"] for page in job["pages"]]
         self.jobs.append(page_ids)
+        self.working_directories.append(working_directory)
         results: list[dict[str, object]] = []
         for page_id in page_ids:
-            attachment_root = working_directory / "_attachments" / page_id
-            attachment_root.mkdir(parents=True, exist_ok=True)
             if page_id in self.failed_ids:
-                (attachment_root / "failed-only.txt").write_text(
-                    "must not publish\n",
-                    encoding="utf-8",
-                )
-                failed_markdown = working_directory / "markdown" / f"{page_id}-failed.md"
-                failed_markdown.parent.mkdir(parents=True, exist_ok=True)
-                failed_markdown.write_text("must not publish\n", encoding="utf-8")
+                if self.write_artifacts:
+                    attachment_root = working_directory / "_attachments" / page_id
+                    attachment_root.mkdir(parents=True, exist_ok=True)
+                    (attachment_root / "failed-only.txt").write_text(
+                        "must not publish\n",
+                        encoding="utf-8",
+                    )
+                    failed_markdown = working_directory / "markdown" / f"{page_id}-failed.md"
+                    failed_markdown.parent.mkdir(parents=True, exist_ok=True)
+                    failed_markdown.write_text("must not publish\n", encoding="utf-8")
                 results.append(
                     {
                         "page_id": page_id,
@@ -105,10 +116,13 @@ class FakeConsole:
             markdown = working_directory / "markdown" / f"{page_id}.md"
             markdown.parent.mkdir(parents=True, exist_ok=True)
             markdown.write_text(f"# Café résumé {page_id}\n\nCrème brûlée.\n", encoding="utf-8")
-            (attachment_root / "converted-only.txt").write_text(
-                f"converted {page_id}\n",
-                encoding="utf-8",
-            )
+            if self.write_artifacts:
+                attachment_root = working_directory / "_attachments" / page_id
+                attachment_root.mkdir(parents=True, exist_ok=True)
+                (attachment_root / "converted-only.txt").write_text(
+                    f"converted {page_id}\n",
+                    encoding="utf-8",
+                )
             results.append(
                 {
                     "page_id": page_id,
@@ -163,14 +177,190 @@ def _run(
     console: FakeConsole,
     now: datetime,
 ) -> object:
+    attempt = _collect(storage, settings, client, console, now)
+    return GenerationEngine(storage).run(attempt, now=now)
+
+
+def _collect(
+    storage: IngestionStorage,
+    settings: ConfluenceSettings,
+    client: FakeRestClient,
+    console: FakeConsole,
+    now: datetime,
+) -> GenerationAttempt:
     writer = ConfluenceWriter(
         settings,
         storage,
         client_factory=lambda _secret: client,  # type: ignore[arg-type]
         converter_runner=console,
     )
-    attempt = writer.collect(SecretValue(_FAKE_SECRET), captured_at=now)
-    return GenerationEngine(storage).run(attempt, now=now)
+    return writer.collect(SecretValue(_FAKE_SECRET), captured_at=now)
+
+
+def _bulk_pages(count: int) -> list[RemotePage]:
+    return [_page(str(index), _NOW) for index in range(1, count + 1)]
+
+
+def _large_job_page(page_id: str, attachments: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "page_id": page_id,
+        "title": f"Page {page_id}",
+        "space_key": "DOC",
+        "version": 1,
+        "updated_at": "2026-08-03T12:00:00Z",
+        "author": "Fixture Author",
+        "canonical_url": f"https://confluence.example.test/pages/{page_id}",
+        "xhtml_path": f"input/pages/{page_id}.xhtml",
+        "attachments": attachments,
+    }
+
+
+def test_1001_pages_use_two_isolated_console_jobs_in_stable_order(
+    tmp_path: Path,
+) -> None:
+    pages = _bulk_pages(1001)
+    page_ids = [page.page_id for page in pages]
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
+    console = FakeConsole(write_artifacts=False)
+
+    attempt = _collect(
+        storage,
+        _settings(tmp_path),
+        FakeRestClient(pages, include_attachments=False),
+        console,
+        _NOW,
+    )
+
+    assert [len(job) for job in console.jobs] == [1000, 1]
+    assert [page_id for job in console.jobs for page_id in job] == page_ids
+    assert [document.source_uid for document in attempt.documents[1:]] == page_ids
+    assert len(set(console.working_directories)) == 2
+    assert [path.name for path in console.working_directories] == ["batch-0001", "batch-0002"]
+    assert all(
+        path.parent == console.working_directories[0].parent
+        for path in console.working_directories
+    )
+
+
+def test_exactly_1000_pages_use_one_console_job(tmp_path: Path) -> None:
+    pages = _bulk_pages(1000)
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
+    console = FakeConsole(write_artifacts=False)
+
+    _collect(
+        storage,
+        _settings(tmp_path),
+        FakeRestClient(pages, include_attachments=False),
+        console,
+        _NOW,
+    )
+
+    assert [len(job) for job in console.jobs] == [1000]
+
+
+def test_job_byte_limit_splits_large_page_records_before_count_limit(
+    tmp_path: Path,
+) -> None:
+    converter = ConsoleConverter(tmp_path / "fixture-console.exe", runner=FakeConsole())
+    file_name = "x" * 251 + ".txt"
+    attachments: list[dict[str, object]] = [
+        {
+            "attachment_id": "a" * 128,
+            "file_name": file_name,
+            "media_type": "m" * 255,
+            "path": f"input/attachments/fixture/{file_name}",
+            "is_drawio_source": False,
+        }
+        for _index in range(1000)
+    ]
+    pages = [_large_job_page(str(index), attachments) for index in range(1, 13)]
+
+    plan = converter.plan_job_pages(pages)
+
+    assert converter.job_limits.maximum_pages == 1000
+    assert converter.job_limits.maximum_bytes == 8388608
+    assert len(plan.batches) > 1
+    assert [page["page_id"] for batch in plan.batches for page in batch] == [
+        page["page_id"] for page in pages
+    ]
+    assert all(
+        converter.serialized_job_size({"schema_version": 1, "pages": list(batch)})
+        <= converter.job_limits.maximum_bytes
+        for batch in plan.batches
+    )
+
+
+def test_single_page_over_job_byte_limit_fails_page_and_continues_generation(
+    tmp_path: Path,
+) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
+    settings = _settings(tmp_path, threshold=1.0)
+    converter = ConsoleConverter(settings.console_path or Path(), runner=FakeConsole())
+    oversized = replace(
+        _page("oversized", _NOW),
+        title="x" * (converter.job_limits.maximum_bytes + 1),
+    )
+    console = FakeConsole(write_artifacts=False)
+
+    attempt = _collect(
+        storage,
+        settings,
+        FakeRestClient([oversized], include_attachments=False),
+        console,
+        _NOW,
+    )
+    result = GenerationEngine(storage).run(attempt, now=_NOW)
+
+    assert result.published
+    assert console.jobs == []
+    assert [(failure.source_uid, failure.error_code) for failure in attempt.failures] == [
+        ("oversized", "job_payload_too_large")
+    ]
+    assert not attempt.failure_threshold_exceeded
+
+
+def test_failure_threshold_is_global_across_console_jobs(tmp_path: Path) -> None:
+    pages = _bulk_pages(1001)
+    settings = _settings(tmp_path, threshold=0.002)
+
+    below_storage = IngestionStorage(
+        tmp_path / "below-state",
+        "doc",
+        retention_generations=2,
+    )
+    below_console = FakeConsole(write_artifacts=False)
+    below_console.failed_ids = {"1", "1001"}
+    below_attempt = _collect(
+        below_storage,
+        settings,
+        FakeRestClient(pages, include_attachments=False),
+        below_console,
+        _NOW,
+    )
+    below = GenerationEngine(below_storage).run(below_attempt, now=_NOW)
+
+    above_storage = IngestionStorage(
+        tmp_path / "above-state",
+        "doc",
+        retention_generations=2,
+    )
+    above_console = FakeConsole(write_artifacts=False)
+    above_console.failed_ids = {"1", "2", "1001"}
+    above_attempt = _collect(
+        above_storage,
+        settings,
+        FakeRestClient(pages, include_attachments=False),
+        above_console,
+        _NOW,
+    )
+    above = GenerationEngine(above_storage).run(above_attempt, now=_NOW)
+
+    assert [len(job) for job in below_console.jobs] == [1000, 1]
+    assert [len(job) for job in above_console.jobs] == [1000, 1]
+    assert not below_attempt.failure_threshold_exceeded
+    assert below.published
+    assert above_attempt.failure_threshold_exceeded
+    assert not above.published
 
 
 def test_incremental_skips_unchanged_page_and_reprocesses_modified_page(
