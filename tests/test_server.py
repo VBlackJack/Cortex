@@ -56,6 +56,7 @@ def test_cortex_freshness_defaults_to_summary(
 
 def test_cortex_freshness_details_are_explicit_and_section_scoped(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     def report(_collection: object, **kwargs: object) -> dict[str, object]:
         return {
@@ -66,6 +67,11 @@ def test_cortex_freshness_details_are_explicit_and_section_scoped(
     monkeypatch.setattr(server, "_resolve_section", lambda section: (section, None))
     monkeypatch.setattr(server, "get_collection", object)
     monkeypatch.setattr(server, "cortex_freshness_report", report)
+    monkeypatch.setattr(
+        server,
+        "load_ingestion_settings",
+        lambda: IngestionSettings(data_root=tmp_path / "ingestion"),
+    )
 
     response = server.cortex_freshness(
         section="knowledge",

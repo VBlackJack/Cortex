@@ -59,6 +59,7 @@ from config import (  # noqa: E402
     FRESHNESS_CONTRACT_VERSION,
     INCLUDED_SECTIONS,
     INDEX_WHOLE_FOLDER,
+    INGESTION_DOCUMENT_SECTION,
     KB_PATH,
     LEGACY_CHROMA_PATH,
     ROOT_SECTION,
@@ -70,9 +71,18 @@ from config import (  # noqa: E402
 )
 from data_home import ensure_index_location  # noqa: E402
 from embedding_fingerprint import get_validated_collection  # noqa: E402
+from ingestion.config import (  # noqa: E402
+    IngestionConfigError,
+    load_ingestion_settings,
+)
 from lexical_index import LexicalIndex, prepare_lexical_index  # noqa: E402
 from reranker import rerank_fused_hits, warmup_reranker  # noqa: E402
-from sync_hash_aware import empty_sync_stats, merge_sync_stats, sync_section  # noqa: E402
+from sync_hash_aware import (  # noqa: E402
+    empty_sync_stats,
+    merge_sync_stats,
+    sync_ingestion_documents,
+    sync_section,
+)
 from write_lock import chroma_write_lock  # noqa: E402
 
 # -- Embedding function --------------------------------------------------------
@@ -235,6 +245,26 @@ def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, 
             lexical_index=lexical_index,
         )
         merge_sync_stats(stats, section_stats)
+
+    should_sync_documents = section is None or section == INGESTION_DOCUMENT_SECTION
+    if INDEX_WHOLE_FOLDER:
+        should_sync_documents = section in {None, ROOT_SECTION}
+    if should_sync_documents:
+        try:
+            ingestion_settings = load_ingestion_settings()
+        except IngestionConfigError as exc:
+            stats["errors"] += 1
+            log.error("ingestion_config_error reason=%s", exc)
+        else:
+            document_stats = sync_ingestion_documents(
+                collection,
+                ingestion_settings.data_root,
+                retention_generations=ingestion_settings.retention_generations,
+                checkpoint=None,
+                verbose=verbose,
+                lexical_index=lexical_index,
+            )
+            merge_sync_stats(stats, document_stats)
 
     if verbose:
         log.info(
