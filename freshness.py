@@ -42,6 +42,7 @@ from config import (
     CortexConfigError,
     require_kb_path,
 )
+from ingestion.config import load_ingestion_settings
 from ingestion.constants import DOCUMENTS_DIRECTORY_NAME
 from ingestion.storage import IngestionStorage, IngestionStorageError
 
@@ -494,25 +495,66 @@ def annotate_search_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     Bounded to the unique source paths present in "hits" (one rehash per
     distinct file, not per hit). Never raises - a per-source failure
-    degrades that hit's verdict to "missing"/"error" and the rest continue.
+    degrades that hit's verdict to "missing"/"error"/"unavailable" and the rest continue.
     Order and every existing key are preserved; only "freshness" is added.
     """
-    try:
-        root = Path(require_kb_path(KB_PATH))
-    except CortexConfigError:
-        for hit in hits:
-            hit["freshness"] = "unavailable"
-        return hits
-    verdict_cache: dict[str, str] = {}
+    domains = {
+        INGESTION_DOCUMENT_SOURCE_KIND
+        if (hit.get("metadata") or {}).get("source_kind") == INGESTION_DOCUMENT_SOURCE_KIND
+        else VAULT_SOURCE_KIND
+        for hit in hits
+    }
+    roots: dict[str, Path | None] = {}
+    if VAULT_SOURCE_KIND in domains:
+        try:
+            roots[VAULT_SOURCE_KIND] = Path(require_kb_path(KB_PATH))
+        except CortexConfigError:
+            roots[VAULT_SOURCE_KIND] = None
+    if INGESTION_DOCUMENT_SOURCE_KIND in domains:
+        try:
+            settings = load_ingestion_settings()
+            storage = IngestionStorage(
+                settings.data_root,
+                INGESTION_DOCUMENT_SOURCE_KIND,
+                settings.retention_generations,
+            )
+            generation_id = storage.current_generation_id()
+            documents_root = (
+                storage.generation_path(generation_id) / DOCUMENTS_DIRECTORY_NAME
+                if generation_id is not None
+                else None
+            )
+            roots[INGESTION_DOCUMENT_SOURCE_KIND] = (
+                documents_root if documents_root is not None and documents_root.is_dir() else None
+            )
+        except Exception as exc:  # noqa: BLE001 - this read-only boundary must never raise
+            _LOG.warning(
+                "search_annotation_unavailable source_kind=%s reason=%s",
+                INGESTION_DOCUMENT_SOURCE_KIND,
+                exc,
+            )
+            roots[INGESTION_DOCUMENT_SOURCE_KIND] = None
+
+    verdict_cache: dict[tuple[str, str], str] = {}
     for hit in hits:
         metadata = hit.get("metadata") or {}
+        domain = (
+            INGESTION_DOCUMENT_SOURCE_KIND
+            if metadata.get("source_kind") == INGESTION_DOCUMENT_SOURCE_KIND
+            else VAULT_SOURCE_KIND
+        )
+        root = roots[domain]
+        if root is None:
+            hit["freshness"] = "unavailable"
+            continue
         normalized = _normalize_index_path(metadata.get("path"))
         if normalized is None:
             hit["freshness"] = "error"
             continue
-        if normalized not in verdict_cache:
-            verdict_cache[normalized] = _annotate_source(root, normalized, metadata)
-        hit["freshness"] = verdict_cache[normalized]
+        cache_key = (domain, normalized)
+        if cache_key not in verdict_cache:
+            verdict_cache[cache_key] = _annotate_source(root, normalized, metadata)
+        hit["freshness"] = verdict_cache[cache_key]
     return hits
 
 
