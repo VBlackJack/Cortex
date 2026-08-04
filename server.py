@@ -36,7 +36,12 @@ from chunker_utils import reconstruct_contract_metadata
 from config import INDEX_WHOLE_FOLDER, ROOT_SECTION, CortexConfigError
 from data_home import CortexDataHomeError
 from embedding_fingerprint import EmbeddingFingerprintMismatchError
-from freshness import annotate_search_hits, cortex_freshness_report
+from freshness import (
+    annotate_search_hits,
+    augment_ingestion_index_report,
+    cortex_freshness_report,
+    cortex_ingestion_index_freshness_report,
+)
 from indexer import (
     CortexSearchError,
     discover_out_of_policy_sections,
@@ -376,11 +381,18 @@ def cortex_freshness(
             settings = load_ingestion_settings()
         except IngestionConfigError as exc:
             return {**report, "ingestion_error": str(exc)}
-        return augment_freshness_report(
+        combined = augment_freshness_report(
             report,
             ingestion_root=settings.data_root,
             include_entries=include_entries,
         )
+        ingestion_index = cortex_ingestion_index_freshness_report(
+            collection,
+            settings.data_root,
+            retention_generations=settings.retention_generations,
+            include_entries=include_entries,
+        )
+        return augment_ingestion_index_report(combined, ingestion_index)
     except CortexConfigError as exc:
         return {"error": str(exc)}
 

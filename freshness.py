@@ -33,11 +33,17 @@ from config import (
     FRESHNESS_CONTRACT_VERSION,
     INCLUDED_SECTIONS,
     INDEX_WHOLE_FOLDER,
+    INGESTION_DOCUMENT_SECTION,
+    INGESTION_DOCUMENT_SOURCE_KIND,
+    INGESTION_DOCUMENT_SUFFIX,
     KB_PATH,
     ROOT_SECTION,
+    VAULT_SOURCE_KIND,
     CortexConfigError,
     require_kb_path,
 )
+from ingestion.constants import DOCUMENTS_DIRECTORY_NAME
+from ingestion.storage import IngestionStorage, IngestionStorageError
 
 _LOG = logging.getLogger("cortex.freshness")
 _HASH_LENGTH = 64
@@ -113,7 +119,11 @@ def cortex_freshness_report(
     active = scope if scope is not None else _default_scope()
     started = perf_counter()
     root = Path(require_kb_path(active.kb_path))
-    indexed, invalid_paths = _indexed_metadata(collection, section)
+    indexed, invalid_paths = _indexed_metadata(
+        collection,
+        section,
+        source_kind=VAULT_SOURCE_KIND,
+    )
     entries: list[dict[str, str]] = []
     seen_paths: set[str] = set()
 
@@ -244,7 +254,10 @@ def _discover_excluded(root: Path, section: str | None, scope: FreshnessScope) -
 
 
 def _indexed_metadata(
-    collection: Any, section: str | None
+    collection: Any,
+    section: str | None,
+    *,
+    source_kind: str,
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str]]:
     indexed: dict[str, list[dict[str, Any]]] = defaultdict(list)
     invalid: dict[str, str] = {}
@@ -257,6 +270,12 @@ def _indexed_metadata(
         for metadata in metadatas:
             if not metadata:
                 continue
+            indexed_kind = metadata.get("source_kind")
+            if source_kind == VAULT_SOURCE_KIND:
+                if indexed_kind not in {None, source_kind}:
+                    continue
+            elif indexed_kind != source_kind:
+                continue
             raw_path = metadata.get("path")
             normalized = _normalize_index_path(raw_path)
             if normalized is None:
@@ -264,6 +283,150 @@ def _indexed_metadata(
                 continue
             indexed[normalized].append(dict(metadata))
     return indexed, invalid
+
+
+def cortex_ingestion_index_freshness_report(
+    collection: Any,
+    ingestion_root: Path,
+    *,
+    retention_generations: int,
+    include_entries: bool,
+) -> dict[str, Any]:
+    """Compare the current published document generation with indexed doc chunks."""
+    storage = IngestionStorage(
+        ingestion_root,
+        INGESTION_DOCUMENT_SOURCE_KIND,
+        retention_generations,
+    )
+    base: dict[str, Any] = {
+        "source_kind": INGESTION_DOCUMENT_SOURCE_KIND,
+        "read_only": True,
+    }
+    if not storage.source_root.exists():
+        return {**base, "status": "unavailable", "generation_id": None, "summary": {}}
+    try:
+        generation_id = storage.current_generation_id()
+        manifest = storage.load_current_manifest()
+    except IngestionStorageError as exc:
+        return {
+            **base,
+            "status": "error",
+            "generation_id": None,
+            "summary": {"error": 1},
+            "error": str(exc),
+        }
+    if generation_id is None or manifest is None:
+        return {**base, "status": "unavailable", "generation_id": None, "summary": {}}
+
+    documents_root = storage.generation_path(generation_id) / DOCUMENTS_DIRECTORY_NAME
+    entries: list[dict[str, str]] = []
+    indexed, invalid_paths = _indexed_metadata(
+        collection,
+        INGESTION_DOCUMENT_SECTION,
+        source_kind=INGESTION_DOCUMENT_SOURCE_KIND,
+    )
+    for path, reason in invalid_paths.items():
+        entries.append({"path": path, "status": "error", "reason": reason})
+    if not documents_root.is_dir():
+        entries.append(
+            {
+                "path": DOCUMENTS_DIRECTORY_NAME,
+                "status": "error",
+                "reason": "current generation documents directory is unavailable",
+            }
+        )
+    else:
+        expected_paths = {document.path for document in manifest.documents}
+        discovered = {
+            path.relative_to(documents_root).as_posix(): path
+            for path in documents_root.rglob("*")
+            if path.is_file() and path.suffix.lower() == INGESTION_DOCUMENT_SUFFIX
+        }
+        for rel_path in sorted(expected_paths):
+            source = discovered.get(rel_path)
+            if source is None:
+                entries.append(
+                    {
+                        "path": rel_path,
+                        "status": "error",
+                        "reason": "manifest document is absent from current generation",
+                    }
+                )
+                indexed.pop(rel_path, None)
+                continue
+            try:
+                snapshot = read_source_snapshot(source, documents_root)
+            except (OSError, UnicodeDecodeError, ValueError) as exc:
+                entries.append({"path": rel_path, "status": "error", "reason": str(exc)})
+                indexed.pop(rel_path, None)
+                continue
+            entries.append(_classify_present(snapshot, indexed.pop(rel_path, []), source))
+
+    for rel_path, metadata in sorted(indexed.items()):
+        entries.append({"path": rel_path, "status": "missing", "chunks": str(len(metadata))})
+    entries.sort(key=lambda item: item["path"])
+    summary: dict[str, int] = defaultdict(int)
+    for entry in entries:
+        summary[entry["status"]] += 1
+    status = _index_summary_status(summary)
+    report: dict[str, Any] = {
+        **base,
+        "status": status,
+        "generation_id": generation_id,
+        "summary": dict(sorted(summary.items())),
+    }
+    if include_entries:
+        report["entries"] = entries
+    return report
+
+
+def _index_summary_status(summary: dict[str, int]) -> str:
+    if summary.get("error", 0):
+        return "error"
+    if any(summary.get(label, 0) for label in ("stale", "missing", "unknown", "unindexed")):
+        return "degraded"
+    return "ok"
+
+
+def augment_ingestion_index_report(
+    report: dict[str, Any],
+    ingestion_index: dict[str, Any],
+) -> dict[str, Any]:
+    """Attach dedicated ingestion index freshness and fold it into stage status."""
+    if ingestion_index.get("status") == "unavailable":
+        return report
+    enriched = {**report, "ingestion_index": ingestion_index}
+    combined = enriched.get("two_stage_freshness")
+    document_status = ingestion_index.get("status")
+    if not isinstance(combined, dict):
+        return enriched
+    severity = {"ok": 0, "degraded": 1, "error": 2}
+    if document_status not in severity:
+        return enriched
+    index_stage = combined.get("index_stage")
+    source_stage = combined.get("source_stage")
+    if not isinstance(index_stage, dict) or not isinstance(source_stage, dict):
+        return enriched
+    current_index_status = index_stage.get("status", "error")
+    index_status = max(
+        (current_index_status, document_status),
+        key=lambda value: severity.get(value, severity["error"]),
+    )
+    index_stage["status"] = index_status
+    index_stage["ingestion_sources"] = [
+        {
+            "source_kind": ingestion_index.get("source_kind"),
+            "generation_id": ingestion_index.get("generation_id"),
+            "status": document_status,
+            "summary": ingestion_index.get("summary", {}),
+        }
+    ]
+    source_status = source_stage.get("status", "error")
+    combined["status"] = max(
+        (source_status, index_status),
+        key=lambda value: severity.get(value, severity["error"]),
+    )
+    return enriched
 
 
 def _normalize_index_path(value: object) -> str | None:

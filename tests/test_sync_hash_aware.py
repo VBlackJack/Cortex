@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +29,20 @@ from config import (
     FRESHNESS_CONTRACT_VERSION,
     ROOT_SECTION,
 )
-from sync_hash_aware import _sync_section_locked, sync_file
+from confluence_writer.frontmatter import render_document
+from confluence_writer.models import RemotePage
+from freshness import cortex_ingestion_index_freshness_report
+from ingestion.engine import GenerationEngine
+from ingestion.models import CollectedDocument, GenerationAttempt
+from ingestion.storage import IngestionStorage
+from lexical_index import LexicalIndex
+from sync_hash_aware import (
+    _sync_section_locked,
+    sync_file,
+    sync_ingestion_documents,
+)
+
+_NOW = datetime(2026, 8, 4, 12, 0, tzinfo=timezone.utc)
 
 
 class Collection:
@@ -94,6 +108,7 @@ class Collection:
             selected = selected[offset : offset + limit]
         return {
             "ids": [chunk_id for chunk_id, _ in selected],
+            "documents": [self.rows[chunk_id]["document"] for chunk_id, _ in selected],
             "metadatas": [metadata for _, metadata in selected],
         }
 
@@ -354,3 +369,262 @@ def test_lexical_failure_is_reported_after_chroma_publish(
     assert stats["published_files"] == 1
     assert stats["errors"] == 1
     assert set(collection.rows) == {current[0]["id"]}
+
+
+def _ingestion_document(
+    source_uid: str,
+    body: str,
+    *,
+    observed_at: datetime,
+) -> CollectedDocument:
+    path = f"sources/confluence-sync/CCSP/markdown/{source_uid}.md"
+    page = RemotePage(
+        page_id=source_uid,
+        title=f"Document {source_uid}",
+        space_key="CCSP",
+        version_number=1,
+        version_when=observed_at,
+        last_updated=observed_at,
+        author="Julien",
+        occurred_at=observed_at,
+        canonical_uri=f"https://confluence.example.test/pages/{source_uid}",
+    )
+    return CollectedDocument(
+        source_uid=source_uid,
+        path=path,
+        content=render_document(
+            page,
+            path=path,
+            body=f"# {source_uid}\n\n{body}\n",
+            captured_at=observed_at,
+        ),
+        source_revision=f"revision-{observed_at.isoformat()}",
+    )
+
+
+def _publish_generation(
+    storage: IngestionStorage,
+    documents: tuple[CollectedDocument, ...],
+    remote_seen: frozenset[str],
+    *,
+    observed_at: datetime,
+) -> str:
+    result = GenerationEngine(storage).run(
+        GenerationAttempt(
+            documents=documents,
+            remote_seen_source_uids=remote_seen,
+            enumeration_complete=True,
+            enumeration_succeeded=True,
+        ),
+        now=observed_at,
+    )
+    assert result.published
+    assert result.generation_id is not None
+    return result.generation_id
+
+
+def test_current_document_generation_reconciles_chroma_and_lexical(
+    tmp_path: Path,
+) -> None:
+    ingestion_root = tmp_path / "ingestion"
+    storage = IngestionStorage(ingestion_root, "doc", retention_generations=3)
+    first_documents = (
+        _ingestion_document("unchanged", "Stable shared filter token.", observed_at=_NOW),
+        _ingestion_document("modified", "Original shared filter token.", observed_at=_NOW),
+        _ingestion_document("removed", "Removed shared filter token.", observed_at=_NOW),
+    )
+    first_generation = _publish_generation(
+        storage,
+        first_documents,
+        frozenset(document.source_uid for document in first_documents),
+        observed_at=_NOW,
+    )
+    collection = Collection()
+    lexical = LexicalIndex(tmp_path / "lexical.db")
+    lexical.rebuild(collection)
+
+    before = cortex_ingestion_index_freshness_report(
+        collection,
+        ingestion_root,
+        retention_generations=3,
+        include_entries=True,
+    )
+    first = sync_ingestion_documents(
+        collection,
+        ingestion_root,
+        retention_generations=3,
+        lexical_index=lexical,
+    )
+    second = sync_ingestion_documents(
+        collection,
+        ingestion_root,
+        retention_generations=3,
+        lexical_index=lexical,
+    )
+
+    assert before["status"] == "degraded"
+    assert before["summary"] == {"unindexed": 3}
+    assert first["published_files"] == 3
+    assert first["errors"] == 0
+    assert second["skipped_files"] == 3
+    assert second["published_files"] == 0
+    assert {row["metadata"]["source_kind"] for row in collection.rows.values()} == {"doc"}
+    assert {row["metadata"]["section"] for row in collection.rows.values()} == {"sources"}
+    assert all(
+        row["metadata"]["canonical_uri"].startswith("https://confluence.example.test/pages/")
+        for row in collection.rows.values()
+    )
+    assert {
+        hit["metadata"]["source_kind"]
+        for hit in lexical.search(
+            "shared filter token",
+            source_kinds=["doc"],
+            limit=20,
+        )
+    } == {"doc"}
+
+    next_observed_at = _NOW + timedelta(hours=1)
+    next_documents = (
+        _ingestion_document(
+            "modified",
+            "Updated shared filter token.",
+            observed_at=next_observed_at,
+        ),
+        _ingestion_document(
+            "added",
+            "Added shared filter token.",
+            observed_at=next_observed_at,
+        ),
+    )
+    next_generation = _publish_generation(
+        storage,
+        next_documents,
+        frozenset({"unchanged", "modified", "added"}),
+        observed_at=next_observed_at,
+    )
+    switched = sync_ingestion_documents(
+        collection,
+        ingestion_root,
+        retention_generations=3,
+        lexical_index=lexical,
+    )
+
+    assert next_generation != first_generation
+    assert switched == {
+        "published_files": 2,
+        "added_chunks": 2,
+        "deleted_chunks": 2,
+        "removed_files": 1,
+        "skipped_files": 1,
+        "errors": 0,
+    }
+    expected_paths = {
+        "sources/confluence-sync/CCSP/markdown/unchanged.md",
+        "sources/confluence-sync/CCSP/markdown/modified.md",
+        "sources/confluence-sync/CCSP/markdown/added.md",
+    }
+    assert {row["metadata"]["path"] for row in collection.rows.values()} == expected_paths
+    assert {
+        hit["path"]
+        for hit in lexical.search(
+            "shared filter token",
+            source_kinds=["doc"],
+            limit=20,
+        )
+    } == expected_paths
+    after = cortex_ingestion_index_freshness_report(
+        collection,
+        ingestion_root,
+        retention_generations=3,
+        include_entries=True,
+    )
+    assert after["status"] == "ok"
+    assert after["generation_id"] == next_generation
+    assert after["summary"] == {"fresh": 3}
+
+
+def test_pending_generation_and_absent_document_source_are_no_ops(
+    tmp_path: Path,
+) -> None:
+    collection = Collection()
+    absent = sync_ingestion_documents(
+        collection,
+        tmp_path / "absent",
+        retention_generations=2,
+    )
+    assert absent == sync_hash_aware.empty_sync_stats()
+
+    ingestion_root = tmp_path / "ingestion"
+    storage = IngestionStorage(ingestion_root, "doc", retention_generations=2)
+    current = _ingestion_document("current", "Current document body.", observed_at=_NOW)
+    _publish_generation(
+        storage,
+        (current,),
+        frozenset({"current"}),
+        observed_at=_NOW,
+    )
+    first = sync_ingestion_documents(
+        collection,
+        ingestion_root,
+        retention_generations=2,
+    )
+    pending_root = storage.create_pending_generation("pending-generation")
+    pending_document = _ingestion_document(
+        "pending",
+        "Pending document body.",
+        observed_at=_NOW + timedelta(hours=1),
+    )
+    pending_path = pending_root / "documents" / pending_document.path
+    pending_path.parent.mkdir(parents=True)
+    pending_path.write_bytes(pending_document.content)
+
+    pending_run = sync_ingestion_documents(
+        collection,
+        ingestion_root,
+        retention_generations=2,
+    )
+
+    assert first["published_files"] == 1
+    assert pending_run["skipped_files"] == 1
+    assert {row["metadata"]["source_uid"] for row in collection.rows.values()} == {"current"}
+
+
+def test_vault_and_ingestion_reconciliation_do_not_purge_each_other(
+    tmp_path: Path,
+) -> None:
+    ingestion_root = tmp_path / "ingestion"
+    storage = IngestionStorage(ingestion_root, "doc", retention_generations=2)
+    document = _ingestion_document("doc", "Document source body.", observed_at=_NOW)
+    _publish_generation(
+        storage,
+        (document,),
+        frozenset({"doc"}),
+        observed_at=_NOW,
+    )
+    collection = Collection()
+    sync_ingestion_documents(
+        collection,
+        ingestion_root,
+        retention_generations=2,
+    )
+
+    vault_root = tmp_path / "vault"
+    vault_source = vault_root / "sources" / "legacy.md"
+    vault_source.parent.mkdir(parents=True)
+    vault_source.write_text(
+        "# Legacy\n\nLegacy note body long enough for indexing.\n",
+        encoding="utf-8",
+    )
+    vault_stats = _sync_section_locked(collection, vault_root, "sources")
+    document_stats = sync_ingestion_documents(
+        collection,
+        ingestion_root,
+        retention_generations=2,
+    )
+
+    assert vault_stats["published_files"] == 1
+    assert document_stats["skipped_files"] == 1
+    assert {row["metadata"]["source_kind"] for row in collection.rows.values()} == {
+        "doc",
+        "note",
+    }

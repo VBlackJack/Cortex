@@ -24,11 +24,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config import CHROMA_PATH, INCLUDED_SECTIONS, KB_PATH, require_kb_path
 from cortex_logging import configure_logging
 from indexer import get_collection
+from ingestion.config import load_ingestion_settings
 from lexical_index import prepare_lexical_index
 from sync_hash_aware import (
     SyncCheckpoint,
     empty_sync_stats,
     merge_sync_stats,
+    sync_ingestion_documents,
     sync_section,
 )
 from write_lock import chroma_write_lock
@@ -84,6 +86,18 @@ def main() -> None:
             )
             merge_sync_stats(totals, stats)
             print(f"[done] {section}: {stats}", flush=True)
+        ingestion_settings = load_ingestion_settings()
+        print("[sync] current ingestion document generation ...", flush=True)
+        document_stats = sync_ingestion_documents(
+            collection,
+            ingestion_settings.data_root,
+            retention_generations=ingestion_settings.retention_generations,
+            checkpoint=checkpoint,
+            verbose=args.verbose,
+            lexical_index=lexical_index,
+        )
+        merge_sync_stats(totals, document_stats)
+        print(f"[done] ingestion documents: {document_stats}", flush=True)
 
     print(f"TOTAL {totals}")
 

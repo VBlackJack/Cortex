@@ -29,9 +29,15 @@ from config import (
     CHUNKING_CONTRACT_VERSION,
     FRESHNESS_CONTRACT_ID,
     FRESHNESS_CONTRACT_VERSION,
+    INGESTION_DOCUMENT_SECTION,
+    INGESTION_DOCUMENT_SOURCE_KIND,
+    INGESTION_DOCUMENT_SUFFIX,
     METADATA_SCHEMA_VERSION,
     ROOT_SECTION,
+    VAULT_SOURCE_KIND,
 )
+from ingestion.constants import DOCUMENTS_DIRECTORY_NAME
+from ingestion.storage import IngestionStorage, IngestionStorageError
 from lexical_index import LexicalIndex
 from write_lock import chroma_write_lock
 
@@ -193,7 +199,10 @@ def sync_file(
 
 
 def _existing_by_path(
-    collection: Any, section: str
+    collection: Any,
+    section: str,
+    *,
+    source_kind: str | None,
 ) -> dict[str, tuple[list[str], list[dict[str, Any]]]]:
     existing: dict[str, tuple[list[str], list[dict[str, Any]]]] = {}
     for page in iter_collection_pages(
@@ -205,6 +214,12 @@ def _existing_by_path(
         ids = page.get("ids", [])
         metadata = page.get("metadatas", []) or []
         for chunk_id, meta in zip(ids, metadata):
+            indexed_kind = meta.get("source_kind") if meta else None
+            if source_kind is None:
+                if indexed_kind not in {None, VAULT_SOURCE_KIND}:
+                    continue
+            elif indexed_kind != source_kind:
+                continue
             if meta and isinstance(meta.get("path"), str):
                 path = meta["path"].replace("\\", "/")
                 old_ids, old_metadata = existing.setdefault(path, ([], []))
@@ -255,6 +270,106 @@ def sync_section(
         )
 
 
+def sync_ingestion_documents(
+    collection: Any,
+    ingestion_root: Path,
+    *,
+    retention_generations: int,
+    checkpoint: SyncCheckpoint | None = None,
+    verbose: bool = False,
+    lexical_index: LexicalIndex | None = None,
+) -> dict[str, int]:
+    """Reconcile the current published document generation into both indexes."""
+    with chroma_write_lock():
+        return _sync_ingestion_documents_locked(
+            collection,
+            ingestion_root,
+            retention_generations=retention_generations,
+            checkpoint=checkpoint,
+            verbose=verbose,
+            lexical_index=lexical_index,
+        )
+
+
+def _sync_ingestion_documents_locked(
+    collection: Any,
+    ingestion_root: Path,
+    *,
+    retention_generations: int,
+    checkpoint: SyncCheckpoint | None = None,
+    verbose: bool = False,
+    lexical_index: LexicalIndex | None = None,
+) -> dict[str, int]:
+    """Resolve only the current pointer and fail closed on invalid published state."""
+    stats = empty_sync_stats()
+    storage = IngestionStorage(
+        ingestion_root,
+        INGESTION_DOCUMENT_SOURCE_KIND,
+        retention_generations,
+    )
+    if not storage.source_root.exists():
+        return stats
+    try:
+        generation_id = storage.current_generation_id()
+        manifest = storage.load_current_manifest()
+    except IngestionStorageError:
+        stats["errors"] += 1
+        _LOG.exception(
+            "ingestion_generation_unavailable source_kind=%s; preserving indexed content",
+            INGESTION_DOCUMENT_SOURCE_KIND,
+        )
+        return stats
+    if generation_id is None or manifest is None:
+        return stats
+
+    documents_root = storage.generation_path(generation_id) / DOCUMENTS_DIRECTORY_NAME
+    if not documents_root.is_dir():
+        stats["errors"] += 1
+        _LOG.error(
+            "ingestion_documents_unavailable source_kind=%s generation_id=%s path=%s; "
+            "preserving indexed content",
+            INGESTION_DOCUMENT_SOURCE_KIND,
+            generation_id,
+            documents_root,
+        )
+        return stats
+
+    expected_paths = {document.path for document in manifest.documents}
+    files = sorted(
+        path
+        for path in documents_root.rglob("*")
+        if path.is_file()
+        and path.suffix.lower() == INGESTION_DOCUMENT_SUFFIX
+        and path.relative_to(documents_root).as_posix() in expected_paths
+    )
+    discovered_paths = {path.relative_to(documents_root).as_posix() for path in files}
+    missing_paths = expected_paths - discovered_paths
+    if missing_paths:
+        stats["errors"] += 1
+        _LOG.error(
+            "ingestion_generation_incomplete source_kind=%s generation_id=%s "
+            "missing_documents=%d; preserving indexed content",
+            INGESTION_DOCUMENT_SOURCE_KIND,
+            generation_id,
+            len(missing_paths),
+        )
+        return stats
+
+    return _sync_files_locked(
+        collection,
+        root=documents_root,
+        section=INGESTION_DOCUMENT_SECTION,
+        files=files,
+        source_kind=INGESTION_DOCUMENT_SOURCE_KIND,
+        checkpoint=checkpoint,
+        verbose=verbose,
+        lexical_index=lexical_index,
+        rebase_chunks=True,
+        apply_exclusions=False,
+        generation_id=generation_id,
+    )
+
+
 def _sync_section_locked(
     collection: Any,
     root: Path,
@@ -275,33 +390,102 @@ def _sync_section_locked(
         )
         return stats
 
-    existing = _existing_by_path(collection, section)
     files = sorted(
         path
         for path in section_root.rglob("*")
         if path.is_file() and path.suffix.lower() in CHUNKERS
     )
+    return _sync_files_locked(
+        collection,
+        root=root,
+        section=section,
+        files=files,
+        source_kind=None,
+        checkpoint=checkpoint,
+        verbose=verbose,
+        lexical_index=lexical_index,
+        rebase_chunks=False,
+        apply_exclusions=True,
+    )
+
+
+def _rebase_chunks(
+    chunks: list[dict[str, Any]],
+    *,
+    rel_path: str,
+    section: str,
+) -> None:
+    """Rebase chunk identity from the vault root to an ingestion documents root."""
+    for chunk in chunks:
+        metadata = chunk.get("metadata")
+        if not isinstance(metadata, dict):
+            raise ValueError("ingestion chunk metadata is invalid")
+        if metadata.get("source_kind") != INGESTION_DOCUMENT_SOURCE_KIND:
+            raise ValueError("ingestion document does not declare source_kind=doc")
+        chunk_index = metadata.get("chunk_index")
+        file_content_hash = metadata.get("file_content_hash")
+        if not isinstance(chunk_index, int) or not isinstance(file_content_hash, str):
+            raise ValueError("ingestion chunk identity metadata is invalid")
+        metadata["path"] = rel_path
+        metadata["section"] = section
+        chunk["id"] = (
+            f"{rel_path}::{file_content_hash}::{CHUNKING_CONTRACT_VERSION}::{chunk_index}"
+        )
+
+
+def _sync_files_locked(
+    collection: Any,
+    *,
+    root: Path,
+    section: str,
+    files: list[Path],
+    source_kind: str | None,
+    checkpoint: SyncCheckpoint | None,
+    verbose: bool,
+    lexical_index: LexicalIndex | None,
+    rebase_chunks: bool,
+    apply_exclusions: bool,
+    generation_id: str | None = None,
+) -> dict[str, int]:
+    """Reconcile an explicit immutable file set for one ownership domain."""
+    stats = empty_sync_stats()
+    existing = _existing_by_path(
+        collection,
+        section,
+        source_kind=source_kind,
+    )
     eligible_paths: set[str] = set()
 
     if verbose:
         _LOG.info(
-            "section_scan section=%s files=%d indexed_paths=%d",
+            "section_scan section=%s files=%d indexed_paths=%d generation_id=%s",
             section,
             len(files),
             len(existing),
+            generation_id,
         )
 
     for path in files:
         rel_path = path.relative_to(root).as_posix()
-        if is_excluded_path(path.relative_to(root)):
+        if apply_exclusions and is_excluded_path(path.relative_to(root)):
             continue
         eligible_paths.add(rel_path)
         result = CHUNKERS[path.suffix.lower()](path)
         if result.status == "ok":
-            for chunk in result.chunks:
-                metadata = chunk.get("metadata")
-                if isinstance(metadata, dict):
-                    metadata["section"] = section
+            try:
+                if rebase_chunks:
+                    _rebase_chunks(
+                        result.chunks,
+                        rel_path=rel_path,
+                        section=section,
+                    )
+                else:
+                    for chunk in result.chunks:
+                        metadata = chunk.get("metadata")
+                        if isinstance(metadata, dict):
+                            metadata["section"] = section
+            except ValueError as exc:
+                result = ChunkResult(status="extraction_error", error=str(exc))
         old_ids, old_metadata = existing.get(rel_path, ([], []))
 
         if result.status == "ok":

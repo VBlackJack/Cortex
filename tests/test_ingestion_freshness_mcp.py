@@ -142,3 +142,46 @@ def test_mcp_selects_source_error_over_degraded_hash_stage(
     assert combined["status"] == "error"
     assert combined["source_stage"]["status"] == "error"
     assert combined["index_stage"]["status"] == "degraded"
+
+
+def test_mcp_exposes_dedicated_document_generation_index_stage(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "state"
+    _prepare_stale_source(root)
+    monkeypatch.setattr(
+        server,
+        "load_ingestion_settings",
+        lambda: IngestionSettings(data_root=root),
+    )
+    monkeypatch.setattr(server, "get_collection", object)
+    monkeypatch.setattr(
+        server,
+        "cortex_freshness_report",
+        lambda *_args, **_kwargs: {"summary": {"fresh": 1}},
+    )
+    monkeypatch.setattr(
+        server,
+        "cortex_ingestion_index_freshness_report",
+        lambda *_args, **_kwargs: {
+            "source_kind": "doc",
+            "generation_id": "generation-current",
+            "status": "degraded",
+            "summary": {"unindexed": 2},
+            "read_only": True,
+        },
+    )
+
+    response = server.cortex_freshness()
+
+    assert response["ingestion_index"]["generation_id"] == "generation-current"
+    assert response["two_stage_freshness"]["index_stage"]["ingestion_sources"] == [
+        {
+            "source_kind": "doc",
+            "generation_id": "generation-current",
+            "status": "degraded",
+            "summary": {"unindexed": 2},
+        }
+    ]
+    assert response["two_stage_freshness"]["index_stage"]["status"] == "degraded"
