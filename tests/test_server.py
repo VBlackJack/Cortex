@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -23,10 +24,12 @@ import freshness
 import server
 from config import ROOT_SECTION, CortexConfigError
 from indexer import CortexSearchError, SearchResults
+from ingestion.config import IngestionSettings
 
 
 def test_cortex_freshness_defaults_to_summary(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     calls: list[dict[str, Any]] = []
 
@@ -39,6 +42,11 @@ def test_cortex_freshness_defaults_to_summary(
 
     monkeypatch.setattr(server, "get_collection", object)
     monkeypatch.setattr(server, "cortex_freshness_report", report)
+    monkeypatch.setattr(
+        server,
+        "load_ingestion_settings",
+        lambda: IngestionSettings(data_root=tmp_path / "ingestion"),
+    )
 
     response = server.cortex_freshness()
 
