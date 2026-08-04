@@ -118,6 +118,12 @@ def _string(value: object, label: str) -> str:
     return value
 
 
+def _string_allow_empty(value: object, label: str) -> str:
+    if not isinstance(value, str):
+        raise ConfluenceRestError(f"Confluence response field '{label}' must be a string.")
+    return value
+
+
 def _optional_string(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
 
@@ -238,7 +244,7 @@ class ConfluenceRestClient:
         payload = self._transport.get_json(uri, self._headers)
         body = _object(payload.get("body"), "body")
         storage = _object(body.get("storage"), "body.storage")
-        xhtml = _string(storage.get("value"), "body.storage.value")
+        xhtml = _string_allow_empty(storage.get("value"), "body.storage.value")
         return RemotePageContent(xhtml=xhtml, attachments=self._attachments(page_id))
 
     def _attachments(self, page_id: str) -> tuple[RemoteAttachment, ...]:
