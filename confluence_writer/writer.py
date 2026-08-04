@@ -21,6 +21,7 @@ import tempfile
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import cast
 
 from confluence_writer.config import ConfluenceSettings, SpaceMapping, require_sync_settings
 from confluence_writer.converter import ConsoleConverter, Runner
@@ -43,6 +44,9 @@ from ingestion.storage import IngestionStorage
 _LOG = logging.getLogger("cortex.confluence_writer.writer")
 _UNKNOWN_AUTHOR = "Unknown"
 _ZONE_UID_PREFIX = "zone:"
+_BATCH_DIRECTORY_PREFIX = "batch-"
+_STAGING_DIRECTORY_NAME = "staging"
+_OVERSIZED_JOB_ERROR_CODE = "job_payload_too_large"
 _PAGE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
@@ -115,7 +119,7 @@ class ConfluenceWriter:
         *,
         captured_at: datetime | None = None,
     ) -> GenerationAttempt:
-        """Enumerate, incrementally download, convert once, and return engine inputs."""
+        """Enumerate, download, convert sequential batches, and return engine inputs."""
         observed_at = _utc_now() if captured_at is None else captured_at
         if observed_at.tzinfo is None or observed_at.utcoffset() is None:
             raise ValueError("captured_at must include a UTC offset")
@@ -228,11 +232,14 @@ class ConfluenceWriter:
         staged_pages: list[RemotePage] = []
         with tempfile.TemporaryDirectory(prefix="cortex-confluence-") as temporary:
             root = Path(temporary)
+            staging_root = root / _STAGING_DIRECTORY_NAME
             job_pages: list[dict[str, object]] = []
             for page in pages:
                 try:
                     content = client.page_content(page.page_id)
-                    job_pages.append(self._stage_page(root, client, page, content, maximum_bytes))
+                    job_pages.append(
+                        self._stage_page(staging_root, client, page, content, maximum_bytes)
+                    )
                     staged_pages.append(page)
                 except (
                     ConfluenceRestError,
@@ -251,43 +258,72 @@ class ConfluenceWriter:
             if not staged_pages:
                 return [], failures
             converter = ConsoleConverter(console_path, runner=self._converter_runner)
-            batch = converter.convert(
-                root,
-                {"schema_version": 1, "pages": job_pages},
-                requested_page_ids=frozenset(page.page_id for page in staged_pages),
+            plan = converter.plan_job_pages(job_pages)
+            failures.extend(
+                DocumentFailure(
+                    source_uid=page_id,
+                    error_code=_OVERSIZED_JOB_ERROR_CODE,
+                )
+                for page_id in plan.oversized_page_ids
             )
             pages_by_id = {page.page_id: page for page in staged_pages}
             documents: list[CollectedDocument] = []
-            for converted in batch.converted:
-                page = pages_by_id[converted.page_id]
-                mapping = mappings[page.space_key]
-                path = f"{mapping.target}/markdown/{page.page_id}.md"
-                artifacts = tuple(
-                    CollectedArtifact(
-                        path=f"{mapping.target}/{relative_path}",
-                        content=content,
-                    )
-                    for relative_path, content in converted.artifacts
+            for batch_index, job_batch in enumerate(plan.batches, start=1):
+                batch_root = root / f"{_BATCH_DIRECTORY_PREFIX}{batch_index:04d}"
+                self._move_batch_inputs(staging_root, batch_root, job_batch)
+                batch = converter.convert(
+                    batch_root,
+                    {"schema_version": 1, "pages": list(job_batch)},
+                    requested_page_ids=frozenset(
+                        cast(str, job_page["page_id"]) for job_page in job_batch
+                    ),
                 )
-                documents.append(
-                    CollectedDocument(
-                        source_uid=page.page_id,
-                        path=path,
-                        content=render_document(
-                            page,
+                for converted in batch.converted:
+                    page = pages_by_id[converted.page_id]
+                    mapping = mappings[page.space_key]
+                    path = f"{mapping.target}/markdown/{page.page_id}.md"
+                    artifacts = tuple(
+                        CollectedArtifact(
+                            path=f"{mapping.target}/{relative_path}",
+                            content=content,
+                        )
+                        for relative_path, content in converted.artifacts
+                    )
+                    documents.append(
+                        CollectedDocument(
+                            source_uid=page.page_id,
                             path=path,
-                            body=converted.markdown,
-                            captured_at=observed_at,
-                        ),
-                        artifacts=artifacts,
-                        source_revision=_source_revision(page),
+                            content=render_document(
+                                page,
+                                path=path,
+                                body=converted.markdown,
+                                captured_at=observed_at,
+                            ),
+                            artifacts=artifacts,
+                            source_revision=_source_revision(page),
+                        )
                     )
+                failures.extend(
+                    DocumentFailure(source_uid=failed.page_id, error_code=failed.error_code)
+                    for failed in batch.failed
                 )
-            failures.extend(
-                DocumentFailure(source_uid=failed.page_id, error_code=failed.error_code)
-                for failed in batch.failed
-            )
             return documents, failures
+
+    @staticmethod
+    def _move_batch_inputs(
+        staging_root: Path,
+        batch_root: Path,
+        job_pages: tuple[dict[str, object], ...],
+    ) -> None:
+        for job_page in job_pages:
+            relative_paths = [cast(str, job_page["xhtml_path"])]
+            attachments = cast(list[dict[str, object]], job_page["attachments"])
+            relative_paths.extend(cast(str, attachment["path"]) for attachment in attachments)
+            for relative_path in relative_paths:
+                source = staging_root.joinpath(*relative_path.split("/"))
+                target = batch_root.joinpath(*relative_path.split("/"))
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source.replace(target)
 
     @staticmethod
     def _stage_page(

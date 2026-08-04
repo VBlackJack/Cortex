@@ -57,10 +57,26 @@ class FailedPage:
 
 @dataclass(frozen=True)
 class ConversionBatch:
-    """Complete validated console result for one generation invocation."""
+    """Complete validated console result for one job invocation."""
 
     converted: tuple[ConvertedPage, ...]
     failed: tuple[FailedPage, ...]
+
+
+@dataclass(frozen=True)
+class JobLimits:
+    """Frozen job-schema limits used to plan console invocations."""
+
+    maximum_pages: int
+    maximum_bytes: int
+
+
+@dataclass(frozen=True)
+class JobPlan:
+    """Stable page batches plus pages that cannot fit in a job alone."""
+
+    batches: tuple[tuple[dict[str, object], ...], ...]
+    oversized_page_ids: tuple[str, ...]
 
 
 Runner = Callable[[Path, Path], int]
@@ -94,6 +110,27 @@ def _validate(value: object, *, schema_name: str, expected_hash: str) -> None:
         raise ConverterContractError(f"Payload does not match frozen {schema_name}.") from exc
 
 
+def _job_limits(schema: dict[str, Any]) -> JobLimits:
+    properties = schema.get("properties")
+    pages = properties.get("pages") if isinstance(properties, dict) else None
+    maximum_pages = pages.get("maxItems") if isinstance(pages, dict) else None
+    maximum_bytes = schema.get("x-maximum-job-bytes")
+    if (
+        not isinstance(maximum_pages, int)
+        or isinstance(maximum_pages, bool)
+        or maximum_pages <= 0
+        or not isinstance(maximum_bytes, int)
+        or isinstance(maximum_bytes, bool)
+        or maximum_bytes <= 0
+    ):
+        raise ConverterContractError("Frozen job schema has invalid batching limits.")
+    return JobLimits(maximum_pages=maximum_pages, maximum_bytes=maximum_bytes)
+
+
+def _serialize_job(job: dict[str, object]) -> bytes:
+    return (json.dumps(job, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
 def _contained_file(root: Path, relative_path: str) -> Path:
     candidate = root.joinpath(*relative_path.split("/"))
     resolved_root = root.resolve()
@@ -121,12 +158,52 @@ def _default_runner(console_path: Path, working_directory: Path) -> int:
 
 
 class ConsoleConverter:
-    """Invoke the console once and consume only validated converted-page outputs."""
+    """Plan and invoke validated console jobs, consuming only safe outputs."""
 
     def __init__(self, console_path: Path, *, runner: Runner | None = None) -> None:
         """Bind a configurable executable path and optional test runner."""
         self._console_path = Path(console_path)
         self._runner = _default_runner if runner is None else runner
+        self._job_limits = _job_limits(_load_schema("job.schema.json", JOB_SCHEMA_SHA256))
+
+    @property
+    def job_limits(self) -> JobLimits:
+        """Return page-count and serialized-byte limits from the frozen schema."""
+        return self._job_limits
+
+    def serialized_job_size(self, job: dict[str, object]) -> int:
+        """Return the exact UTF-8 byte count written to job.json."""
+        return len(_serialize_job(job))
+
+    def plan_job_pages(self, pages: list[dict[str, object]]) -> JobPlan:
+        """Split pages stably so every planned job satisfies frozen size limits."""
+        batches: list[tuple[dict[str, object], ...]] = []
+        oversized_page_ids: list[str] = []
+        current: list[dict[str, object]] = []
+        for page in pages:
+            single_job = {"schema_version": 1, "pages": [page]}
+            if self.serialized_job_size(single_job) > self._job_limits.maximum_bytes:
+                oversized_page_ids.append(cast(str, page["page_id"]))
+                continue
+            if not current:
+                current.append(page)
+                continue
+            candidate = [*current, page]
+            candidate_job = {"schema_version": 1, "pages": candidate}
+            if (
+                len(candidate) > self._job_limits.maximum_pages
+                or self.serialized_job_size(candidate_job) > self._job_limits.maximum_bytes
+            ):
+                batches.append(tuple(current))
+                current = [page]
+                continue
+            current.append(page)
+        if current:
+            batches.append(tuple(current))
+        return JobPlan(
+            batches=tuple(batches),
+            oversized_page_ids=tuple(oversized_page_ids),
+        )
 
     def convert(
         self,
@@ -136,13 +213,12 @@ class ConsoleConverter:
         requested_page_ids: frozenset[str],
     ) -> ConversionBatch:
         """Validate job and result against exact vendored schemas."""
+        serialized_job = _serialize_job(job)
+        if len(serialized_job) > self._job_limits.maximum_bytes:
+            raise ConverterContractError("Serialized job exceeds the frozen byte limit.")
         _validate(job, schema_name="job.schema.json", expected_hash=JOB_SCHEMA_SHA256)
         job_path = working_directory / "job.json"
-        job_path.write_text(
-            json.dumps(job, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
+        job_path.write_bytes(serialized_job)
         exit_code = self._runner(self._console_path, working_directory)
         if exit_code not in _ACCEPTED_EXIT_CODES:
             raise ConverterContractError(
@@ -215,5 +291,7 @@ __all__ = [
     "ConvertedPage",
     "ConverterContractError",
     "FailedPage",
+    "JobLimits",
+    "JobPlan",
     "Runner",
 ]
