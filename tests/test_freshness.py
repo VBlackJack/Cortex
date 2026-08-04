@@ -24,7 +24,14 @@ import pytest
 
 import freshness
 from chunker_utils import sha256_bytes
-from config import FRESHNESS_CONTRACT_ID, FRESHNESS_CONTRACT_VERSION
+from config import (
+    FRESHNESS_CONTRACT_ID,
+    FRESHNESS_CONTRACT_VERSION,
+    INGESTION_DOCUMENT_SOURCE_KIND,
+)
+from ingestion.config import IngestionConfigError, IngestionSettings
+from ingestion.constants import DOCUMENTS_DIRECTORY_NAME, SCHEMA_VERSION
+from ingestion.storage import IngestionStorage
 
 
 class FakeCollection:
@@ -35,6 +42,39 @@ class FakeCollection:
     def get(self, **_kwargs: object) -> dict[str, list[dict[str, Any]]]:
         self.calls += 1
         return {"metadatas": self.metadatas if self.calls == 1 else []}
+
+
+def _configure_document_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, dict[str, int]]:
+    settings = IngestionSettings(data_root=tmp_path / "ingestion")
+    storage = IngestionStorage(
+        settings.data_root,
+        INGESTION_DOCUMENT_SOURCE_KIND,
+        settings.retention_generations,
+    )
+    generation_id = "test-generation"
+    documents_root = storage.generation_path(generation_id) / DOCUMENTS_DIRECTORY_NAME
+    documents_root.mkdir(parents=True)
+    storage.current_pointer_path.write_text(
+        json.dumps(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "generation_id": generation_id,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    calls = {"count": 0}
+
+    def load_settings() -> IngestionSettings:
+        calls["count"] += 1
+        return settings
+
+    monkeypatch.setattr(freshness, "load_ingestion_settings", load_settings)
+    return documents_root, calls
 
 
 def test_shared_vectors_hash_exact_written_bytes(tmp_path: Path) -> None:
@@ -243,6 +283,11 @@ def test_annotate_search_hits_fresh_and_stale(
     note.write_bytes(b"# Note\nbody content here.\n")
     live_hash = sha256_bytes(note.read_bytes())
     monkeypatch.setattr(freshness, "KB_PATH", str(root))
+    monkeypatch.setattr(
+        freshness,
+        "load_ingestion_settings",
+        lambda: pytest.fail("vault-only annotation must not load ingestion settings"),
+    )
 
     fresh_hit = {
         "text": "chunk text",
@@ -260,6 +305,110 @@ def test_annotate_search_hits_fresh_and_stale(
     note.write_bytes(note.read_bytes() + b"more\n")
     hits = freshness.annotate_search_hits([dict(fresh_hit)])
     assert hits[0]["freshness"] == "stale"
+
+
+def test_annotate_document_hits_use_current_generation_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    documents_root, settings_calls = _configure_document_generation(tmp_path, monkeypatch)
+    fresh = documents_root / "fresh.md"
+    stale = documents_root / "stale.md"
+    fresh.write_bytes(b"# Fresh\ncurrent content.\n")
+    stale.write_bytes(b"# Stale\nchanged content.\n")
+    common_metadata = {
+        "source_kind": INGESTION_DOCUMENT_SOURCE_KIND,
+        "contract_id": FRESHNESS_CONTRACT_ID,
+        "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+    }
+    hits = [
+        {
+            "metadata": {
+                **common_metadata,
+                "path": "fresh.md",
+                "content_hash": sha256_bytes(fresh.read_bytes()),
+            }
+        },
+        {
+            "metadata": {
+                **common_metadata,
+                "path": "stale.md",
+                "content_hash": sha256_bytes(b"# Stale\nold content.\n"),
+            }
+        },
+        {
+            "metadata": {
+                **common_metadata,
+                "path": "missing.md",
+                "content_hash": "a" * 64,
+            }
+        },
+    ]
+
+    annotated = freshness.annotate_search_hits(hits)
+
+    assert settings_calls["count"] == 1
+    assert [hit["freshness"] for hit in annotated] == ["fresh", "stale", "missing"]
+
+
+def test_annotate_document_hits_are_unavailable_on_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_settings() -> IngestionSettings:
+        raise IngestionConfigError("invalid test configuration")
+
+    monkeypatch.setattr(freshness, "load_ingestion_settings", fail_settings)
+    monkeypatch.setattr(freshness, "KB_PATH", None)
+    hits = [
+        {
+            "metadata": {
+                "source_kind": INGESTION_DOCUMENT_SOURCE_KIND,
+                "path": "document.md",
+                "content_hash": "a" * 64,
+            }
+        }
+    ]
+
+    annotated = freshness.annotate_search_hits(hits)
+
+    assert annotated[0]["freshness"] == "unavailable"
+
+
+def test_annotate_mixed_hits_keeps_domain_verdicts_separate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vault_root = tmp_path / "kb"
+    vault_source = vault_root / "same" / "note.md"
+    vault_source.parent.mkdir(parents=True)
+    vault_source.write_bytes(b"# Vault\ncurrent vault content.\n")
+    monkeypatch.setattr(freshness, "KB_PATH", str(vault_root))
+    documents_root, _settings_calls = _configure_document_generation(tmp_path, monkeypatch)
+    document_source = documents_root / "same" / "note.md"
+    document_source.parent.mkdir(parents=True)
+    document_source.write_bytes(b"# Document\ncurrent document content.\n")
+    common_metadata = {
+        "path": "same/note.md",
+        "contract_id": FRESHNESS_CONTRACT_ID,
+        "content_hash_contract_version": FRESHNESS_CONTRACT_VERSION,
+    }
+    hits = [
+        {
+            "metadata": {
+                **common_metadata,
+                "source_kind": INGESTION_DOCUMENT_SOURCE_KIND,
+                "content_hash": sha256_bytes(b"# Document\nold document content.\n"),
+            }
+        },
+        {
+            "metadata": {
+                **common_metadata,
+                "content_hash": sha256_bytes(vault_source.read_bytes()),
+            }
+        },
+    ]
+
+    annotated = freshness.annotate_search_hits(hits)
+
+    assert [hit["freshness"] for hit in annotated] == ["stale", "fresh"]
 
 
 def test_pdf_freshness_hashes_bytes_without_utf8_decoding(
