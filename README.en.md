@@ -8,6 +8,8 @@ passage in your documents without wasting their context window. Search is
 semantic (by meaning, not keyword), in French and in English. Cortex processes
 and indexes the knowledge base locally without sending its content; the MCP
 client may still pass requested chunks to its model under its own policy.
+The optional Confluence writer only downloads explicitly allowlisted spaces;
+the generated Markdown, vector index, and lexical index remain local.
 
 ## Installation
 
@@ -47,13 +49,16 @@ Details: [Setup](docs/en/setup.md).
 ## How it works
 
 ```
-Documents folder (.md, .pdf)       <- your files
-      |
-      v
-  cortex sync           <- Split, hash, vectorize
-      |
-      v
-  %LOCALAPPDATA%\Cortex\chroma_db\  <- Local vector store (ChromaDB)
+Documents folder (.md, .pdf)       Optional Confluence writer (REST)
+      |                                      |
+      |                              current Markdown generation
+      +------------------+-------------------+
+                         |
+                         v
+  cortex sync           <- Split, hash, vectorize, update FTS5
+                         |
+                         v
+  %LOCALAPPDATA%\Cortex\  <- ChromaDB + lexical.db
       |
       v
   cortex serve          <- MCP server (FastMCP)
@@ -74,6 +79,10 @@ empty.
 - **Sections** (advanced): limits indexing to named subfolders you can search
   separately (defaults `knowledge`, `projects`, `notes`).
 
+These modes govern the user-selected document folder. Generated ingestion
+documents are indexed separately from the current published generation with
+`source_kind=doc` and section `sources`.
+
 Details: [Configuration](docs/en/configuration.md).
 
 ## The `cortex` command
@@ -85,6 +94,8 @@ The installed package exposes a single command:
 | `cortex setup` | Config + index + client registration in one go (`--yes`, `--no-index`, `--reset`). |
 | `cortex serve` | Runs the MCP server (used by clients). |
 | `cortex sync` | Incremental index synchronization. |
+| `cortex ingestion` | Shows source health and whether catch-up is due. |
+| `cortex confluence` | Stores the PAT interactively or runs the allowlisted writer. |
 | `cortex doctor` | Installation diagnostics (read-only). |
 | `cortex register` / `cortex unregister` | Adds or removes Cortex from MCP clients. |
 | `cortex check` | Verifies the installation. |
@@ -93,10 +104,10 @@ The installed package exposes a single command:
 
 | Tool | Description |
 |---|---|
-| `cortex_search` | Semantic search. Parameters: `query`, `section` (optional), `top_k` (1-10). |
-| `cortex_sync` | Triggers an incremental sync. Parameter: `section` (optional). |
+| `cortex_search` | Hybrid search. Parameters: `query`, `section`, `top_k` (1-10), source/author filters, and occurred/updated date ranges. |
+| `cortex_sync` | Triggers an incremental sync of the selected folder and, on a full sync, the current published document generation. |
 | `cortex_list_sections` | Lists included sections and "out of policy" folders. |
-| `cortex_freshness` | Freshness summary. Parameters: `section` (optional), `include_entries` (`false` by default). |
+| `cortex_freshness` | Read-only vault and ingestion freshness summary. Parameters: `section` (optional), `include_entries` (`false` by default). |
 
 ## Documentation
 
@@ -109,6 +120,12 @@ The installed package exposes a single command:
 - [FAQ](docs/en/faq.md): installation, local data, sync, and diagnostics.
 - [Configuration](docs/en/configuration.md): `config.toml`, indexing modes,
   sections, data home, migration.
+- [Ingestion scheduling](docs/en/ingestion-scheduling.md): source health,
+  catch-up, retries, and Task Scheduler.
+- [Metadata v2 migration](docs/en/metadata-v2-migration.md): structured search
+  metadata, backup, migration, and restore.
+- [Confluence writer](docs/en/confluence-writer.md): allowlisted REST ingestion,
+  Windows Credential Manager, conversion, and atomic generations.
 - [Reproducible install](docs/en/reproducible-install.md): `requirements.lock`,
   `--require-hashes`, regenerating the lock.
 - [Public specification](docs/en/spec.md): MCP surface, index contracts, data,

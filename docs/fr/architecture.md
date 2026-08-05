@@ -7,25 +7,34 @@
 ## Fonctionnement de bout en bout
 
 ```
-kb_path (TOML/env)      <- Export Confluence (fichiers .md)
+kb_path (.md, .pdf)                  REST Confluence sur liste blanche
+      |                                        |
+      |                              confluence_writer/
+      |                                        |
+      |                           ingestion/doc/current.json
+      |                                        |
+      +------------------+---------------------+
+                         |
+                         v
+  indexer.py             <- Decoupe, hash, vectorise, reconcilie
+      |
+      +--> chroma_db/    <- Index vectoriel
+      +--> lexical.db    <- Index SQLite FTS5
       |
       v
-  indexer.py            <- Decoupe, hash, vectorise
+  server.py              <- Serveur MCP (FastMCP)
       |
       v
-  %LOCALAPPDATA%\Cortex\chroma_db\  <- Base vectorielle locale (ChromaDB)
-      |
-      v
-  server.py             <- Serveur MCP (FastMCP)
-      |
-      v
-  Clients MCP           <- Claude / Codex / Gemini
+  Clients MCP            <- Claude / Codex / Gemini
 ```
 
-La base de connaissance est un ensemble de fichiers Markdown (et PDF) sous
-`kb_path`. `indexer.py` les decoupe en chunks, calcule un hash SHA-256 par
-fichier, vectorise chaque chunk avec le modele d'embedding, et ecrit le tout
-dans ChromaDB. `server.py` expose ensuite la recherche aux clients MCP.
+Cortex indexe deux domaines de sources isoles. Les fichiers Markdown et PDF
+choisis par l'utilisateur vivent sous `kb_path` avec `source_kind=note`. Les
+writers optionnels publient des generations Markdown immuables sous la racine
+d'ingestion avec `source_kind=doc` ; seule la generation designee par
+`current.json` est eligible. `indexer.py` ecrit ChromaDB et SQLite FTS5, puis
+`server.py` expose la recherche hybride structuree et la fraicheur en lecture
+seule aux clients MCP.
 
 ## Structure du projet
 
@@ -37,6 +46,10 @@ dans ChromaDB. `server.py` expose ensuite la recherche aux clients MCP.
 |-- chunker_pdf.py      <- Decoupe les .pdf en chunks (pdfplumber + taille fixe)
 |-- chunker_utils.py    <- Fonctions partagees (hash, split, paths)
 |-- indexer.py          <- Sync incrementale vers ChromaDB
+|-- lexical_index.py    <- Index SQLite FTS5 derive
+|-- freshness.py        <- Fraicheur du vault et de la generation courante
+|-- ingestion\          <- Generations atomiques, planification, sante, credentials
+|-- confluence_writer\  <- Source REST sur liste blanche et pont console
 |-- server.py           <- Serveur MCP FastMCP (4 outils Cortex)
 |-- sync.bat            <- Lance le sync section par section (portable, %~dp0)
 |-- install.bat         <- Installation / reinstallation en un clic (portable)
@@ -81,6 +94,11 @@ Sans scoping, un sync de la section `operations` pouvait voir les fichiers de
 `knowledge` comme "supprimes" et les effacer. La comparaison et les suppressions
 sont maintenant limitees a la section en cours.
 
+Le domaine documentaire d'ingestion est reconcilie independamment des lignes
+du vault. Seule la generation `doc` courante est prise en compte ; une
+generation absente, pending ou incomplete preserve les lignes documentaires
+deja indexees au lieu de les purger.
+
 ### Pourquoi 512 caracteres par chunk ?
 
 Le modele `paraphrase-multilingual-MiniLM-L12-v2` tronque toute entree a 128
@@ -94,10 +112,11 @@ l'embedding.
 
 ### Pourquoi les chemins en metadata sont relatifs ?
 
-Le `path` stocke dans chaque chunk est relatif a `CORTEX_KB_PATH` (par exemple
-`operations/architecture.md`). Cela rend l'index portable d'une machine a
-l'autre tant que l'arborescence sous le KB est identique, et sert aussi a la
-reconciliation incrementale.
+Le `path` stocke dans un chunk du vault est relatif a `CORTEX_KB_PATH` (par
+exemple `operations/architecture.md`). Le chemin d'un chunk d'ingestion est
+relatif au repertoire `documents` de la generation courante. Chaque domaine
+reste ainsi portable et possede une identite stable pour la reconciliation,
+sans melanger le vault et les documents generes.
 
 ### Pourquoi tout est portable ?
 

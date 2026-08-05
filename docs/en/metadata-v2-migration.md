@@ -1,5 +1,9 @@
 # Metadata schema v2 and corpus migration
 
+[Francais](../fr/metadata-v2-migration.md) | **English**
+
+[Back to table of contents](index.md)
+
 Metadata schema v2 is the common contract returned to every MCP client. Each
 search hit exposes these keys, even when a value is unavailable:
 
@@ -13,6 +17,13 @@ Cortex reconstructs the complete contract when reading results. Filterable
 dates retain their RFC 3339 UTC value and add numeric
 `occurred_at_epoch_ms`/`updated_at_epoch_ms` projections. The derived SQLite
 FTS5 index carries the same filter fields as the vector branch.
+
+`cortex_search` accepts `source_kinds`, `authors`, `occurred_at_from`,
+`occurred_at_to`, `updated_at_from`, and `updated_at_to`. The returned
+structured response has `schema_version = 2`, echoes the effective filters,
+and reconstructs every common key for each result. Vault rows use
+`source_kind=note`; documents from the current ingestion generation use
+`source_kind=doc`.
 
 For vault Markdown, `occurred_at` is read from `occurred_at`, `date`, or
 `created`, in that order. It remains null when none is present. File mtime is

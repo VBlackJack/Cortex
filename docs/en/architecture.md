@@ -7,25 +7,33 @@
 ## End-to-end behavior
 
 ```
-kb_path (TOML/env)      <- Confluence export (.md files)
+kb_path (.md, .pdf)                  allowlisted Confluence REST
+      |                                        |
+      |                              confluence_writer/
+      |                                        |
+      |                           ingestion/doc/current.json
+      |                                        |
+      +------------------+---------------------+
+                         |
+                         v
+  indexer.py             <- Split, hash, vectorize, reconcile
+      |
+      +--> chroma_db/    <- Vector index
+      +--> lexical.db    <- SQLite FTS5 index
       |
       v
-  indexer.py            <- Split, hash, vectorize
+  server.py              <- MCP server (FastMCP)
       |
       v
-  %LOCALAPPDATA%\Cortex\chroma_db\  <- Local vector store (ChromaDB)
-      |
-      v
-  server.py             <- MCP server (FastMCP)
-      |
-      v
-  MCP clients           <- Claude / Codex / Gemini
+  MCP clients            <- Claude / Codex / Gemini
 ```
 
-The knowledge base is a set of Markdown (and PDF) files under `kb_path`.
-`indexer.py` splits them into chunks, computes a SHA-256 hash per file,
-vectorizes each chunk with the embedding model, and writes everything to
-ChromaDB. `server.py` then exposes search to the MCP clients.
+Cortex indexes two isolated source domains. User-selected Markdown and PDF
+files live under `kb_path` with `source_kind=note`. Optional source writers
+publish immutable Markdown generations under the ingestion data root with
+`source_kind=doc`; only the generation selected by `current.json` is eligible.
+`indexer.py` writes both ChromaDB and SQLite FTS5, then `server.py` exposes
+structured hybrid search and read-only freshness to MCP clients.
 
 ## Project structure
 
@@ -37,6 +45,10 @@ ChromaDB. `server.py` then exposes search to the MCP clients.
 |-- chunker_pdf.py      <- Splits .pdf into chunks (pdfplumber + fixed size)
 |-- chunker_utils.py    <- Shared helpers (hash, split, paths)
 |-- indexer.py          <- Incremental sync to ChromaDB
+|-- lexical_index.py    <- Derived SQLite FTS5 index
+|-- freshness.py        <- Vault and current-generation freshness
+|-- ingestion\          <- Atomic generations, scheduling, health, credentials
+|-- confluence_writer\  <- Allowlisted REST source and console bridge
 |-- server.py           <- FastMCP MCP server (4 Cortex tools)
 |-- sync.bat            <- Runs the sync section by section (portable, %~dp0)
 |-- install.bat         <- One-click install / reinstall (portable)
@@ -80,6 +92,11 @@ Without scoping, a sync of the `operations` section could see the `knowledge`
 files as "deleted" and erase them. Comparison and deletions are now limited to
 the current section.
 
+The ingestion document domain is reconciled independently from vault rows.
+Only the current `doc` generation is considered; a missing, pending, or
+incomplete generation preserves already indexed document rows instead of
+purging them.
+
 ### Why 512 characters per chunk?
 
 The `paraphrase-multilingual-MiniLM-L12-v2` model truncates any input to 128
@@ -92,10 +109,11 @@ indexed content to the embedding.
 
 ### Why are metadata paths relative?
 
-The `path` stored in each chunk is relative to `CORTEX_KB_PATH` (for example
-`operations/architecture.md`). This makes the index portable across machines as
-long as the tree under the KB is identical, and it also serves the incremental
-reconciliation.
+The `path` stored in a vault chunk is relative to `CORTEX_KB_PATH` (for example
+`operations/architecture.md`). The path of an ingestion chunk is relative to
+the `documents` directory of the current generation. This makes each domain
+portable and gives reconciliation a stable identity without mixing vault and
+generated documents.
 
 ### Why is everything portable?
 

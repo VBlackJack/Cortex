@@ -17,6 +17,10 @@ Le sync est incremental : seuls les fichiers nouveaux ou modifies (detectes par
 SHA-256 et version du contrat de chunking) sont retraites. Les fichiers
 supprimes, vides ou devenus exclus sont retires de l'index.
 
+Un sync complet reconcilie aussi le Markdown de la generation d'ingestion
+publiee courante. Les generations pending ou incompletes ne sont jamais
+indexees ; une generation indisponible preserve les lignes `doc` deja indexees.
+
 Sur une nouvelle installation Windows, ce sync couvre tout le dossier de base
 de connaissances, recursivement. Le filtrage par section ci-dessous concerne
 uniquement le mode avance.
@@ -64,14 +68,45 @@ python indexer.py knowledge --search "procedure de deploiement"
 python indexer.py --search "OSCARE" --top-k 10
 ```
 
+Les reponses de recherche utilisent le schema de metadonnees v2. En plus de
+`section`, la recherche accepte `source_kinds`, `authors`, `occurred_at_from`,
+`occurred_at_to`, `updated_at_from` et `updated_at_to`. Les bornes de dates sont
+des timestamps RFC 3339. Chaque resultat contient les metadonnees reconstruites,
+une citation, la pertinence et un verdict de fraicheur resolu dans son propre
+domaine vault ou ingestion.
+
 ## Les quatre outils MCP
 
 | Outil | Description |
 |---|---|
-| `cortex_search` | Recherche semantique. Parametres : `query`, `section` (optionnel), `top_k` (1-10). |
-| `cortex_sync` | Declenche un sync incremental. Parametre : `section` (optionnel). |
+| `cortex_search` | Recherche hybride. Parametres : `query`, `section`, `top_k` (1-10), filtres source/auteur et plages de dates de creation/mise a jour. |
+| `cortex_sync` | Declenche un sync incremental et inclut la generation documentaire courante sur un sync complet. Parametre : `section` (optionnel). |
 | `cortex_list_sections` | Liste les sections incluses et les dossiers "out of policy". |
-| `cortex_freshness` | Resume de fraicheur par defaut. Parametres : `section` (optionnel), `include_entries` (`false` par defaut). |
+| `cortex_freshness` | Fraicheur du vault et de l'ingestion en deux etages, en lecture seule. Parametres : `section` (optionnel), `include_entries` (`false` par defaut). |
+
+Quand l'ingestion existe, `cortex_freshness` rapporte la sante remote-to-disk,
+l'identifiant de generation courant et le statut disk-to-index. Le resume dedie
+`ingestion_index` est omis lorsqu'aucune generation documentaire n'est
+disponible.
+
+## Operations d'ingestion
+
+Le CLI d'ingestion generique rapporte le dernier etat de sante atomique de la
+source et indique si un rattrapage est du. L'adaptateur Confluence stocke son
+PAT interactivement et passe par les memes moteur de verrou, reprise,
+expiration et generation :
+
+```powershell
+cortex ingestion status doc
+cortex ingestion due doc
+cortex confluence store-credential
+cortex confluence sync
+cortex confluence sync --force
+```
+
+Voir [Planification de l'ingestion](ingestion-scheduling.md) pour les codes de
+sortie et les reglages, et [Writer Confluence](writer-confluence.md) pour la
+liste blanche et le contrat du convertisseur.
 
 ## Cortex Doctor
 
@@ -111,6 +146,8 @@ d'entree que les scripts historiques :
 ```powershell
 cortex setup [--clients all] [--no-index] [--reset] [--yes]
 cortex sync [section]
+cortex ingestion [--config FILE] {status,due} SOURCE_KIND
+cortex confluence [--config FILE] [--ingestion-config FILE] {store-credential,sync}
 cortex doctor [--json]
 cortex init
 cortex register [--clients all]
