@@ -32,11 +32,16 @@ none of these files accepts a secret:
 |---|---|---|
 | `%APPDATA%\Cortex\config.toml` | User-selected Markdown/PDF folder and derived indexes | This page |
 | `%APPDATA%\Cortex\ingestion.toml` | Shared generations, retention, retry, lock, credential lifetime, and cadence | [Ingestion scheduling](ingestion-scheduling.md) |
-| `%APPDATA%\Cortex\confluence.toml` | Confluence URL, console, declared expiry, limits, and space allowlist | [Confluence writer](confluence-writer.md) |
+| `%APPDATA%\Cortex\confluence.toml` | Confluence URL, console, declared expiry, limits, and whole-space or page selection | [Confluence writer](confluence-writer.md) |
 
 Environment variables override the matching TOML values. The PAT is stored
 interactively in Windows Credential Manager, never in a TOML file or an
 environment variable.
+
+`confluence.toml` accepts schema v1 and v2. Existing schema v1 files remain
+whole-space allowlists and are never rewritten while loading. Schema v2
+requires each space to declare `selection = "whole_space"` or
+`selection = "pages"`; page mode may deliberately contain an empty list.
 
 ## Example config.toml
 

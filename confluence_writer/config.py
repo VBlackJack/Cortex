@@ -24,7 +24,14 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Literal, cast
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from confluence_writer.constants import (
     CONFIG_FILE_NAME,
@@ -32,6 +39,7 @@ from confluence_writer.constants import (
     DEFAULT_ATTACHMENT_SIZE_MB,
     DEFAULT_CREDENTIAL_TARGET,
     DEFAULT_FAILURE_THRESHOLD,
+    SUPPORTED_CONFIG_SCHEMA_VERSIONS,
 )
 from user_config import user_config_path
 
@@ -41,6 +49,7 @@ else:  # pragma: no cover - exercised on Python 3.10
     import tomli as tomllib
 
 _SPACE_KEY = re.compile(r"^[A-Za-z0-9._-]+$")
+_PAGE_ID = re.compile(r"^[0-9]+$")
 _SETTING_FIELDS = {
     "schema_version",
     "base_url",
@@ -65,6 +74,22 @@ class ConfluenceConfigError(RuntimeError):
     """Raised when Confluence settings are missing, unsafe, or invalid."""
 
 
+class PageSelection(BaseModel):  # type: ignore[misc]
+    """One explicitly selected Confluence page identity."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    page_id: str
+
+    @field_validator("page_id", mode="before")  # type: ignore[untyped-decorator]
+    @classmethod
+    def validate_page_id(cls, value: object) -> str:
+        """Require a non-empty numeric string without coercion."""
+        if not isinstance(value, str) or not _PAGE_ID.fullmatch(value):
+            raise ValueError("page_id must be a non-empty numeric string")
+        return value
+
+
 class SpaceMapping(BaseModel):  # type: ignore[misc]
     """One explicitly allowlisted Confluence space and local target."""
 
@@ -73,6 +98,8 @@ class SpaceMapping(BaseModel):  # type: ignore[misc]
     space_key: str
     target: str
     classification: Literal["perso-non-sensible", "pro-confidentiel"]
+    selection: Literal["whole_space", "pages"] | None = None
+    pages: tuple[PageSelection, ...] | None = None
 
     @field_validator("space_key")  # type: ignore[untyped-decorator]
     @classmethod
@@ -104,13 +131,34 @@ class SpaceMapping(BaseModel):  # type: ignore[misc]
             raise ValueError("target must be a normalized relative POSIX directory")
         return value
 
+    @model_validator(mode="after")  # type: ignore[untyped-decorator]
+    def validate_page_selection(self) -> SpaceMapping:
+        """Reject ambiguous whole-space configuration and duplicate page IDs."""
+        if self.selection == "whole_space" and self.pages is not None:
+            raise ValueError("selection='whole_space' must not include a pages table")
+        if self.pages is not None:
+            page_ids = [page.page_id for page in self.pages]
+            if len(page_ids) != len(set(page_ids)):
+                raise ValueError("pages must not contain duplicate page_id values")
+        return self
+
+    @property
+    def effective_selection(self) -> Literal["whole_space", "pages"]:
+        """Resolve legacy schema v1 mappings to whole-space collection."""
+        return "whole_space" if self.selection is None else self.selection
+
+    @property
+    def selected_page_ids(self) -> tuple[str, ...]:
+        """Return configured page IDs, including the legal empty selection."""
+        return () if self.pages is None else tuple(page.page_id for page in self.pages)
+
 
 class ConfluenceSettings(BaseModel):  # type: ignore[misc]
     """Resolved writer settings without secret material."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     base_url: str | None = None
     credential_target: str = DEFAULT_CREDENTIAL_TARGET
     auth_expires_at: datetime | None = None
@@ -169,6 +217,20 @@ class ConfluenceSettings(BaseModel):  # type: ignore[misc]
             raise ValueError("spaces must not contain duplicate target values")
         return value
 
+    @model_validator(mode="after")  # type: ignore[untyped-decorator]
+    def validate_schema_contract(self) -> ConfluenceSettings:
+        """Keep schema v1 legacy-only and require explicit selection in schema v2."""
+        if self.schema_version == 1:
+            if any(
+                mapping.selection is not None or mapping.pages is not None
+                for mapping in self.spaces
+            ):
+                raise ValueError("schema_version=1 spaces must use the legacy whole-space shape")
+            return self
+        if any(mapping.selection is None for mapping in self.spaces):
+            raise ValueError("schema_version=2 requires selection for every space")
+        return self
+
 
 def confluence_config_path(environ: Mapping[str, str] | None = None) -> Path:
     """Return the separate per-user Confluence configuration path."""
@@ -193,9 +255,10 @@ def _read_toml(path: Path) -> dict[str, Any]:
             f"Unknown Confluence configuration key(s): {', '.join(unknown)}."
         )
     version = raw.get("schema_version", CONFIG_SCHEMA_VERSION)
-    if type(version) is not int or version != CONFIG_SCHEMA_VERSION:
+    if type(version) is not int or version not in SUPPORTED_CONFIG_SCHEMA_VERSIONS:
+        supported = ", ".join(str(item) for item in sorted(SUPPORTED_CONFIG_SCHEMA_VERSIONS))
         raise ConfluenceConfigError(
-            f"Unsupported Confluence schema_version={version!r}; expected {CONFIG_SCHEMA_VERSION}."
+            f"Unsupported Confluence schema_version={version!r}; expected one of: {supported}."
         )
     return cast(dict[str, Any], raw)
 
@@ -266,6 +329,7 @@ def require_sync_settings(settings: ConfluenceSettings) -> None:
 __all__ = [
     "ConfluenceConfigError",
     "ConfluenceSettings",
+    "PageSelection",
     "SpaceMapping",
     "confluence_config_path",
     "load_confluence_settings",

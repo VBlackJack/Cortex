@@ -97,6 +97,63 @@ def test_space_enumeration_follows_multi_page_links_at_limit_250() -> None:
     assert transport.json_calls[1].endswith("start=250&limit=250")
 
 
+def test_selected_page_fetches_full_metadata_and_validates_space() -> None:
+    transport = QueueTransport([_page("1001", "2026-08-01T10:00:00Z")])
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=transport,
+    )
+
+    page = client.get_page("1001", "DOC")
+
+    assert page.page_id == "1001"
+    assert page.space_key == "DOC"
+    assert transport.json_calls == [
+        "https://confluence.example.test/rest/api/content/1001"
+        "?expand=space,version,history.lastUpdated,history.createdBy"
+    ]
+
+
+def test_selected_page_from_another_space_fails_closed() -> None:
+    payload = _page("1001", "2026-08-01T10:00:00Z")
+    payload["space"] = {"key": "OTHER"}
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=QueueTransport([payload]),
+    )
+
+    with pytest.raises(ConfluenceRestError, match="page from another space"):
+        client.get_page("1001", "DOC")
+
+
+@pytest.mark.parametrize(
+    ("defect", "message"),
+    [
+        pytest.param("missing-space", "field 'space'", id="missing-space"),
+        pytest.param("different-id", "different page ID", id="different-id"),
+    ],
+)
+def test_selected_page_rejects_missing_space_or_mismatched_identity(
+    defect: str,
+    message: str,
+) -> None:
+    payload = _page("1001", "2026-08-01T10:00:00Z")
+    if defect == "missing-space":
+        del payload["space"]
+    else:
+        payload["id"] = "1002"
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=QueueTransport([payload]),
+    )
+
+    with pytest.raises(ConfluenceRestError, match=message):
+        client.get_page("1001", "DOC")
+
+
 def test_page_content_accepts_empty_storage_body() -> None:
     transport = QueueTransport(
         [
