@@ -49,6 +49,20 @@ of the exact bytes previously read before replacing the file. A stale hash or a
 busy lock fails closed and requires the caller to reload. Each successful
 update keeps the exact previous bytes in `confluence.toml.bak`.
 
+The machine-readable Confluence surface uses the same two configuration files:
+
+```powershell
+cortex confluence pages --json
+cortex confluence resolve 379465380 --json
+```
+
+`pages --json` reads only `confluence.toml`, the current local `doc`
+generation, and its source health. It does not read a credential or contact
+Confluence. `resolve` needs `base_url`, `auth_expires_at`, the named Windows
+credential, and an authenticated Confluence REST request. See the
+[Confluence writer](confluence-writer.md#machine-readable-cli) for the JSON and
+exit-code contracts.
+
 ## Example config.toml
 
 ```toml

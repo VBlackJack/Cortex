@@ -22,7 +22,7 @@ from datetime import datetime
 from typing import Any, Protocol, cast, final
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urljoin, urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from confluence_writer.constants import PAGE_LIMIT
 from confluence_writer.models import RemoteAttachment, RemotePage, RemotePageContent
@@ -35,6 +35,14 @@ _TRANSIENT_HTTP_STATUS = {408, 425, 429, 500, 502, 503, 504}
 
 class ConfluenceRestError(RuntimeError):
     """Raised for a permanent or malformed Confluence response."""
+
+
+class ConfluenceAuthError(ConfluenceRestError):
+    """Raised when Confluence rejects the supplied credential."""
+
+
+class ConfluenceNotFoundError(ConfluenceRestError):
+    """Raised when Confluence cannot find a requested page."""
 
 
 class HttpTransport(Protocol):
@@ -53,6 +61,25 @@ class HttpTransport(Protocol):
     ) -> bytes:
         """Return one response body no larger than the declared limit."""
         ...
+
+    def get_redirect(self, uri: str, headers: Mapping[str, str]) -> str:
+        """Return the Location value from one redirect response."""
+        ...
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    """Expose a redirect response without following an unchecked origin."""
+
+    def redirect_request(
+        self,
+        req: Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        return None
 
 
 @final
@@ -86,11 +113,7 @@ class UrlLibTransport:
                     raise ConfluenceRestError("Confluence response exceeds the configured limit.")
                 payload = cast(bytes, response.read(maximum_bytes + 1))
         except HTTPError as exc:
-            if exc.code in _TRANSIENT_HTTP_STATUS:
-                raise TransientIngestionError(
-                    f"Confluence returned transient HTTP status {exc.code}."
-                ) from exc
-            raise ConfluenceRestError(f"Confluence returned HTTP status {exc.code}.") from exc
+            self._raise_http_error(exc)
         except (URLError, TimeoutError, OSError) as exc:
             raise TransientIngestionError("Confluence request failed transiently.") from exc
         except ValueError as exc:
@@ -98,6 +121,42 @@ class UrlLibTransport:
         if len(payload) > maximum_bytes:
             raise ConfluenceRestError("Confluence response exceeds the configured limit.")
         return payload
+
+    def get_redirect(self, uri: str, headers: Mapping[str, str]) -> str:
+        """Read one Location header without following it automatically."""
+        request = Request(uri, headers=dict(headers), method="GET")
+        try:
+            with build_opener(_NoRedirectHandler()).open(request, timeout=60.0) as response:
+                final_uri = cast(str, response.geturl())
+        except HTTPError as exc:
+            if 300 <= exc.code < 400:
+                location = exc.headers.get("Location")
+                if isinstance(location, str) and location:
+                    return location
+                raise ConfluenceRestError(
+                    "Confluence tiny link redirect omitted Location."
+                ) from exc
+            self._raise_http_error(exc)
+            raise AssertionError("unreachable")
+        except (URLError, TimeoutError, OSError) as exc:
+            raise TransientIngestionError("Confluence request failed transiently.") from exc
+        if final_uri == uri:
+            raise ConfluenceRestError("Confluence tiny link did not redirect.")
+        return final_uri
+
+    @staticmethod
+    def _raise_http_error(exc: HTTPError) -> None:
+        if exc.code in {401, 403}:
+            raise ConfluenceAuthError(
+                f"Confluence rejected authentication with HTTP status {exc.code}."
+            ) from exc
+        if exc.code == 404:
+            raise ConfluenceNotFoundError("Confluence page was not found.") from exc
+        if exc.code in _TRANSIENT_HTTP_STATUS:
+            raise TransientIngestionError(
+                f"Confluence returned transient HTTP status {exc.code}."
+            ) from exc
+        raise ConfluenceRestError(f"Confluence returned HTTP status {exc.code}.") from exc
 
 
 def _object(value: object, label: str) -> dict[str, Any]:
@@ -204,25 +263,61 @@ class ConfluenceRestClient:
         )
         return tuple(pages)
 
-    def get_page(self, page_id: str, expected_space: str) -> RemotePage:
-        """Fetch one selected page and validate its declared space before staging."""
+    def get_page_by_id(self, page_id: str) -> RemotePage:
+        """Fetch one page by numeric ID and retain its declared space."""
         uri = self._api_uri(
             f"rest/api/content/{quote(page_id, safe='')}"
             "?expand=space,version,history.lastUpdated,history.createdBy"
         )
         payload = self._transport.get_json(uri, self._headers)
         _object(payload.get("space"), "space")
-        page = self._parse_page(payload, expected_space)
+        page = self._parse_page(payload, None)
         if page.page_id != page_id:
             raise ConfluenceRestError("Confluence returned a different page ID.")
         return page
 
-    def _parse_page(self, value: dict[str, Any], expected_space: str) -> RemotePage:
+    def get_page(self, page_id: str, expected_space: str) -> RemotePage:
+        """Fetch one selected page and validate its declared space before staging."""
+        page = self.get_page_by_id(page_id)
+        if page.space_key != expected_space:
+            raise ConfluenceRestError("Confluence returned a page from another space.")
+        return page
+
+    def find_page(self, space_key: str, title: str) -> RemotePage:
+        """Resolve one exact current page by allowlisted space key and title."""
+        uri = self._api_uri(
+            "rest/api/content"
+            f"?spaceKey={quote(space_key, safe='')}"
+            f"&title={quote(title, safe='')}"
+            "&type=page&status=current"
+            "&expand=space,version,history.lastUpdated,history.createdBy"
+            "&limit=2"
+        )
+        payload = self._transport.get_json(uri, self._headers)
+        candidates = [
+            self._parse_page(_object(raw, "results[]"), space_key)
+            for raw in _list(payload.get("results"), "results")
+        ]
+        exact = [page for page in candidates if page.title == title]
+        if not exact:
+            raise ConfluenceNotFoundError("Confluence page was not found.")
+        if len(exact) != 1:
+            raise ConfluenceRestError("Confluence returned multiple exact page matches.")
+        return exact[0]
+
+    def resolve_tiny_link(self, uri: str) -> str:
+        """Return one same-origin tiny-link redirect target."""
+        tiny_uri = self._resolve(uri)
+        location = self._transport.get_redirect(tiny_uri, self._headers)
+        return self._resolve(location, current=tiny_uri)
+
+    def _parse_page(self, value: dict[str, Any], expected_space: str | None) -> RemotePage:
         page_id = _string(value.get("id"), "id")
         title = _string(value.get("title"), "title")
-        space = _object(value.get("space", {"key": expected_space}), "space")
-        space_key = _string(space.get("key", expected_space), "space.key")
-        if space_key != expected_space:
+        default_space = {} if expected_space is None else {"key": expected_space}
+        space = _object(value.get("space", default_space), "space")
+        space_key = _string(space.get("key"), "space.key")
+        if expected_space is not None and space_key != expected_space:
             raise ConfluenceRestError("Confluence returned a page from another space.")
         version = _object(value.get("version", {}), "version")
         version_number = version.get("number", 1)
@@ -314,6 +409,8 @@ class ConfluenceRestClient:
 
 
 __all__ = [
+    "ConfluenceAuthError",
+    "ConfluenceNotFoundError",
     "ConfluenceRestClient",
     "ConfluenceRestError",
     "HttpTransport",

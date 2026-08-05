@@ -17,6 +17,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
 
 
 @dataclass(frozen=True)
@@ -60,3 +63,52 @@ class RemotePageContent:
 
     xhtml: str
     attachments: tuple[RemoteAttachment, ...]
+
+
+class CliContractModel(BaseModel):  # type: ignore[misc]
+    """Strict immutable base for JSON consumed by external clients."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class ResolvedPageContract(CliContractModel):
+    """Versioned machine result for one resolved Confluence page."""
+
+    contract_version: Literal[1]
+    page_id: str
+    title: str
+    space_key: str
+    configured: bool
+
+
+class ConfiguredPageContract(CliContractModel):
+    """One explicitly configured page and its latest known local title."""
+
+    page_id: str
+    title: str | None
+
+
+class ConfiguredSpaceContract(CliContractModel):
+    """One allowlisted space exposed to GUI clients."""
+
+    space_key: str
+    selection: Literal["whole_space", "pages"]
+    target: str
+    classification: Literal["perso-non-sensible", "pro-confidentiel"]
+    pages: tuple[ConfiguredPageContract, ...] | None
+
+
+class LastSyncContract(CliContractModel):
+    """Local health fields safe for machine display."""
+
+    last_success_at: datetime | None
+    status: Literal["ok", "degraded", "error"] | None
+    error_code: str | None
+
+
+class PagesContract(CliContractModel):
+    """Versioned local-only configuration and health snapshot."""
+
+    contract_version: Literal[1]
+    spaces: tuple[ConfiguredSpaceContract, ...]
+    last_sync: LastSyncContract

@@ -17,14 +17,17 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
+from email.message import Message
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError
 
 import pytest
 
+import confluence_writer.rest as rest_module
 from confluence_writer.constants import JOB_SCHEMA_SHA256, RESULT_SCHEMA_SHA256
 from confluence_writer.models import RemotePageContent
-from confluence_writer.rest import ConfluenceRestClient, ConfluenceRestError
+from confluence_writer.rest import ConfluenceRestClient, ConfluenceRestError, UrlLibTransport
 from ingestion.credentials import SecretValue
 
 _FAKE_SECRET = "fixture-only-fake-secret-confluence-rest-6d6f"
@@ -192,6 +195,33 @@ def test_page_content_rejects_missing_or_non_string_storage_body(
 
     with pytest.raises(ConfluenceRestError, match=r"body\.storage\.value"):
         client.page_content("1001")
+
+
+def test_tiny_transport_returns_mocked_location_without_following(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response_headers = Message()
+    response_headers["Location"] = "/pages/viewpage.action?pageId=1001"
+    redirect = HTTPError(
+        "https://confluence.example.test/x/AbC",
+        302,
+        "Found",
+        response_headers,
+        None,
+    )
+
+    class RedirectOpener:
+        def open(self, *_args: object, **_kwargs: object) -> None:
+            raise redirect
+
+    monkeypatch.setattr(rest_module, "build_opener", lambda *_handlers: RedirectOpener())
+
+    location = UrlLibTransport().get_redirect(
+        "https://confluence.example.test/x/AbC",
+        {"Authorization": f"Bearer {_FAKE_SECRET}"},
+    )
+
+    assert location == "/pages/viewpage.action?pageId=1001"
 
 
 def test_vendored_schema_bytes_match_frozen_3a_provenance() -> None:
