@@ -79,6 +79,18 @@ l'index se fait en un seul process (pic RAM superieur a `sync.bat` section par
 section) ; `--no-index` permet de lancer `sync.bat` separement ensuite. Un echec
 d'enregistrement client est signale en avertissement sans interrompre le reste.
 
+### Sources d'ingestion optionnelles
+
+`cortex setup` configure le dossier documentaire choisi et les clients MCP. Il
+ne cree pas de liste blanche Confluence, ne stocke pas de PAT et n'enregistre
+pas de tache dans le Planificateur de taches Windows. Ces surfaces detenues par
+l'operateur se configurent separement :
+
+- [Planification de l'ingestion](ingestion-scheduling.md) pour la cadence, les
+  reprises, la sante et la racine de donnees d'ingestion.
+- [Writer Confluence](writer-confluence.md) pour la liste blanche d'espaces,
+  l'entree Credential Manager et la console de conversion.
+
 Quand cette commande tourne depuis l'executable autonome, elle enregistre cet
 executable avec `serve` comme argument MCP. Depuis une installation pip ou les
 sources, elle conserve l'entree Python avec `server.py`.

@@ -2,9 +2,9 @@
 
 [Francais](../fr/spec.md) | **English**
 
-> **Status**: Spec v2.0 - normative, synchronized with `main`
+> **Status**: Spec v2.1 - normative, synchronized with `main`
 > **Author**: Julien Bombled
-> **Date**: 2026-07-21
+> **Date**: 2026-08-05
 > **License**: [Apache 2.0](../../LICENSE)
 > **Scope**: This document defines the observable surfaces, formats, and
 > invariants of Cortex. Detailed design choices remain in
@@ -20,21 +20,25 @@ behavior.
 ## 1. Product identity and read boundary
 
 Cortex is a local, multi-client RAG server exposed through MCP. It indexes
-user-selected Markdown and PDF files, then returns the passages considered
-relevant to clients. Documents under `kb_path` remain the source of truth;
+user-selected Markdown and PDF files plus Markdown from the current published
+ingestion generation, then returns the passages considered relevant to
+clients. Files under `kb_path` remain authoritative for the `note` domain;
+the current immutable generation is authoritative for the `doc` domain.
 ChromaDB and the lexical index are reconstructible derived data.
 
 | Surface | Observable contract |
 |---|---|
-| Source documents | Read-only: no MCP tool creates, modifies, renames, or deletes a Markdown or PDF file |
-| Derived index | `cortex_sync` can create and modify the local vector and lexical indexes |
+| User documents | Read-only: no MCP tool creates, modifies, renames, or deletes a Markdown or PDF file under `kb_path` |
+| Generated documents | Source writers publish immutable generations outside `kb_path`; only `current.json` selects the served generation |
+| Derived index | `cortex_sync` can create and modify the local vector and lexical indexes from both domains |
 | Search | Reads the index and returns chunks, source labels, and a freshness verdict |
 | Runtime | Local CPU processing; Cortex forces `CUDA_VISIBLE_DEVICES` to an empty value |
 
-The client surface is therefore read-only with respect to the corpus, but not
-with respect to derived data: `cortex_sync` is an index write operation. Cortex
-provides no content editing tool, document mutation journal, or write mechanism
-for `kb_path`.
+The MCP client surface is therefore read-only with respect to the corpus, but
+not with respect to derived data: `cortex_sync` is an index write operation.
+Cortex provides no content editing tool, document mutation journal, or write
+mechanism for `kb_path`. The separate operator CLI may publish generated source
+content through an explicitly configured writer.
 
 <!-- spec:mcp-tools -->
 ## 2. Transport and four-tool MCP surface
@@ -46,7 +50,7 @@ MCP resource or prompt.
 
 | Tool | Parameters | Behavior | Response format |
 |---|---|---|---|
-| `cortex_search` | `query: str`, `section: Optional[str] = None`, `top_k: int = 5` | Local hybrid search, with vector fallback and freshness annotation | Markdown: mode, optional fallback, title or path, section, heading, relevance, freshness, and text |
+| `cortex_search` | `query: str`, optional `section`, `top_k`, `source_kinds`, `authors`, and occurred/updated RFC 3339 bounds | Local hybrid search, metadata filters, vector fallback, and domain-aware freshness | Structured schema v2 object with effective filters, results, citations, relevance, freshness, metadata, and compatibility Markdown |
 | `cortex_sync` | `section: Optional[str] = None` | Incremental reconciliation of one section or the full configured scope | Markdown: `published_files`, `added_chunks`, `deleted_chunks`, `removed_files`, `skipped_files`, `errors` |
 | `cortex_list_sections` | none | Lists included sections and top-level folders outside policy | Markdown: indexable sections followed by `out of policy` folders |
 | `cortex_freshness` | `section: Optional[str] = None`, `include_entries: bool = False` | Compares live sources with index metadata without modifying them | Structured object: contract, scope, summary, duration, and optional per-file entries |
@@ -60,9 +64,9 @@ traces on the client side.
 ## 3. Hybrid search contract
 
 `cortex_search` always clamps `top_k` between 1 and 10. In hybrid mode, each
-branch retrieves at most 20 candidates. ChromaDB vector results and SQLite FTS5
+branch retrieves at most 40 candidates. ChromaDB vector results and SQLite FTS5
 lexical results are merged with Reciprocal Rank Fusion using `k = 60`, then the
-first 10 candidates are offered to the
+first 20 candidates are offered to the
 `jinaai/jina-reranker-v1-tiny-en` ONNX reranker.
 
 | Returned mode | Condition | Final order |
@@ -86,7 +90,8 @@ mode and any fallback reason.
 
 | Stage | Observable contract |
 |---|---|
-| Selection | Only `.md` and `.pdf` files inside the configured scope are candidates; dot directories and denylisted paths are excluded |
+| Vault selection | Only `.md` and `.pdf` files inside the configured `kb_path` scope are candidates; dot directories and denylisted paths are excluded |
+| Ingestion selection | Only manifest-listed `.md` files under `documents/` in the generation selected by `current.json` are candidates |
 | Snapshot | Markdown is decoded as strict UTF-8; a PDF is read and extracted from the same immutable binary snapshot |
 | Chunking | H1-H3 for Markdown, pages for PDF, 512-character window, overlap of 64, and merging of small tails below 300 characters |
 | Identity | `{path}::{content_hash}::{chunking_contract_version}::{ordinal}` with relative POSIX path, SHA-256 of exact bytes, and version `v3` |
@@ -96,24 +101,32 @@ mode and any fallback reason.
 
 A Markdown chunk keeps the simple frontmatter title when present, otherwise the
 file stem. A PDF chunk uses a title derived from the filename and a `Page N`
-heading. Every chunk carries `path`, `section`, `title`, `header`, `chunk_index`,
-`content_hash`, `expected_chunk_count`, the freshness contract, and the chunking
-contract version.
+heading. Every chunk carries metadata schema v2, including `source_kind`,
+`source_system`, stable source/container IDs, title, author, source dates,
+canonical URI, relative path, section, capture date, logical `content_hash`,
+and `chunk_index`. Internal index metadata additionally carries the exact-file
+hash, expected chunk count, freshness contract, and chunking contract version.
 
 Sync is hash-aware. An already complete and coherent version is skipped. A file
 that becomes missing, excluded, empty, or too large is removed from both
 indexes. A read, decode, extraction, or publication error increments `errors`
 and preserves the old vector version. Reconciliation remains bounded to the
 current section; in whole-folder mode, the reserved internal section `.`
-represents all of `kb_path`.
+represents all of `kb_path`. A full sync also reconciles `source_kind=doc` in
+section `sources`. It reads only the current complete generation and preserves
+existing document rows when the source, pointer, manifest, or documents
+directory is unavailable or incomplete.
 
 <!-- spec:freshness -->
 ## 5. Freshness contract v1
 
 The observable contract has identifier `freshness-contract-v1` and hash version
-`v1`. `content_hash` is the lowercase SHA-256 of the exact bytes read: no line
-ending, BOM, or Unicode normalization is applied. PDF bytes are hashed as-is;
-Markdown must additionally be valid UTF-8.
+`v1`. Internal `file_content_hash` is the lowercase SHA-256 of the exact bytes
+read: no line ending, BOM, or Unicode normalization is applied. For a generated
+Markdown document, public `content_hash` may instead carry the producer's valid
+frontmatter hash of the normalized Markdown body; file identity and freshness
+still use `file_content_hash`. PDF bytes are hashed as-is; Markdown must
+additionally be valid UTF-8.
 
 | Status | Meaning |
 |---|---|
@@ -135,8 +148,14 @@ scope without being presented as indexable sources.
 Freshness is diagnosed and never repaired automatically. Cortex installs no
 watcher and performs no implicit sweep before a read. Run `cortex sync`,
 `sync.bat`, or `cortex_sync` after changing the corpus. `cortex_search` rehashes
-each unique returned path; without an accessible `kb_path`, it preserves hits
-and marks freshness as `unavailable`.
+each unique returned path against its own domain: `kb_path` for vault hits and
+the current generation's `documents/` root for `doc` hits. An unavailable root
+preserves the hit and marks freshness as `unavailable`.
+
+When ingestion state exists, `cortex_freshness` also returns two-stage
+freshness. The source stage reports remote-to-disk health; the index stage folds
+in a dedicated `ingestion_index` comparison between the current generation and
+indexed `doc` rows. The ingestion report is omitted when that domain is absent.
 
 <!-- spec:integrity-concurrency -->
 ## 6. Index integrity and concurrency
@@ -243,12 +262,13 @@ forced offline.
 | Limit | Current contract |
 |---|---|
 | MCP transport | stdio only; no Cortex HTTP or WebSocket endpoint |
-| Document writing | No MCP tool writes to the knowledge base; `cortex_sync` writes only the derived indexes |
+| Document writing | No MCP tool writes source content; `cortex_sync` writes derived indexes, while explicit source CLIs may publish immutable generated generations outside `kb_path` |
 | Client scope | User registration only; no project scope |
 | Source formats | UTF-8 Markdown and native PDF only, with configured size limits |
 | Change detection | No watcher; explicit sync required |
 | Encryption and authentication | No Cortex encryption at rest and no MCP client authentication |
-| Network | The verified installer operates offline; source and bare binary may download missing models |
+| Network | The verified installer operates offline; source and bare binary may download missing models; the optional Confluence writer reads its configured HTTPS origin |
+| Secrets | Confluence PATs are accepted only through an interactive prompt and stored in Windows Credential Manager, never TOML, environment, arguments, or logs |
 
 ChromaDB is always opened through `chromadb.PersistentClient` with
 `anonymized_telemetry=False`. Cortex never starts the ChromaDB HTTP server, does
@@ -268,6 +288,7 @@ authorization remain outside the Cortex boundary. See
 
 | Spec version | Date | Change |
 |---|---|---|
+| 2.1 | 2026-08-05 | Metadata v2 filters, ingestion generations, Confluence writer, and two-stage freshness |
 | 2.0 | 2026-07-21 | First public specification aligned with the implementation on `main` |
 
 This spec is the reference for observable contracts of the MCP server, indexes,

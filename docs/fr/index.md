@@ -3,9 +3,9 @@
 **Francais** | [English](../en/index.md)
 
 Cortex est un serveur MCP (Model Context Protocol) qui expose une recherche
-semantique sur une base de connaissance locale. Il permet a Claude, Codex et
-Gemini d'interroger la documentation interne sans consommer inutilement leur
-fenetre de contexte.
+hybride sur une base de connaissance locale et les generations documentaires
+courantes. Il permet a Claude, Codex et Gemini d'interroger la documentation
+interne sans consommer inutilement leur fenetre de contexte.
 
 ## Modele mental
 
@@ -15,9 +15,11 @@ dans le texte d'origine. La recherche est semantique (par sens, pas par
 mot-cle), en francais comme en anglais, grace au modele ONNX multilingue
 `paraphrase-multilingual-MiniLM-L12-v2`.
 
-L'index vectoriel (ChromaDB) et le traitement Cortex restent sur ton poste.
-Cortex n'envoie pas le contenu de la base ; le client MCP peut toutefois
-transmettre au modele les passages qu'il a demandes, selon sa propre politique.
+L'index vectoriel (ChromaDB), l'index lexical (SQLite FTS5) et le traitement
+Cortex restent sur ton poste. Le writer Confluence optionnel ne telecharge que
+les espaces explicitement autorises. Cortex n'envoie pas le contenu de la base ;
+le client MCP peut toutefois transmettre au modele les passages qu'il a
+demandes, selon sa propre politique.
 
 ## Sommaire
 
@@ -32,6 +34,10 @@ transmettre au modele les passages qu'il a demandes, selon sa propre politique.
 - [FAQ](faq.md) : installation, donnees locales, sync, diagnostic et securite.
 - [Configuration](configuration.md) : `config.toml`, variables
   d'environnement, sections, data home, migration de l'index.
+- [Planification de l'ingestion](ingestion-scheduling.md) : sante des sources,
+  rattrapage, reprises et Planificateur de taches Windows.
+- [Migration metadata v2](metadata-v2-migration.md) : contrat de stockage,
+  rechunk en une passe, sauvegarde et restauration mesurees.
 - [Installation reproductible](install-reproductible.md) : `requirements.lock`,
   `pip install --require-hashes`, regeneration du verrou.
 - [Specification publique](spec.md) : surface MCP, contrats de l'index,
@@ -48,8 +54,8 @@ transmettre au modele les passages qu'il a demandes, selon sa propre politique.
 | Element | Valeur |
 |---|---|
 | Type | Serveur MCP local (FastMCP) |
-| Recherche | Semantique, FR et EN |
-| Index | ChromaDB dans `%LOCALAPPDATA%\Cortex\chroma_db` |
+| Recherche | Hybride vectorielle + lexicale, FR et EN |
+| Index | ChromaDB + SQLite FTS5 dans `%LOCALAPPDATA%\Cortex` |
 | Runtime | Binaire autonome, ou Python 3.10+ |
 | Clients | Claude Desktop/Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf, VS Code |
 | Licence | Apache 2.0 |

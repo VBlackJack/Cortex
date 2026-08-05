@@ -16,11 +16,17 @@ limitations under the License.
 
 # Writer Confluence
 
+**Francais** | [English](../en/confluence-writer.md)
+
+[Retour au sommaire](index.md)
+
 Le writer Confluence enumere une liste blanche explicite d'espaces via REST
-v1, ne telecharge que les pages nouvelles ou modifiees, puis lance un seul
-processus ConfluenceRAGBuilder par generation. L'infrastructure commune gere le
-verrou, les reprises, les generations atomiques, le carry-forward, les
-tombstones, la retention et l'etat de sante.
+v1, ne telecharge que les pages nouvelles ou modifiees, puis lance un ou
+plusieurs jobs ConfluenceRAGBuilder sequentiels par generation. Chaque job
+respecte les limites de nombre de pages et d'octets serialises lues dans le
+schema gele. L'infrastructure commune gere le verrou, les reprises, les
+generations atomiques, le carry-forward, les tombstones, la retention et l'etat
+de sante.
 
 ## Configuration
 
@@ -63,10 +69,10 @@ donnee de configuration, pas un secret.
 
 ## Synchronisation et planification
 
-Le rechunk metadonnees v2 doit etre deploye avant la premiere publication
-reelle. Tant que Cortex n'expose pas ce contrat deploye,
-`cortex confluence sync` s'arrete avant la lecture du secret et avant tout appel
-Confluence.
+Le schema de metadonnees v2 est requis avant une publication reelle. Le build
+courant declare `METADATA_SCHEMA_VERSION = 2` ; le CLI verifie encore cette
+barriere avant de lire les credentials ou de contacter Confluence et echoue en
+mode ferme si un deploiement futur ou plus ancien ne la respecte pas.
 
 Une fois ce prerequis livre, le Planificateur de taches peut lancer :
 
@@ -77,6 +83,13 @@ cortex confluence sync
 `--force` est reserve a une execution demandee par un operateur. Sinon, le
 rattrapage et la cadence de l'infrastructure commune s'appliquent. Le compte de
 tache doit acceder a son Credential Manager et a la racine d'ingestion.
+
+L'expiration declaree du credential est controlee avant le lancement du writer.
+Un credential expire ou indisponible enregistre une erreur et laisse la
+generation precedente servie. La revocation distante du PAT est appliquee par
+le serveur Confluence : Cortex l'observe a la prochaine requete authentifiee.
+La cadence de synchronisation, et non un cache local du token, borne donc la
+duree de presence d'un contenu deja indexe.
 
 Le `README.md` de chaque zone publiee declare les fichiers en lecture seule
 pour les humains. Toute modification manuelle est remplacee a la prochaine
@@ -89,6 +102,20 @@ depuis le commit ConfluenceRAGBuilder
 `fceda69da9246e9cf927ca7b8ad68a330f5a7b9b`. Les deux payloads sont valides en
 JSON Schema draft 2020-12. Une divergence de hash ou de format echoue en mode
 ferme.
+
+Le writer decoupe le travail dans `batch-0001`, `batch-0002` et les repertoires
+suivants, lance la console sequentiellement et applique le seuil d'echec a toute
+la generation. Une page dont l'enregistrement serialise ne tient pas sous la
+limite d'octets du schema echoue avec `job_payload_too_large` ; les autres pages
+continuent.
+
+Un `body.storage.value` explicitement present et vide est un corps de page
+valide. Un champ absent, null ou non chaine echoue toujours en mode ferme. Les
+octets d'une piece jointe sont stages sous un nom Windows-safe prefixe par son
+ID, tandis que `file_name` conserve le titre Confluence original pour la
+resolution des macros. Les caracteres Windows invalides, noms de peripheriques
+reserves, points/espaces terminaux et la limite de 255 caracteres sont traites
+avant le lancement de la console.
 
 Seuls les `markdown_paths` des pages `converted` sont consommes. Les pieces
 jointes laissees dans le repertoire de travail par une page `failed` n'entrent

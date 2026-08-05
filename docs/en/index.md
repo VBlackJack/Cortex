@@ -2,9 +2,10 @@
 
 [Francais](../fr/index.md) | **English**
 
-Cortex is an MCP (Model Context Protocol) server that exposes semantic search
-over a local knowledge base. It lets Claude, Codex and Gemini query internal
-documentation without wasting their context window.
+Cortex is an MCP (Model Context Protocol) server that exposes hybrid search
+over a local knowledge base and current generated document generations. It lets
+Claude, Codex and Gemini query internal documentation without wasting their
+context window.
 
 ## Mental model
 
@@ -14,9 +15,10 @@ the source text. Search is semantic (by meaning, not keyword), in French and in
 English, thanks to the multilingual ONNX model
 `paraphrase-multilingual-MiniLM-L12-v2`.
 
-The vector index (ChromaDB) and Cortex processing stay on your machine. Cortex
-does not send knowledge-base content; the MCP client may still pass requested
-chunks to its model under its own policy.
+The vector index (ChromaDB), lexical index (SQLite FTS5), and Cortex processing
+stay on your machine. The optional Confluence writer only downloads explicitly
+allowlisted spaces. Cortex does not upload knowledge-base content; the MCP
+client may still pass requested chunks to its model under its own policy.
 
 ## Table of contents
 
@@ -31,6 +33,8 @@ chunks to its model under its own policy.
 - [FAQ](faq.md): installation, local data, sync, diagnostics, and security.
 - [Configuration](configuration.md): `config.toml`, environment variables,
   sections, data home, index migration.
+- [Ingestion scheduling](ingestion-scheduling.md): source health, catch-up,
+  retries, and Windows Task Scheduler.
 - [Metadata v2 migration](metadata-v2-migration.md): storage contract,
   one-pass rechunk, measured backup and restore.
 - [Reproducible install](reproducible-install.md): `requirements.lock`,
@@ -48,8 +52,8 @@ chunks to its model under its own policy.
 | Item | Value |
 |---|---|
 | Type | Local MCP server (FastMCP) |
-| Search | Semantic, FR and EN |
-| Index | ChromaDB in `%LOCALAPPDATA%\Cortex\chroma_db` |
+| Search | Hybrid vector + lexical, FR and EN |
+| Index | ChromaDB + SQLite FTS5 in `%LOCALAPPDATA%\Cortex` |
 | Runtime | Standalone binary, or Python 3.10+ |
 | Clients | Claude Desktop/Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf, VS Code |
 | License | Apache 2.0 |

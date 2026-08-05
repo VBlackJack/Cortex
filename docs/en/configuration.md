@@ -23,6 +23,21 @@ any existing v1 file stays valid. By default the lightweight configuration
 stays roaming in `%APPDATA%\Cortex`, while
 the index, the lock and the bulky logs live locally in `%LOCALAPPDATA%\Cortex`.
 
+## Separate source configuration
+
+Cortex keeps three strict TOML surfaces separate. Unknown keys fail closed, and
+none of these files accepts a secret:
+
+| File | Scope | Details |
+|---|---|---|
+| `%APPDATA%\Cortex\config.toml` | User-selected Markdown/PDF folder and derived indexes | This page |
+| `%APPDATA%\Cortex\ingestion.toml` | Shared generations, retention, retry, lock, credential lifetime, and cadence | [Ingestion scheduling](ingestion-scheduling.md) |
+| `%APPDATA%\Cortex\confluence.toml` | Confluence URL, console, declared expiry, limits, and space allowlist | [Confluence writer](confluence-writer.md) |
+
+Environment variables override the matching TOML values. The PAT is stored
+interactively in Windows Credential Manager, never in a TOML file or an
+environment variable.
+
 ## Example config.toml
 
 ```toml
@@ -102,8 +117,14 @@ EMBEDDING_POOLING = "mean"
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64
 CHUNKING_CONTRACT_VERSION = "v3"
+METADATA_SCHEMA_VERSION = 2
+LEXICAL_INDEX_CONTRACT_VERSION = "v2"
 SEARCH_TOP_K_MIN = 1
 SEARCH_TOP_K_MAX = 10
+SEARCH_HYBRID_CANDIDATES = 40
+SEARCH_RERANK_CANDIDATES = 20
+INGESTION_DOCUMENT_SOURCE_KIND = "doc"
+INGESTION_DOCUMENT_SECTION = "sources"
 ```
 
 `CHUNK_SIZE` is sized to stay under the MiniLM model's 128-token limit with a

@@ -78,6 +78,17 @@ single process (higher RAM peak than section-by-section `sync.bat`); `--no-index
 lets you run `sync.bat` separately afterwards. A client registration failure is
 reported as a warning without interrupting the rest.
 
+### Optional ingestion sources
+
+`cortex setup` configures the user-selected document folder and MCP clients. It
+does not create a Confluence allowlist, store a PAT, or register a Windows Task
+Scheduler task. Configure those explicit operator-owned surfaces separately:
+
+- [Ingestion scheduling](ingestion-scheduling.md) for cadence, retries, health,
+  and the ingestion data root.
+- [Confluence writer](confluence-writer.md) for the space allowlist, Credential
+  Manager entry, and conversion console.
+
 When this command runs from the standalone executable, it registers that
 executable with `serve` as the MCP argument. When it runs from a pip or source
 installation, it preserves the Python plus `server.py` entry.

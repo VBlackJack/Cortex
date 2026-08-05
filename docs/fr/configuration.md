@@ -25,6 +25,21 @@ la configuration legere reste roaming dans
 `%APPDATA%\Cortex`, tandis que l'index, le verrou et les logs volumineux vivent
 localement dans `%LOCALAPPDATA%\Cortex`.
 
+## Configurations de sources separees
+
+Cortex garde trois surfaces TOML strictes et separees. Une cle inconnue echoue
+en mode ferme et aucun de ces fichiers n'accepte de secret :
+
+| Fichier | Portee | Details |
+|---|---|---|
+| `%APPDATA%\Cortex\config.toml` | Dossier Markdown/PDF choisi et index derives | Cette page |
+| `%APPDATA%\Cortex\ingestion.toml` | Generations partagees, retention, reprise, verrou, duree des credentials et cadence | [Planification de l'ingestion](ingestion-scheduling.md) |
+| `%APPDATA%\Cortex\confluence.toml` | URL Confluence, console, expiration declaree, limites et liste blanche d'espaces | [Writer Confluence](writer-confluence.md) |
+
+Les variables d'environnement priment sur les valeurs TOML correspondantes. Le
+PAT est stocke interactivement dans Windows Credential Manager, jamais dans un
+fichier TOML ni une variable d'environnement.
+
 ## Exemple de config.toml
 
 ```toml
@@ -107,8 +122,14 @@ EMBEDDING_POOLING = "mean"
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64
 CHUNKING_CONTRACT_VERSION = "v3"
+METADATA_SCHEMA_VERSION = 2
+LEXICAL_INDEX_CONTRACT_VERSION = "v2"
 SEARCH_TOP_K_MIN = 1
 SEARCH_TOP_K_MAX = 10
+SEARCH_HYBRID_CANDIDATES = 40
+SEARCH_RERANK_CANDIDATES = 20
+INGESTION_DOCUMENT_SOURCE_KIND = "doc"
+INGESTION_DOCUMENT_SECTION = "sources"
 ```
 
 `CHUNK_SIZE` est dimensionne pour rester sous la limite de 128 tokens du modele

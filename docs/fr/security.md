@@ -9,11 +9,27 @@
 Tous les clients Chroma sont construits avec
 `Settings(anonymized_telemetry=False)` : aucune telemetrie Chroma/PostHog n'est
 emise. Cortex n'envoie pas le contenu de la base pendant l'indexation ou la
-recherche. L'installeur Windows verifie embarque les modeles et fonctionne hors
-ligne ; une installation depuis les sources ou un binaire autonome peut joindre
-Hugging Face si un modele manque dans le cache local. Les clients MCP restent
-des produits distincts : selon leur politique, ils peuvent transmettre au
-modele les resultats d'outils qu'ils ont demandes.
+recherche. Le writer Confluence optionnel effectue uniquement des lectures HTTPS
+authentifiees vers l'origine configuree et la liste blanche explicite d'espaces.
+L'installeur Windows verifie embarque les modeles et fonctionne hors ligne ; une
+installation depuis les sources ou un binaire autonome peut joindre Hugging
+Face si un modele manque dans le cache local. Les clients MCP restent des
+produits distincts : selon leur politique, ils peuvent transmettre au modele
+les resultats d'outils qu'ils ont demandes.
+
+## Frontiere du credential Confluence
+
+Le PAT Confluence est saisi par `getpass` et stocke comme credential Windows
+generique pour le compte de tache courant. Il n'est jamais accepte comme
+argument CLI, variable d'environnement ou valeur TOML. Les wrappers de secret
+redactent leurs representations texte et les logs ne contiennent que les noms
+de cible et les types d'erreur.
+
+Cortex controle `auth_expires_at` avant une tentative planifiee. Un credential
+expire ou illisible empeche la publication et preserve la generation
+precedente. La revocation distante reste un contrat du serveur Confluence :
+Cortex observe le rejet lors de la prochaine requete authentifiee et ne garde
+pas de second cache du token.
 
 ## Vulnerabilite ChromaDB ignoree (PYSEC-2026-311)
 
@@ -57,8 +73,8 @@ permanent. Configurable via `CORTEX_WRITE_LOCK_PATH` et
 
 Les logs locaux (`%LOCALAPPDATA%\Cortex\logs\cortex.log`, rotation 5 Mo x 5) ne
 contiennent jamais le texte des documents ou des chunks : uniquement chemins,
-statuts, erreurs et compteurs operationnels. La configuration utilisateur
-(`config.toml`) ne contient jamais de secret.
+statuts, erreurs et compteurs operationnels. Les fichiers TOML utilisateur,
+ingestion et Confluence ne contiennent jamais de secret.
 
 ## Portee et limites
 

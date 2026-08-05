@@ -7,12 +7,28 @@
 ## Local runtime and bounded network access
 
 All Chroma clients are built with `Settings(anonymized_telemetry=False)`: no
-Chroma/PostHog telemetry is emitted. Cortex does not send knowledge-base
-content during indexing or search. The verified Windows installer bundles the
-models and operates offline; a source installation or standalone binary may
-contact Hugging Face when a model is absent from the local cache. MCP clients
-remain distinct products: depending on their policy, they may pass requested
-tool results to the model.
+Chroma/PostHog telemetry is emitted. Cortex does not upload knowledge-base
+content during indexing or search. The optional Confluence writer performs
+authenticated HTTPS reads only against the configured origin and explicit
+space allowlist. The verified Windows installer bundles the models and operates
+offline; a source installation or standalone binary may contact Hugging Face
+when a model is absent from the local cache. MCP clients remain distinct
+products: depending on their policy, they may pass requested tool results to
+the model.
+
+## Confluence credential boundary
+
+The Confluence PAT is entered through `getpass` and stored as a generic Windows
+Credential Manager entry for the current task account. It is never accepted as
+a CLI argument, environment variable, or TOML value. Secret wrappers redact
+both string representations, and logs contain only target names and error
+types.
+
+Cortex checks the declared `auth_expires_at` before a scheduled attempt. An
+expired or unreadable credential prevents publication and preserves the
+previous generation. Remote revocation remains a Confluence-server contract:
+Cortex observes rejection on the next authenticated request and does not keep a
+second token cache.
 
 ## Ignored ChromaDB vulnerability (PYSEC-2026-311)
 
@@ -53,8 +69,8 @@ permanent deadlock. Configurable via `CORTEX_WRITE_LOCK_PATH` and
 
 The local logs (`%LOCALAPPDATA%\Cortex\logs\cortex.log`, rotation 5 MB x 5)
 never contain document or chunk text: only paths, statuses, errors and
-operational counters. The user configuration (`config.toml`) never contains a
-secret.
+operational counters. The user, ingestion, and Confluence TOML files never
+contain a secret.
 
 ## Scope and limits
 
