@@ -157,6 +157,84 @@ Le `README.md` de chaque zone publiee declare les fichiers en lecture seule
 pour les humains. Toute modification manuelle est remplacee a la prochaine
 generation reussie.
 
+## CLI lisible par une machine
+
+Resoudre un page ID numerique, une URL `viewpage`, une URL
+`/display/SPACE/Titre` ou un tiny link Kazan `/x/CLE` :
+
+```powershell
+cortex confluence resolve "https://kazan.example.test/display/DOC/Run+Book" --json
+```
+
+En cas de succes, stdout contient exactement un document JSON. Les erreurs et
+les logs ne partagent jamais stdout avec ce contrat :
+
+```json
+{
+  "contract_version": 1,
+  "page_id": "379465380",
+  "title": "Run Book",
+  "space_key": "DOC",
+  "configured": true
+}
+```
+
+`configured` vaut true pour une page d'un mapping `whole_space` autorise. Pour
+un mapping `pages`, il vaut true uniquement si le page ID est deja liste. Une
+page resolue dans un espace hors allowlist est refusee.
+
+Lister les espaces configures, les pages explicitement selectionnees, les
+titres connus localement et l'etat global du sync sans reseau ni credential :
+
+```powershell
+cortex confluence pages --json
+```
+
+```json
+{
+  "contract_version": 1,
+  "spaces": [
+    {
+      "space_key": "RUN",
+      "selection": "pages",
+      "target": "knowledge/runbooks",
+      "classification": "pro-confidentiel",
+      "pages": [
+        {"page_id": "379465380", "title": "Run Book"},
+        {"page_id": "379465381", "title": null}
+      ]
+    }
+  ],
+  "last_sync": {
+    "last_success_at": "2026-08-05T10:00:00Z",
+    "status": "ok",
+    "error_code": null
+  }
+}
+```
+
+Pour `whole_space`, `pages` vaut `null`. Sans generation courante, les titres
+des pages configurees valent `null` ; sans etat de sante, les trois champs de
+`last_sync` valent `null`.
+
+Le contrat d'exit codes est stable et ne demande aucun parsing de texte humain :
+
+| Code | Signification |
+|---:|---|
+| `0` | Succes, dont sync publie ou resultat JSON valide |
+| `1` | Erreur generale ou de configuration |
+| `2` | Lock de sync ingestion deja pris |
+| `3` | Sync non requis a cet instant |
+| `4` | Credential absent/expire ou authentification distante refusee |
+| `5` | Echec reseau ou REST Confluence |
+| `6` | Entree `resolve` invalide |
+| `7` | Page introuvable |
+| `8` | Page resolue hors allowlist d'espaces |
+
+Les codes `0`, `1` et `3` gardent leur signification existante. Tous les
+echecs restent non nuls pour le Planificateur de taches, tandis que les codes
+dedies exposent une cause exploitable.
+
 ## Contrat du convertisseur
 
 Le package vendore `job.schema.json` et `result.schema.json` octet pour octet

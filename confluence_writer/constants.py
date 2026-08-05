@@ -26,6 +26,19 @@ DEFAULT_CREDENTIAL_TARGET = "cortex-spike"
 DEFAULT_ATTACHMENT_SIZE_MB = 50
 DEFAULT_FAILURE_THRESHOLD = 0.10
 PAGE_LIMIT = 250
+CLI_CONTRACT_VERSION = 1
+
+# Stable process exit contract. Existing values 0, 1, and 3 retain their
+# historical meanings; the unused values distinguish machine-actionable cases.
+EXIT_OK = 0
+EXIT_ERROR = 1
+EXIT_LOCKED = 2
+EXIT_NOT_DUE = 3
+EXIT_AUTH = 4
+EXIT_REMOTE = 5
+EXIT_INVALID_INPUT = 6
+EXIT_NOT_FOUND = 7
+EXIT_OUTSIDE_ALLOWLIST = 8
 
 SCHEMA_SOURCE_COMMIT = "fceda69da9246e9cf927ca7b8ad68a330f5a7b9b"
 JOB_SCHEMA_SHA256 = "7c9c2ff1452ca5418ab926e5f9e893b426cd0315e0d7621656014c738ec27b57"

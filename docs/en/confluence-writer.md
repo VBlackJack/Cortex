@@ -155,6 +155,83 @@ not local token caching, bounds how long already indexed content can remain.
 Published zone `README.md` files declare the generated content read-only for
 humans. Manual edits are replaced by the next successful generation.
 
+## Machine-readable CLI
+
+Resolve a numeric page ID, a `viewpage` URL, a `/display/SPACE/Title` URL, or a
+Kazan `/x/KEY` tiny link:
+
+```powershell
+cortex confluence resolve "https://kazan.example.test/display/DOC/Run+Book" --json
+```
+
+On success, stdout contains exactly one JSON document. Errors and logs never
+share stdout with this contract:
+
+```json
+{
+  "contract_version": 1,
+  "page_id": "379465380",
+  "title": "Run Book",
+  "space_key": "DOC",
+  "configured": true
+}
+```
+
+`configured` is true for a page in an allowlisted `whole_space` mapping. For a
+`pages` mapping, it is true only when that page ID is already listed. A page
+resolved in a non-allowlisted space is refused.
+
+List the configured spaces, explicitly selected pages, locally known titles,
+and global sync state without network or credential access:
+
+```powershell
+cortex confluence pages --json
+```
+
+```json
+{
+  "contract_version": 1,
+  "spaces": [
+    {
+      "space_key": "RUN",
+      "selection": "pages",
+      "target": "knowledge/runbooks",
+      "classification": "pro-confidentiel",
+      "pages": [
+        {"page_id": "379465380", "title": "Run Book"},
+        {"page_id": "379465381", "title": null}
+      ]
+    }
+  ],
+  "last_sync": {
+    "last_success_at": "2026-08-05T10:00:00Z",
+    "status": "ok",
+    "error_code": null
+  }
+}
+```
+
+For `whole_space`, `pages` is `null`. Without a current generation, configured
+page titles are `null`; without source health, all three `last_sync` fields are
+`null`.
+
+The process exit contract is stable and does not require parsing human text:
+
+| Code | Meaning |
+|---:|---|
+| `0` | Success, including a published sync or valid JSON result |
+| `1` | General or configuration error |
+| `2` | Ingestion sync lock already held |
+| `3` | Sync not due |
+| `4` | Credential unavailable/expired or remote authentication rejected |
+| `5` | Network or Confluence REST failure |
+| `6` | Invalid `resolve` input |
+| `7` | Page not found |
+| `8` | Resolved page outside the space allowlist |
+
+Codes `0`, `1`, and `3` retain their existing meanings. All failures remain
+non-zero for Task Scheduler, while dedicated codes expose actionable causes.
+
 ## Converter contract
 
 The package vendors `job.schema.json` and `result.schema.json` byte-for-byte

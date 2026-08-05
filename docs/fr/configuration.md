@@ -53,6 +53,21 @@ Un hash perime ou un lock occupe echoue en mode ferme et impose un rechargement.
 Chaque update reussie conserve les octets precedents dans
 `confluence.toml.bak`.
 
+La surface Confluence lisible par une machine utilise les memes deux fichiers
+de configuration :
+
+```powershell
+cortex confluence pages --json
+cortex confluence resolve 379465380 --json
+```
+
+`pages --json` lit uniquement `confluence.toml`, la generation locale `doc`
+courante et son etat de sante. Cette commande ne lit aucun credential et ne
+contacte pas Confluence. `resolve` exige `base_url`, `auth_expires_at`, le
+credential Windows nomme et une requete REST Confluence authentifiee. Voir le
+[writer Confluence](writer-confluence.md#cli-lisible-par-une-machine) pour les
+contrats JSON et les exit codes.
+
 ## Exemple de config.toml
 
 ```toml

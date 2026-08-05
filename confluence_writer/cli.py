@@ -20,19 +20,46 @@ import getpass
 import logging
 import sys
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from pathlib import Path
+
+from pydantic import BaseModel
 
 from confluence_writer.config import (
     ConfluenceConfigError,
     load_confluence_settings,
     require_sync_settings,
 )
-from confluence_writer.constants import SOURCE_KIND
+from confluence_writer.constants import (
+    EXIT_AUTH,
+    EXIT_ERROR,
+    EXIT_INVALID_INPUT,
+    EXIT_LOCKED,
+    EXIT_NOT_DUE,
+    EXIT_NOT_FOUND,
+    EXIT_OK,
+    EXIT_OUTSIDE_ALLOWLIST,
+    EXIT_REMOTE,
+    SOURCE_KIND,
+)
 from confluence_writer.converter import ConverterContractError
-from confluence_writer.rest import ConfluenceRestError
+from confluence_writer.resolver import (
+    InvalidPageReferenceError,
+    OutsideAllowlistError,
+    build_pages_contract,
+    resolve_page,
+    validate_page_reference,
+)
+from confluence_writer.rest import (
+    ConfluenceAuthError,
+    ConfluenceNotFoundError,
+    ConfluenceRestClient,
+    ConfluenceRestError,
+)
 from confluence_writer.writer import ConfluenceWriter, ConfluenceWriterError
 from ingestion.cli import execute_scheduled_attempt
-from ingestion.config import IngestionConfigError, load_ingestion_settings
+from ingestion.config import IngestionConfigError, IngestionSettings, load_ingestion_settings
+from ingestion.constants import ERROR_AUTH_EXPIRED, ERROR_LOCKED
 from ingestion.credentials import (
     CredentialReadError,
     CredentialWriteError,
@@ -41,12 +68,15 @@ from ingestion.credentials import (
     WindowsCredentialWriter,
 )
 from ingestion.engine import GenerationContractError
+from ingestion.models import AttemptResult
+from ingestion.scheduling import TransientIngestionError
 from ingestion.storage import IngestionStorage, IngestionStorageError
 
 _LOG = logging.getLogger("cortex.confluence_writer.cli")
-_EXIT_OK = 0
-_EXIT_ERROR = 1
-_EXIT_NOT_DUE = 3
+_CREDENTIAL_ERROR_CODES = {
+    ERROR_AUTH_EXPIRED,
+    "credential_unavailable",
+}
 
 
 def _rechunk_v2_ready() -> bool:
@@ -66,9 +96,36 @@ def _store_credential(target_name: str) -> int:
     except (CredentialReadError, CredentialWriteError) as exc:
         _LOG.error("confluence_credential_store_failed error_type=%s", type(exc).__name__)
         sys.stderr.write(f"Cortex Confluence error: {exc}\n")
-        return _EXIT_ERROR
+        return EXIT_ERROR
     sys.stdout.write(f"Credential stored in Windows Credential Manager as '{target_name}'.\n")
-    return _EXIT_OK
+    return EXIT_OK
+
+
+def _storage(ingestion_settings: IngestionSettings) -> IngestionStorage:
+    return IngestionStorage(
+        ingestion_settings.data_root,
+        SOURCE_KIND,
+        ingestion_settings.retention_generations,
+    )
+
+
+def _sync_result_exit_code(result: AttemptResult) -> int:
+    """Map persisted machine error codes without parsing human output."""
+    error_code = result.health.error_code
+    if result.published:
+        return EXIT_OK
+    if error_code == ERROR_LOCKED:
+        return EXIT_LOCKED
+    if error_code in _CREDENTIAL_ERROR_CODES:
+        return EXIT_AUTH
+    if error_code == "transient_retries_exhausted":
+        return EXIT_REMOTE
+    return EXIT_ERROR
+
+
+def _write_json(model: BaseModel) -> None:
+    payload = model.model_dump_json(indent=2)
+    sys.stdout.write(payload + "\n")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -80,6 +137,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     subparsers.add_parser("store-credential")
     sync_parser = subparsers.add_parser("sync")
     sync_parser.add_argument("--force", action="store_true")
+    resolve_parser = subparsers.add_parser("resolve")
+    resolve_parser.add_argument("reference")
+    resolve_parser.add_argument("--json", action="store_true", required=True)
+    pages_parser = subparsers.add_parser("pages")
+    pages_parser.add_argument("--json", action="store_true", required=True)
     namespace = parser.parse_args(argv)
 
     from cortex_logging import configure_logging
@@ -89,19 +151,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         settings = load_confluence_settings(path=namespace.config)
         if namespace.command == "store-credential":
             return _store_credential(settings.credential_target)
+        if namespace.command == "resolve":
+            if settings.base_url is None or settings.auth_expires_at is None:
+                raise ConfluenceConfigError(
+                    "Confluence resolve requires: base_url, auth_expires_at"
+                )
+            validate_page_reference(namespace.reference, base_url=settings.base_url)
+            if settings.auth_expires_at <= datetime.now(timezone.utc):
+                sys.stderr.write("Cortex Confluence error: credential unavailable or expired.\n")
+                return EXIT_AUTH
+            secret = WindowsCredentialReader().read(settings.credential_target)
+            client = ConfluenceRestClient(settings.base_url, secret)
+            _write_json(resolve_page(namespace.reference, settings=settings, client=client))
+            return EXIT_OK
+        ingestion_settings = load_ingestion_settings(path=namespace.ingestion_config)
+        storage = _storage(ingestion_settings)
+        if namespace.command == "pages":
+            _write_json(build_pages_contract(settings, storage))
+            return EXIT_OK
         require_sync_settings(settings)
         if not _rechunk_v2_ready():
             sys.stderr.write(
                 "Cortex Confluence error: metadata v2 rechunk is not deployed; "
                 "real publication is blocked.\n"
             )
-            return _EXIT_ERROR
-        ingestion_settings = load_ingestion_settings(path=namespace.ingestion_config)
-        storage = IngestionStorage(
-            ingestion_settings.data_root,
-            SOURCE_KIND,
-            ingestion_settings.retention_generations,
-        )
+            return EXIT_ERROR
         writer = ConfluenceWriter(settings, storage)
         result = execute_scheduled_attempt(
             storage,
@@ -112,9 +186,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             credential_target=settings.credential_target,
             auth_expires_at=settings.auth_expires_at,
         )
+    except InvalidPageReferenceError as exc:
+        _LOG.error("confluence_resolve_invalid")
+        sys.stderr.write(f"Cortex Confluence error: {exc}\n")
+        return EXIT_INVALID_INPUT
+    except ConfluenceNotFoundError as exc:
+        _LOG.error("confluence_resolve_not_found")
+        sys.stderr.write(f"Cortex Confluence error: {exc}\n")
+        return EXIT_NOT_FOUND
+    except OutsideAllowlistError as exc:
+        _LOG.error("confluence_resolve_outside_allowlist")
+        sys.stderr.write(f"Cortex Confluence error: {exc}\n")
+        return EXIT_OUTSIDE_ALLOWLIST
+    except (CredentialReadError, ConfluenceAuthError) as exc:
+        _LOG.error("confluence_auth_failed error_type=%s", type(exc).__name__)
+        sys.stderr.write("Cortex Confluence error: authentication failed.\n")
+        return EXIT_AUTH
+    except (TransientIngestionError, ConfluenceRestError) as exc:
+        _LOG.error("confluence_remote_failed error_type=%s", type(exc).__name__)
+        sys.stderr.write(f"Cortex Confluence error: {exc}\n")
+        return EXIT_REMOTE
     except (
         ConfluenceConfigError,
-        ConfluenceRestError,
         ConfluenceWriterError,
         ConverterContractError,
         GenerationContractError,
@@ -123,12 +216,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     ) as exc:
         _LOG.error("confluence_cli_refused error_type=%s", type(exc).__name__)
         sys.stderr.write(f"Cortex Confluence error: {exc}\n")
-        return _EXIT_ERROR
+        return EXIT_ERROR
     if result is None:
         sys.stdout.write("Confluence sync is not due.\n")
-        return _EXIT_NOT_DUE
+        return EXIT_NOT_DUE
     sys.stdout.write(result.model_dump_json(indent=2) + "\n")
-    return _EXIT_OK if result.published else _EXIT_ERROR
+    return _sync_result_exit_code(result)
 
 
 def _required_secret(secret: SecretValue | None) -> SecretValue:
