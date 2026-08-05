@@ -245,10 +245,19 @@ def _read_toml(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        with path.open("rb") as handle:
-            raw = tomllib.load(handle)
-    except (OSError, tomllib.TOMLDecodeError) as exc:
+        content = path.read_bytes()
+    except OSError as exc:
         raise ConfluenceConfigError(f"Could not read valid Confluence TOML at '{path}'.") from exc
+    return _parse_toml_bytes(content, path)
+
+
+def _parse_toml_bytes(content: bytes, source: Path) -> dict[str, Any]:
+    try:
+        raw = tomllib.loads(content.decode("utf-8", errors="strict"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        raise ConfluenceConfigError(
+            f"Could not read valid Confluence TOML at '{source}'."
+        ) from exc
     unknown = sorted(set(raw) - _SETTING_FIELDS)
     if unknown:
         raise ConfluenceConfigError(
@@ -261,6 +270,18 @@ def _read_toml(path: Path) -> dict[str, Any]:
             f"Unsupported Confluence schema_version={version!r}; expected one of: {supported}."
         )
     return cast(dict[str, Any], raw)
+
+
+def parse_confluence_settings_bytes(content: bytes, *, source: Path) -> ConfluenceSettings:
+    """Validate settings from one caller-owned byte snapshot without environment overrides."""
+    merged: dict[str, object] = {"schema_version": CONFIG_SCHEMA_VERSION}
+    merged.update(_parse_toml_bytes(content, Path(source)))
+    try:
+        return cast(ConfluenceSettings, ConfluenceSettings.model_validate(merged))
+    except ValidationError as exc:
+        raise ConfluenceConfigError(
+            f"Invalid Confluence configuration at '{source}': {exc}"
+        ) from exc
 
 
 def _parse_environment_value(field: str, value: str) -> object:
@@ -333,5 +354,6 @@ __all__ = [
     "SpaceMapping",
     "confluence_config_path",
     "load_confluence_settings",
+    "parse_confluence_settings_bytes",
     "require_sync_settings",
 ]

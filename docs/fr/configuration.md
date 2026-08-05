@@ -46,6 +46,13 @@ chargement. Le schema v2 impose `selection = "whole_space"` ou
 `selection = "pages"` pour chaque espace ; le mode pages peut volontairement
 porter une liste vide.
 
+Les mises a jour programmatiques utilisent un lock de mutation dedie a cote de
+`confluence.toml`, distinct du lock de sync d'ingestion et du lock Chroma. Le
+writer compare le SHA-256 des octets exacts lus avant de remplacer le fichier.
+Un hash perime ou un lock occupe echoue en mode ferme et impose un rechargement.
+Chaque update reussie conserve les octets precedents dans
+`confluence.toml.bak`.
+
 ## Exemple de config.toml
 
 ```toml

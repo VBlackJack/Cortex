@@ -43,6 +43,12 @@ whole-space allowlists and are never rewritten while loading. Schema v2
 requires each space to declare `selection = "whole_space"` or
 `selection = "pages"`; page mode may deliberately contain an empty list.
 
+Programmatic updates use a dedicated mutation lock beside `confluence.toml`,
+not the ingestion sync lock or the Chroma lock. The writer compares the SHA-256
+of the exact bytes previously read before replacing the file. A stale hash or a
+busy lock fails closed and requires the caller to reload. Each successful
+update keeps the exact previous bytes in `confluence.toml.bak`.
+
 ## Example config.toml
 
 ```toml
