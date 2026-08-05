@@ -34,7 +34,7 @@ variables prefixed with `CORTEX_CONFLUENCE_` override TOML, and TOML overrides
 safe defaults. No space is enabled by default.
 
 ```toml
-schema_version = 1
+schema_version = 2
 base_url = "https://confluence.example.test"
 credential_target = "cortex-spike"
 auth_expires_at = "2026-11-01T00:00:00+01:00"
@@ -46,11 +46,52 @@ failure_threshold = 0.10
 space_key = "DOC"
 target = "knowledge/confluence"
 classification = "perso-non-sensible"
+selection = "whole_space"
+
+[[spaces]]
+space_key = "RUN"
+target = "knowledge/runbooks"
+classification = "pro-confidentiel"
+selection = "pages"
+
+[[spaces.pages]]
+page_id = "379465380"
+
+[[spaces.pages]]
+page_id = "379465381"
 ```
 
 `classification` accepts `perso-non-sensible` or `pro-confidentiel`. A
 `pro-confidentiel` target remains strictly local and must never be committed or
 shared.
+
+Schema v2 requires `selection` on every space. `whole_space` keeps the existing
+enumeration path and rejects any present `pages` key or table, including an
+empty one. `pages` fetches only the listed numeric page IDs. IDs must be unique
+within their space, and every fetched page is checked against `space_key`
+before content or attachments are staged.
+
+An empty page selection is legal and must be explicit:
+
+```toml
+[[spaces]]
+space_key = "EMPTY"
+target = "knowledge/empty"
+classification = "perso-non-sensible"
+selection = "pages"
+pages = []
+```
+
+This mode enumerates no space and collects zero Confluence pages. Removing a
+page ID from a complete successful selection removes that page from the next
+generation and records its existing document tombstone. A failed selected page
+is counted against `failure_threshold`; it is never staged under another
+space, and the common generation engine applies its existing carry-forward and
+publication rules.
+
+Schema v1 remains supported without migration. A v1 space entry has no
+`selection` or `pages` field, continues to mean `whole_space`, and the file is
+not rewritten while loading.
 
 The console path, base URL, credential target, declared expiry, attachment
 limit, and failure threshold also have matching uppercase

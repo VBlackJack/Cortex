@@ -23,15 +23,16 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from confluence_writer.config import ConfluenceSettings, SpaceMapping
+from confluence_writer.config import ConfluenceSettings, PageSelection, SpaceMapping
 from confluence_writer.converter import ConsoleConverter
 from confluence_writer.frontmatter import parse_frontmatter
 from confluence_writer.models import RemoteAttachment, RemotePage, RemotePageContent
+from confluence_writer.rest import ConfluenceRestError
 from confluence_writer.writer import ConfluenceWriter
 from cortex_logging import configure_logging
 from ingestion.credentials import SecretValue
 from ingestion.engine import GenerationEngine
-from ingestion.models import DocumentStatus, GenerationAttempt, HealthStatus
+from ingestion.models import DocumentStatus, GenerationAttempt, HealthStatus, TombstoneKind
 from ingestion.storage import IngestionStorage
 
 _NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
@@ -54,11 +55,23 @@ class FakeRestClient:
         self.include_attachments = include_attachments
         self.xhtml = xhtml
         self.attachments = attachments
+        self.enumeration_calls: list[str] = []
+        self.page_calls: list[tuple[str, str]] = []
         self.content_calls: list[str] = []
         self.download_calls: list[str] = []
 
     def enumerate_pages(self, space_key: str) -> tuple[RemotePage, ...]:
+        self.enumeration_calls.append(space_key)
         return tuple(page for page in self.pages if page.space_key == space_key)
+
+    def get_page(self, page_id: str, expected_space: str) -> RemotePage:
+        self.page_calls.append((page_id, expected_space))
+        page = next((item for item in self.pages if item.page_id == page_id), None)
+        if page is None:
+            raise ConfluenceRestError("Selected Confluence page was not found.")
+        if page.space_key != expected_space:
+            raise ConfluenceRestError("Confluence returned a page from another space.")
+        return page
 
     def page_content(self, page_id: str) -> RemotePageContent:
         self.content_calls.append(page_id)
@@ -201,6 +214,30 @@ def _settings(tmp_path: Path, *, threshold: float = 0.10) -> ConfluenceSettings:
     )
 
 
+def _page_settings(
+    tmp_path: Path,
+    page_ids: tuple[str, ...],
+    *,
+    threshold: float = 0.10,
+) -> ConfluenceSettings:
+    return ConfluenceSettings(
+        schema_version=2,
+        base_url="https://confluence.example.test",
+        auth_expires_at=_NOW + timedelta(days=90),
+        console_path=tmp_path / "fixture-console.exe",
+        failure_threshold=threshold,
+        spaces=(
+            SpaceMapping(
+                space_key="DOC",
+                target="knowledge/confluence",
+                classification="perso-non-sensible",
+                selection="pages",
+                pages=tuple(PageSelection(page_id=page_id) for page_id in page_ids),
+            ),
+        ),
+    )
+
+
 def _run(
     storage: IngestionStorage,
     settings: ConfluenceSettings,
@@ -244,6 +281,130 @@ def _large_job_page(page_id: str, attachments: list[dict[str, object]]) -> dict[
         "xhtml_path": f"input/pages/{page_id}.xhtml",
         "attachments": attachments,
     }
+
+
+def test_empty_page_selection_publishes_without_space_enumeration(tmp_path: Path) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
+    client = FakeRestClient([])
+    console = FakeConsole()
+
+    result = _run(
+        storage,
+        _page_settings(tmp_path, ()),
+        client,
+        console,
+        _NOW,
+    )
+
+    assert result.published  # type: ignore[attr-defined]
+    assert client.enumeration_calls == []
+    assert client.page_calls == []
+    assert console.jobs == []
+    manifest = storage.load_current_manifest()
+    assert manifest is not None
+    assert [item.source_uid for item in manifest.documents] == ["zone:DOC"]
+
+
+def test_page_selection_collects_only_configured_pages(tmp_path: Path) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
+    client = FakeRestClient([_page("1001", _NOW), _page("1002", _NOW), _page("1003", _NOW)])
+    console = FakeConsole()
+
+    result = _run(
+        storage,
+        _page_settings(tmp_path, ("1002", "1001")),
+        client,
+        console,
+        _NOW,
+    )
+
+    assert result.published  # type: ignore[attr-defined]
+    assert client.enumeration_calls == []
+    assert client.page_calls == [("1002", "DOC"), ("1001", "DOC")]
+    assert client.content_calls == ["1002", "1001"]
+    assert console.jobs == [["1002", "1001"]]
+    manifest = storage.load_current_manifest()
+    assert manifest is not None
+    assert {item.source_uid for item in manifest.documents} == {
+        "1001",
+        "1002",
+        "zone:DOC",
+    }
+
+
+def test_wrong_space_page_fails_before_staging_and_preserves_previous_document(
+    tmp_path: Path,
+) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=3)
+    settings = _page_settings(tmp_path, ("1001",), threshold=1.0)
+    console = FakeConsole()
+    first = _run(
+        storage,
+        settings,
+        FakeRestClient([_page("1001", _NOW)]),
+        console,
+        _NOW,
+    )
+    assert first.published  # type: ignore[attr-defined]
+    first_generation = storage.current_generation_id()
+    assert first_generation is not None
+    first_manifest = storage.load_current_manifest()
+    assert first_manifest is not None
+    first_page = next(item for item in first_manifest.documents if item.source_uid == "1001")
+    first_bytes = storage.document_path(first_generation, first_page.path).read_bytes()
+    wrong_space = replace(_page("1001", _NOW + timedelta(hours=1)), space_key="OTHER")
+    client = FakeRestClient([wrong_space])
+
+    result = _run(
+        storage,
+        settings,
+        client,
+        console,
+        _NOW + timedelta(hours=1),
+    )
+
+    assert result.published  # type: ignore[attr-defined]
+    assert result.health.status is HealthStatus.DEGRADED  # type: ignore[attr-defined]
+    assert result.health.counts.failed == 1  # type: ignore[attr-defined]
+    assert result.health.counts.carry_forward == 1  # type: ignore[attr-defined]
+    assert client.content_calls == []
+    assert console.jobs == [["1001"]]
+    current_generation = storage.current_generation_id()
+    manifest = storage.load_current_manifest()
+    assert current_generation is not None and manifest is not None
+    current_page = next(item for item in manifest.documents if item.source_uid == "1001")
+    assert current_page.status is DocumentStatus.STALE
+    assert storage.document_path(current_generation, current_page.path).read_bytes() == first_bytes
+
+
+def test_page_scope_reduction_creates_document_tombstone(tmp_path: Path) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=3)
+    console = FakeConsole()
+    first = _run(
+        storage,
+        _page_settings(tmp_path, ("1001", "1002")),
+        FakeRestClient([_page("1001", _NOW), _page("1002", _NOW)]),
+        console,
+        _NOW,
+    )
+    assert first.published  # type: ignore[attr-defined]
+
+    second = _run(
+        storage,
+        _page_settings(tmp_path, ("1001",)),
+        FakeRestClient([_page("1001", _NOW)]),
+        console,
+        _NOW + timedelta(hours=1),
+    )
+
+    assert second.published  # type: ignore[attr-defined]
+    manifest = storage.load_current_manifest()
+    assert manifest is not None
+    assert {item.source_uid for item in manifest.documents} == {"1001", "zone:DOC"}
+    assert any(
+        item.source_uid == "1002" and item.kind is TombstoneKind.DOCUMENT
+        for item in manifest.tombstones
+    )
 
 
 def test_1001_pages_use_two_isolated_console_jobs_in_stable_order(

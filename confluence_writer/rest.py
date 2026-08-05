@@ -204,6 +204,19 @@ class ConfluenceRestClient:
         )
         return tuple(pages)
 
+    def get_page(self, page_id: str, expected_space: str) -> RemotePage:
+        """Fetch one selected page and validate its declared space before staging."""
+        uri = self._api_uri(
+            f"rest/api/content/{quote(page_id, safe='')}"
+            "?expand=space,version,history.lastUpdated,history.createdBy"
+        )
+        payload = self._transport.get_json(uri, self._headers)
+        _object(payload.get("space"), "space")
+        page = self._parse_page(payload, expected_space)
+        if page.page_id != page_id:
+            raise ConfluenceRestError("Confluence returned a different page ID.")
+        return page
+
     def _parse_page(self, value: dict[str, Any], expected_space: str) -> RemotePage:
         page_id = _string(value.get("id"), "id")
         title = _string(value.get("title"), "title")

@@ -35,7 +35,7 @@ variables `CORTEX_CONFLUENCE_...` priment sur TOML, qui prime sur les valeurs
 par defaut. Aucun espace n'est actif par defaut.
 
 ```toml
-schema_version = 1
+schema_version = 2
 base_url = "https://confluence.example.test"
 credential_target = "cortex-spike"
 auth_expires_at = "2026-11-01T00:00:00+01:00"
@@ -47,12 +47,53 @@ failure_threshold = 0.10
 space_key = "DOC"
 target = "knowledge/confluence"
 classification = "perso-non-sensible"
+selection = "whole_space"
+
+[[spaces]]
+space_key = "RUN"
+target = "knowledge/runbooks"
+classification = "pro-confidentiel"
+selection = "pages"
+
+[[spaces.pages]]
+page_id = "379465380"
+
+[[spaces.pages]]
+page_id = "379465381"
 ```
 
 `classification` accepte `perso-non-sensible` ou `pro-confidentiel`. Une cible
 `pro-confidentiel` reste strictement locale et ne doit jamais etre commitee ni
 partagee. La liste des espaces reste uniquement dans TOML : une variable
 d'environnement heritee ne peut donc pas elargir silencieusement le perimetre.
+
+Le schema v2 impose `selection` pour chaque espace. `whole_space` conserve le
+chemin d'enumeration existant et refuse toute cle ou table `pages` presente,
+meme vide. `pages` recupere uniquement les ID numeriques listes. Les ID sont
+uniques dans leur espace et chaque page recue est controlee contre `space_key`
+avant le staging de son contenu ou de ses pieces jointes.
+
+Une selection vide est legale et doit etre explicite :
+
+```toml
+[[spaces]]
+space_key = "EMPTY"
+target = "knowledge/empty"
+classification = "perso-non-sensible"
+selection = "pages"
+pages = []
+```
+
+Ce mode n'enumere aucun espace et ne collecte aucune page Confluence. Retirer
+un ID apres une selection complete et reussie retire la page de la generation
+suivante et produit son tombstone de document existant. Une page selectionnee
+en echec compte dans `failure_threshold` ; elle n'est jamais stagee sous un
+autre espace et le moteur commun applique ses regles existantes de
+carry-forward et de publication.
+
+Le schema v1 reste accepte sans migration. Une entree v1 ne porte ni
+`selection` ni `pages`, signifie toujours `whole_space` et le fichier n'est pas
+reecrit au chargement.
 
 ## Stocker le PAT
 

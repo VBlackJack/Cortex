@@ -161,8 +161,28 @@ class ConfluenceWriter:
         client = self._client_factory(secret)
         mappings = {item.space_key: item for item in self._settings.spaces}
         pages: list[RemotePage] = []
+        failures: list[DocumentFailure] = []
+        requested_pages = 0
         for mapping in self._settings.spaces:
-            pages.extend(client.enumerate_pages(mapping.space_key))
+            if mapping.effective_selection == "whole_space":
+                enumerated = client.enumerate_pages(mapping.space_key)
+                pages.extend(enumerated)
+                requested_pages += len(enumerated)
+                continue
+            for page_id in mapping.selected_page_ids:
+                requested_pages += 1
+                try:
+                    pages.append(client.get_page(page_id, mapping.space_key))
+                except ConfluenceRestError as exc:
+                    failures.append(
+                        DocumentFailure(source_uid=page_id, error_code="source_page_failed")
+                    )
+                    _LOG.warning(
+                        "confluence_page_selection_failed page_id=%s space_key=%s error_type=%s",
+                        page_id,
+                        mapping.space_key,
+                        type(exc).__name__,
+                    )
         by_id = {page.page_id: page for page in pages}
         if len(by_id) != len(pages):
             raise ConfluenceWriterError("Confluence enumeration returned duplicate page IDs.")
@@ -179,9 +199,8 @@ class ConfluenceWriter:
             if page.page_id not in previous_revisions
             or previous_revisions[page.page_id] != _source_revision(page)
         ]
-        remote_seen = set(by_id)
+        remote_seen = set(by_id) | {failure.source_uid for failure in failures}
         documents: list[CollectedDocument] = []
-        failures: list[DocumentFailure] = []
 
         for mapping in self._settings.spaces:
             zone_uid = self._zone_uid(mapping)
@@ -206,7 +225,7 @@ class ConfluenceWriter:
             ):
                 raise ConfluenceWriterError("Changed page was neither converted nor failed.")
 
-        failure_rate = len(failures) / len(pages) if pages else 0.0
+        failure_rate = len(failures) / requested_pages if requested_pages else 0.0
         remote_cursor = max(
             (_rfc3339(page.updated_at) for page in pages if page.updated_at is not None),
             default=None,
