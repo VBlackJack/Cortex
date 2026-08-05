@@ -93,6 +93,24 @@ Schema v1 remains supported without migration. A v1 space entry has no
 `selection` or `pages` field, continues to mean `whole_space`, and the file is
 not rewritten while loading.
 
+### Atomic programmatic updates
+
+The shared mutation API reads one byte snapshot, validates the model from those
+same bytes, and uses the lowercase SHA-256 of the exact content as its CAS
+token. It then acquires `<confluence.toml>.mutation.lock`, rechecks the current
+bytes, writes and `fsync`s a same-directory temporary file, validates that
+temporary without environment overrides, and atomically replaces the target.
+
+An update writes the exact previous bytes to `confluence.toml.bak` before the
+target replace. Initial creation writes no backup. Canonical rewriting uses
+UTF-8 and LF endings; comments are not retained in the new target, but remain
+available byte-for-byte in the backup. The serializer round-trips Windows
+backslashes, apostrophes, and URLs with explicit ports. CAS conflict and lock
+contention never fall back to last-write-wins.
+
+This mutation lock is only for TOML writers. It is distinct from the ingestion
+sync lock and the Chroma write lock. No CLI mutation command is exposed yet.
+
 The console path, base URL, credential target, declared expiry, attachment
 limit, and failure threshold also have matching uppercase
 `CORTEX_CONFLUENCE_...` environment overrides. Space allowlisting stays in

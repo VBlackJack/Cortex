@@ -95,6 +95,27 @@ Le schema v1 reste accepte sans migration. Une entree v1 ne porte ni
 `selection` ni `pages`, signifie toujours `whole_space` et le fichier n'est pas
 reecrit au chargement.
 
+### Updates programmatiques atomiques
+
+L'API de mutation partagee lit un seul snapshot d'octets, valide le modele a
+partir de ces memes octets et utilise le SHA-256 minuscule du contenu exact
+comme jeton CAS. Elle prend ensuite `<confluence.toml>.mutation.lock`, revalide
+les octets courants, ecrit et `fsync` un temporaire dans le meme repertoire,
+valide ce temporaire sans surcharge d'environnement, puis remplace la cible
+atomiquement.
+
+Un update ecrit les octets precedents exacts dans `confluence.toml.bak` avant
+le replace de la cible. Une creation initiale ne produit pas de backup. La
+reecriture canonique utilise UTF-8 et LF ; les commentaires ne restent pas dans
+la nouvelle cible mais demeurent disponibles octet pour octet dans le backup.
+Le serialiseur preserve les antislashs Windows, les apostrophes et les URL avec
+port explicite. Un conflit CAS ou un lock occupe ne tombe jamais en
+last-write-wins.
+
+Ce lock protege uniquement les writers TOML. Il est distinct du lock de sync
+d'ingestion et du lock d'ecriture Chroma. Aucune commande CLI de mutation n'est
+encore exposee.
+
 ## Stocker le PAT
 
 Dans un terminal controle par l'operateur :
