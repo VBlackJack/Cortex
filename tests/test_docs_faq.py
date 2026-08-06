@@ -23,6 +23,9 @@ FR_FAQ = ROOT / "docs" / "fr" / "faq.md"
 EN_FAQ = ROOT / "docs" / "en" / "faq.md"
 FR_SPEC = ROOT / "docs" / "fr" / "spec.md"
 EN_SPEC = ROOT / "docs" / "en" / "spec.md"
+CHANGELOG = ROOT / "CHANGELOG.md"
+FR_RELEASE_NOTES = ROOT / "docs" / "fr" / "notes-de-version.md"
+EN_RELEASE_NOTES = ROOT / "docs" / "en" / "release-notes.md"
 FAQ_MARKERS = (
     "install-or-source",
     "data-locations",
@@ -56,6 +59,15 @@ def _markers(document: str) -> tuple[str, ...]:
 
 def _spec_markers(document: str) -> tuple[str, ...]:
     return tuple(re.findall(r"<!-- spec:([a-z0-9-]+) -->", document))
+
+
+def _release_markers(document: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"<!-- release:([a-z0-9-]+) -->", document))
+
+
+def _changelog_release_slugs(document: str) -> tuple[str, ...]:
+    versions = re.findall(r"(?m)^## \[(\d+\.\d+\.\d+)\] - \d{4}-\d{2}-\d{2}$", document)
+    return tuple(version.replace(".", "-") for version in versions)
 
 
 def _table_shapes(document: str) -> tuple[int, ...]:
@@ -123,3 +135,42 @@ def test_spec_is_linked_from_both_indexes_and_readmes() -> None:
 
     for path, link in expected_links.items():
         assert link in path.read_text(encoding="utf-8")
+
+
+def test_release_notes_have_strict_fr_en_structural_parity() -> None:
+    french = FR_RELEASE_NOTES.read_text(encoding="utf-8")
+    english = EN_RELEASE_NOTES.read_text(encoding="utf-8")
+    changelog = CHANGELOG.read_text(encoding="utf-8")
+    french_markers = _release_markers(french)
+    english_markers = _release_markers(english)
+    changelog_release_slugs = _changelog_release_slugs(changelog)
+
+    assert french_markers == english_markers
+    assert french.count("\n## ") == len(french_markers)
+    assert english.count("\n## ") == len(english_markers)
+    assert all(slug in french_markers for slug in changelog_release_slugs)
+    assert all(slug in english_markers for slug in changelog_release_slugs)
+    assert re.search(r"(?m)^\|.*\n(?:[ \t]*\n)+\|", french) is None
+    assert re.search(r"(?m)^\|.*\n(?:[ \t]*\n)+\|", english) is None
+    assert "Datacron" not in french
+    assert "Datacron" not in english
+
+
+def test_release_notes_are_linked_from_both_indexes_and_readmes() -> None:
+    expected_links = {
+        ROOT / "docs" / "fr" / "index.md": ("[Notes de version](notes-de-version.md)",),
+        ROOT / "docs" / "en" / "index.md": ("[Release notes](release-notes.md)",),
+        ROOT / "README.md": (
+            "[Notes de version](docs/fr/notes-de-version.md)",
+            "[Journal technique](CHANGELOG.md)",
+        ),
+        ROOT / "README.en.md": (
+            "[Release notes](docs/en/release-notes.md)",
+            "[Technical changelog](CHANGELOG.md)",
+        ),
+    }
+
+    for path, links in expected_links.items():
+        document = path.read_text(encoding="utf-8")
+        for link in links:
+            assert link in document

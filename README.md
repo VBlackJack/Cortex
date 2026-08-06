@@ -123,6 +123,9 @@ Le paquet installe expose une commande unique :
 - [Guide d'utilisation](docs/fr/user-guide.md) : sync, recherche, outils,
   doctor, logs.
 - [FAQ](docs/fr/faq.md) : installation, donnees locales, sync et diagnostic.
+- [Notes de version](docs/fr/notes-de-version.md) : changements visibles par
+  version et avis sur l'historique publie.
+- [Journal technique](CHANGELOG.md) : detail complet des changements par version.
 - [Configuration](docs/fr/configuration.md) : `config.toml`, modes d'indexation,
   sections, data home, migration.
 - [Planification de l'ingestion](docs/fr/ingestion-scheduling.md) : sante des
