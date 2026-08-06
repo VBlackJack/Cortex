@@ -16,7 +16,11 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
@@ -77,6 +81,31 @@ def _report(
         indexes=SyncIndexes(chroma="ok", lexical="ok") if indexes is None else indexes,
         errors=[] if errors is None else errors,
     )
+
+
+def test_sync_contract_import_survives_invalid_user_configuration(tmp_path: Path) -> None:
+    appdata = tmp_path / "appdata"
+    config_path = appdata / "Cortex" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text("this is not valid TOML [\n", encoding="utf-8")
+    environment = {**os.environ, "APPDATA": str(appdata)}
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sync_contract; print(sync_contract.SYNC_CLI_CONTRACT_VERSION)",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout == "1\n"
+    assert completed.stderr == ""
 
 
 def test_json_stdout_is_exactly_one_document(

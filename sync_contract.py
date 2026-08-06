@@ -16,12 +16,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Literal, cast
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from config import SYNC_CLI_CONTRACT_VERSION
-
+SYNC_CLI_CONTRACT_VERSION: Literal[1] = 1
 SYNC_ERROR_SAMPLE_LIMIT = 50
 
 
@@ -99,7 +98,7 @@ class SyncIngestion(SyncContractModel):
 class SyncReport(SyncContractModel):
     """Complete versioned result consumed by machine clients."""
 
-    contract_version: Literal[1] = cast(Literal[1], SYNC_CLI_CONTRACT_VERSION)
+    contract_version: Literal[1] = SYNC_CLI_CONTRACT_VERSION
     operation: Literal["sync"] = "sync"
     status: Literal["succeeded", "partial", "failed", "locked"]
     changed: bool
@@ -200,6 +199,7 @@ def build_sync_failure_report(
 
 
 __all__ = [
+    "SYNC_CLI_CONTRACT_VERSION",
     "SYNC_ERROR_SAMPLE_LIMIT",
     "SyncCounters",
     "SyncError",
