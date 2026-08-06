@@ -31,6 +31,8 @@ client may still pass requested chunks to its model under its own policy.
 - [User guide](user-guide.md): indexing and sync, search, the four MCP tools,
   the doctor, logs.
 - [FAQ](faq.md): installation, local data, sync, diagnostics, and security.
+- [Release notes](release-notes.md): user-visible changes by version and the
+  published-history notice.
 - [Configuration](configuration.md): `config.toml`, environment variables,
   sections, data home, index migration.
 - [Ingestion scheduling](ingestion-scheduling.md): source health, catch-up,

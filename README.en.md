@@ -118,6 +118,9 @@ The installed package exposes a single command:
 - [Install from source](docs/en/setup.md): prerequisites, MCP clients.
 - [User guide](docs/en/user-guide.md): sync, search, tools, doctor, logs.
 - [FAQ](docs/en/faq.md): installation, local data, sync, and diagnostics.
+- [Release notes](docs/en/release-notes.md): user-visible changes by version and
+  the published-history notice.
+- [Technical changelog](CHANGELOG.md): complete changes by version.
 - [Configuration](docs/en/configuration.md): `config.toml`, indexing modes,
   sections, data home, migration.
 - [Ingestion scheduling](docs/en/ingestion-scheduling.md): source health,

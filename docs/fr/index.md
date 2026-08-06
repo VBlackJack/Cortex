@@ -32,6 +32,8 @@ demandes, selon sa propre politique.
 - [Guide d'utilisation](user-guide.md) : indexation et sync, recherche, les
   quatre outils MCP, le doctor, les logs.
 - [FAQ](faq.md) : installation, donnees locales, sync, diagnostic et securite.
+- [Notes de version](notes-de-version.md) : changements visibles par version et
+  avis sur l'historique publie.
 - [Configuration](configuration.md) : `config.toml`, variables
   d'environnement, sections, data home, migration de l'index.
 - [Planification de l'ingestion](ingestion-scheduling.md) : sante des sources,
