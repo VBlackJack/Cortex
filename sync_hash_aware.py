@@ -311,15 +311,15 @@ def _sync_ingestion_documents_locked(
         return stats
     try:
         generation_id = storage.current_generation_id()
-        manifest = storage.load_current_manifest()
+        if generation_id is None:
+            return stats
+        manifest = storage.load_manifest(generation_id)
     except IngestionStorageError:
         stats["errors"] += 1
         _LOG.exception(
             "ingestion_generation_unavailable source_kind=%s; preserving indexed content",
             INGESTION_DOCUMENT_SOURCE_KIND,
         )
-        return stats
-    if generation_id is None or manifest is None:
         return stats
 
     documents_root = storage.generation_path(generation_id) / DOCUMENTS_DIRECTORY_NAME
