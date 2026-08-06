@@ -423,6 +423,104 @@ def _publish_generation(
     return result.generation_id
 
 
+def test_generation_pointer_switch_cannot_publish_stale_document_content(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ingestion_root = tmp_path / "ingestion"
+    storage = IngestionStorage(ingestion_root, "doc", retention_generations=3)
+    generation_a = _publish_generation(
+        storage,
+        (
+            _ingestion_document("shared", "Generation A content.", observed_at=_NOW),
+            _ingestion_document("only-a", "Generation A only.", observed_at=_NOW),
+        ),
+        frozenset({"shared", "only-a"}),
+        observed_at=_NOW,
+    )
+    next_observed_at = _NOW + timedelta(hours=1)
+    generation_b = _publish_generation(
+        storage,
+        (
+            _ingestion_document(
+                "shared",
+                "Generation B content.",
+                observed_at=next_observed_at,
+            ),
+        ),
+        frozenset({"shared"}),
+        observed_at=next_observed_at,
+    )
+    generation_ids = iter((generation_a, generation_b))
+
+    def current_generation_id(_storage: IngestionStorage) -> str:
+        return next(generation_ids, generation_b)
+
+    monkeypatch.setattr(IngestionStorage, "current_generation_id", current_generation_id)
+    collection = Collection()
+
+    stats = sync_ingestion_documents(
+        collection,
+        ingestion_root,
+        retention_generations=3,
+    )
+
+    assert stats["errors"] == 0
+    assert any("Generation B content." in row["document"] for row in collection.rows.values())
+
+
+def test_generation_pointer_switch_with_missing_document_preserves_index(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ingestion_root = tmp_path / "ingestion"
+    storage = IngestionStorage(ingestion_root, "doc", retention_generations=3)
+    generation_a = _publish_generation(
+        storage,
+        (_ingestion_document("shared", "Generation A content.", observed_at=_NOW),),
+        frozenset({"shared"}),
+        observed_at=_NOW,
+    )
+    next_observed_at = _NOW + timedelta(hours=1)
+    generation_b = _publish_generation(
+        storage,
+        (
+            _ingestion_document(
+                "shared",
+                "Generation B content.",
+                observed_at=next_observed_at,
+            ),
+            _ingestion_document(
+                "only-b",
+                "Generation B only.",
+                observed_at=next_observed_at,
+            ),
+        ),
+        frozenset({"shared", "only-b"}),
+        observed_at=next_observed_at,
+    )
+    generation_ids = iter((generation_a, generation_b))
+
+    def current_generation_id(_storage: IngestionStorage) -> str:
+        return next(generation_ids, generation_b)
+
+    monkeypatch.setattr(IngestionStorage, "current_generation_id", current_generation_id)
+    collection = Collection()
+    collection.seed(_chunks(path="knowledge/preserved.md"))
+    rows_before = dict(collection.rows)
+
+    stats = sync_ingestion_documents(
+        collection,
+        ingestion_root,
+        retention_generations=3,
+    )
+
+    assert stats["errors"] == 1
+    assert collection.rows == rows_before
+    assert collection.upsert_calls == 0
+    assert collection.delete_calls == 0
+
+
 def test_current_document_generation_reconciles_chroma_and_lexical(
     tmp_path: Path,
 ) -> None:
