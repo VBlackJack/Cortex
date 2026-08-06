@@ -163,6 +163,42 @@ def build_sync_report(
     )
 
 
+def build_sync_failure_report(
+    *,
+    requested_section: str | None,
+    index_whole_folder: bool,
+    included_ingestion_documents: bool,
+    error: SyncError,
+    status: Literal["failed", "locked"],
+    recommendation: Literal["retry_sync", "none"],
+) -> SyncReport:
+    """Build a no-mutation report for validation, lock, or exception failures."""
+    index_status: Literal["ok", "failed"] = "ok" if status == "locked" else "failed"
+    return SyncReport(
+        status=status,
+        changed=False,
+        scope=SyncScope(
+            requested_section=requested_section,
+            resolved_sections=(),
+            index_whole_folder=index_whole_folder,
+            included_ingestion_documents=included_ingestion_documents,
+        ),
+        ingestion=SyncIngestion(source_kind="doc", indexed_generation_id=None),
+        counters=SyncCounters(
+            published_files=0,
+            added_chunks=0,
+            deleted_chunks=0,
+            removed_files=0,
+            skipped_files=0,
+            errors=1,
+        ),
+        indexes=SyncIndexes(chroma=index_status, lexical=index_status),
+        errors=(error,),
+        errors_truncated=False,
+        recommendation=recommendation,
+    )
+
+
 __all__ = [
     "SYNC_ERROR_SAMPLE_LIMIT",
     "SyncCounters",
@@ -171,5 +207,6 @@ __all__ = [
     "SyncIngestion",
     "SyncReport",
     "SyncScope",
+    "build_sync_failure_report",
     "build_sync_report",
 ]

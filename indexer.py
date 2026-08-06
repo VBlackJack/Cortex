@@ -24,12 +24,14 @@ import argparse
 import logging
 import os
 import sqlite3
+import sys
 import warnings
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
-log = logging.getLogger("cortex.indexer")
+_LOG = logging.getLogger("cortex.indexer")
+log = _LOG
 
 # Force CPU-only - avoid GPU driver crashes
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -68,17 +70,27 @@ from config import (  # noqa: E402
     SEARCH_RRF_K,
     SEARCH_TOP_K_MAX,
     SEARCH_TOP_K_MIN,
+    CortexConfigError,
     require_kb_path,
 )
+from confluence_writer.constants import (  # noqa: E402
+    EXIT_ERROR,
+    EXIT_INVALID_INPUT,
+    EXIT_LOCKED,
+    EXIT_OK,
+)
 from data_home import ensure_index_location  # noqa: E402
-from embedding_fingerprint import get_validated_collection  # noqa: E402
+from embedding_fingerprint import (  # noqa: E402
+    EmbeddingFingerprintMismatchError,
+    get_validated_collection,
+)
 from ingestion.config import (  # noqa: E402
     IngestionConfigError,
     IngestionSettings,
     load_ingestion_settings,
 )
-from ingestion.locking import source_sync_lock  # noqa: E402
-from ingestion.storage import IngestionStorage  # noqa: E402
+from ingestion.locking import IngestionLockedError, source_sync_lock  # noqa: E402
+from ingestion.storage import IngestionStorage, IngestionStorageError  # noqa: E402
 from lexical_index import LexicalIndex, prepare_lexical_index  # noqa: E402
 from reranker import rerank_fused_hits, warmup_reranker  # noqa: E402
 from sync_contract import (  # noqa: E402
@@ -87,6 +99,7 @@ from sync_contract import (  # noqa: E402
     SyncIngestion,
     SyncReport,
     SyncScope,
+    build_sync_failure_report,
     build_sync_report,
 )
 from sync_hash_aware import (  # noqa: E402
@@ -95,7 +108,7 @@ from sync_hash_aware import (  # noqa: E402
     sync_ingestion_documents_report,
     sync_section_report,
 )
-from write_lock import chroma_write_lock  # noqa: E402
+from write_lock import CortexWriteLockedError, chroma_write_lock  # noqa: E402
 
 # -- Embedding function --------------------------------------------------------
 
@@ -203,6 +216,13 @@ def _should_sync_ingestion_documents(section: str | None) -> bool:
     return section is None or section == INGESTION_DOCUMENT_SECTION
 
 
+def _requested_section_is_invalid(section: str | None) -> bool:
+    """Return whether a requested machine-sync scope is outside policy."""
+    if INDEX_WHOLE_FOLDER:
+        return section not in {None, ROOT_SECTION}
+    return section == ROOT_SECTION or (section is not None and section not in INCLUDED_SECTIONS)
+
+
 def sync(section: str | None = None, verbose: bool = True) -> dict[str, int]:
     """
     Incremental sync. If section is given, only process that section's folder.
@@ -217,13 +237,28 @@ def sync(section: str | None = None, verbose: bool = True) -> dict[str, int]:
 def sync_report(section: str | None = None, verbose: bool = True) -> SyncReport:
     """Run one locked synchronization and return its machine-readable report."""
     should_sync_documents = _should_sync_ingestion_documents(section)
+    if _requested_section_is_invalid(section):
+        log.error("Unknown or reserved section: %s", section)
+        return build_sync_failure_report(
+            requested_section=section,
+            index_whole_folder=INDEX_WHOLE_FOLDER,
+            included_ingestion_documents=should_sync_documents,
+            error=SyncError(code="invalid_section", phase="validate", path=section),
+            status="failed",
+            recommendation="none",
+        )
     ensure_index_location(Path(LEGACY_CHROMA_PATH), Path(CHROMA_PATH))
     with chroma_write_lock():
         if should_sync_documents:
             try:
                 ingestion_settings = load_ingestion_settings()
             except IngestionConfigError as exc:
-                return _sync_locked_report(section, verbose, ingestion_settings_state=exc)
+                return _sync_locked_report(
+                    section,
+                    verbose,
+                    ingestion_settings_state=exc,
+                    validate_requested_section=True,
+                )
             storage = IngestionStorage(
                 ingestion_settings.data_root,
                 INGESTION_DOCUMENT_SOURCE_KIND,
@@ -237,8 +272,9 @@ def sync_report(section: str | None = None, verbose: bool = True) -> SyncReport:
                     section,
                     verbose,
                     ingestion_settings_state=ingestion_settings,
+                    validate_requested_section=True,
                 )
-        return _sync_locked_report(section, verbose)
+        return _sync_locked_report(section, verbose, validate_requested_section=True)
 
 
 def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, int]:
@@ -250,6 +286,7 @@ def _sync_locked_report(
     verbose: bool = True,
     *,
     ingestion_settings_state: IngestionSettings | IngestionConfigError | None = None,
+    validate_requested_section: bool = False,
 ) -> SyncReport:
     """Run synchronization with the Chroma lock already held."""
     kb_root = Path(require_kb_path(KB_PATH))
@@ -274,6 +311,39 @@ def _sync_locked_report(
             indexed_generation_id=indexed_generation_id,
         )
 
+    if INDEX_WHOLE_FOLDER:
+        if section not in {None, ROOT_SECTION}:
+            log.error("Unknown section in whole-folder mode: %s", section)
+            stats["errors"] += 1
+            errors.append(SyncError(code="invalid_section", phase="validate", path=section))
+            return _build_sync_report(
+                section=section,
+                section_names=section_names,
+                should_sync_documents=should_sync_documents,
+                stats=stats,
+                errors=errors,
+                lexical_prepared=lexical_prepared,
+                indexed_generation_id=indexed_generation_id,
+            )
+        section_names = [ROOT_SECTION]
+    else:
+        if section == ROOT_SECTION or (
+            validate_requested_section and section is not None and section not in INCLUDED_SECTIONS
+        ):
+            log.error("Unknown or reserved section: %s", section)
+            stats["errors"] += 1
+            errors.append(SyncError(code="invalid_section", phase="validate", path=section))
+            return _build_sync_report(
+                section=section,
+                section_names=section_names,
+                should_sync_documents=should_sync_documents,
+                stats=stats,
+                errors=errors,
+                lexical_prepared=lexical_prepared,
+                indexed_generation_id=indexed_generation_id,
+            )
+        section_names = [section] if section else sorted(INCLUDED_SECTIONS)
+
     client = get_client()
     collection = get_collection(client)
     lexical_index = None
@@ -293,37 +363,6 @@ def _sync_locked_report(
                 path=str(Path(CHROMA_PATH).parent / "lexical.db"),
             )
         )
-
-    if INDEX_WHOLE_FOLDER:
-        if section not in {None, ROOT_SECTION}:
-            log.error("Unknown section in whole-folder mode: %s", section)
-            stats["errors"] += 1
-            errors.append(SyncError(code="invalid_section", phase="validate", path=section))
-            return _build_sync_report(
-                section=section,
-                section_names=section_names,
-                should_sync_documents=should_sync_documents,
-                stats=stats,
-                errors=errors,
-                lexical_prepared=lexical_prepared,
-                indexed_generation_id=indexed_generation_id,
-            )
-        section_names = [ROOT_SECTION]
-    else:
-        if section == ROOT_SECTION:
-            log.error("Reserved root section is unavailable in sections mode")
-            stats["errors"] += 1
-            errors.append(SyncError(code="invalid_section", phase="validate", path=section))
-            return _build_sync_report(
-                section=section,
-                section_names=section_names,
-                should_sync_documents=should_sync_documents,
-                stats=stats,
-                errors=errors,
-                lexical_prepared=lexical_prepared,
-                indexed_generation_id=indexed_generation_id,
-            )
-        section_names = [section] if section else sorted(INCLUDED_SECTIONS)
 
     for sec_name in section_names:
         if verbose:
@@ -703,6 +742,94 @@ def search(
     return SearchResults(reranked[:bounded_top_k], mode="hybrid+rerank")
 
 
+def _sync_report_exit_code(report: SyncReport) -> int:
+    """Map a machine report to the shared coarse process exit contract."""
+    if report.status == "succeeded":
+        return EXIT_OK
+    if report.status == "locked":
+        return EXIT_LOCKED
+    invalid_input_codes = {
+        "incompatible_index",
+        "invalid_arguments",
+        "invalid_configuration",
+        "invalid_section",
+    }
+    if any(error.code in invalid_input_codes for error in report.errors):
+        return EXIT_INVALID_INPUT
+    return EXIT_ERROR
+
+
+def _sync_failure_report(
+    *,
+    section: str | None,
+    code: str,
+    phase: str,
+    status: Literal["failed", "locked"],
+    recommendation: Literal["retry_sync", "none"],
+) -> SyncReport:
+    """Build one no-mutation machine report at the CLI boundary."""
+    return build_sync_failure_report(
+        requested_section=section,
+        index_whole_folder=INDEX_WHOLE_FOLDER,
+        included_ingestion_documents=_should_sync_ingestion_documents(section),
+        error=SyncError(code=code, phase=phase, path=None),
+        status=status,
+        recommendation=recommendation,
+    )
+
+
+def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
+    """Run sync behind the machine-mode exception funnel."""
+    try:
+        report = sync_report(section=section, verbose=True)
+    except (CortexConfigError, IngestionConfigError) as exc:
+        _LOG.error("sync_invalid_configuration error_type=%s", type(exc).__name__)
+        report = _sync_failure_report(
+            section=section,
+            code="invalid_configuration",
+            phase="validate",
+            status="failed",
+            recommendation="none",
+        )
+    except EmbeddingFingerprintMismatchError:
+        _LOG.error("sync_incompatible_index")
+        report = _sync_failure_report(
+            section=section,
+            code="incompatible_index",
+            phase="validate",
+            status="failed",
+            recommendation="none",
+        )
+    except (CortexWriteLockedError, IngestionLockedError) as exc:
+        _LOG.warning("sync_lock_unavailable error_type=%s", type(exc).__name__)
+        report = _sync_failure_report(
+            section=section,
+            code="lock_unavailable",
+            phase="acquire_locks",
+            status="locked",
+            recommendation="retry_sync",
+        )
+    except IngestionStorageError:
+        _LOG.error("sync_inconsistent_generation")
+        report = _sync_failure_report(
+            section=section,
+            code="inconsistent_generation",
+            phase="resolve_generation",
+            status="failed",
+            recommendation="retry_sync",
+        )
+    except Exception:  # noqa: BLE001 -- final machine-contract boundary.
+        _LOG.exception("sync_unexpected_error")
+        report = _sync_failure_report(
+            section=section,
+            code="unexpected_error",
+            phase="unknown",
+            status="failed",
+            recommendation="retry_sync",
+        )
+    return report, _sync_report_exit_code(report)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run sync or search from the clone-compatible command line."""
     from cortex_logging import configure_logging
@@ -720,7 +847,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Run a search instead of syncing",
     )
     parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
+
+    if args.json:
+        if args.search is not None:
+            report = _sync_failure_report(
+                section=args.section,
+                code="invalid_arguments",
+                phase="validate",
+                status="failed",
+                recommendation="none",
+            )
+            exit_code = EXIT_INVALID_INPUT
+        else:
+            report, exit_code = _run_json_sync(args.section)
+        sys.stdout.write(report.model_dump_json(indent=2) + "\n")
+        return exit_code
 
     if args.search:
         warmup_reranker()
@@ -737,7 +880,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"    {h['text'][:300]}...")
     else:
         sync(section=args.section, verbose=True)
-    return 0
+    return EXIT_OK
 
 
 # -- CLI entry point -----------------------------------------------------------
