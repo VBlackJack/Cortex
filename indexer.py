@@ -60,6 +60,7 @@ from config import (  # noqa: E402
     INCLUDED_SECTIONS,
     INDEX_WHOLE_FOLDER,
     INGESTION_DOCUMENT_SECTION,
+    INGESTION_DOCUMENT_SOURCE_KIND,
     KB_PATH,
     LEGACY_CHROMA_PATH,
     ROOT_SECTION,
@@ -75,6 +76,8 @@ from ingestion.config import (  # noqa: E402
     IngestionConfigError,
     load_ingestion_settings,
 )
+from ingestion.locking import source_sync_lock  # noqa: E402
+from ingestion.storage import IngestionStorage  # noqa: E402
 from lexical_index import LexicalIndex, prepare_lexical_index  # noqa: E402
 from reranker import rerank_fused_hits, warmup_reranker  # noqa: E402
 from sync_hash_aware import (  # noqa: E402
@@ -184,6 +187,13 @@ def discover_out_of_policy_sections() -> list[str]:
 # -- Sync ----------------------------------------------------------------------
 
 
+def _should_sync_ingestion_documents(section: str | None) -> bool:
+    """Return whether one sync scope includes published ingestion documents."""
+    if INDEX_WHOLE_FOLDER:
+        return section in {None, ROOT_SECTION}
+    return section is None or section == INGESTION_DOCUMENT_SECTION
+
+
 def sync(section: str | None = None, verbose: bool = True) -> dict[str, int]:
     """
     Incremental sync. If section is given, only process that section's folder.
@@ -192,8 +202,21 @@ def sync(section: str | None = None, verbose: bool = True) -> dict[str, int]:
     write_lock.chroma_write_lock(). Raises CortexWriteLockedError, without
     writing anything, if another writer already holds it.
     """
+    should_sync_documents = _should_sync_ingestion_documents(section)
     ensure_index_location(Path(LEGACY_CHROMA_PATH), Path(CHROMA_PATH))
     with chroma_write_lock():
+        if should_sync_documents:
+            ingestion_settings = load_ingestion_settings()
+            storage = IngestionStorage(
+                ingestion_settings.data_root,
+                INGESTION_DOCUMENT_SOURCE_KIND,
+                ingestion_settings.retention_generations,
+            )
+            with source_sync_lock(
+                storage,
+                timeout_seconds=ingestion_settings.lock_timeout_seconds,
+            ):
+                return _sync_locked(section, verbose)
         return _sync_locked(section, verbose)
 
 
@@ -246,9 +269,7 @@ def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, 
         )
         merge_sync_stats(stats, section_stats)
 
-    should_sync_documents = section is None or section == INGESTION_DOCUMENT_SECTION
-    if INDEX_WHOLE_FOLDER:
-        should_sync_documents = section in {None, ROOT_SECTION}
+    should_sync_documents = _should_sync_ingestion_documents(section)
     if should_sync_documents:
         try:
             ingestion_settings = load_ingestion_settings()

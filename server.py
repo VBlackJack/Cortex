@@ -52,6 +52,7 @@ from indexer import (
 )
 from ingestion.config import IngestionConfigError, load_ingestion_settings
 from ingestion.freshness import augment_freshness_report
+from ingestion.locking import IngestionLockedError
 from reranker import warmup_reranker
 from write_lock import CortexWriteLockedError
 
@@ -300,7 +301,7 @@ def cortex_sync(section: str | None = None) -> str:
         return f"## Cortex sync refused\n\n{exc}"
     except CortexDataHomeError as exc:
         return f"## Cortex data migration required\n\n{exc}"
-    except CortexWriteLockedError:
+    except (CortexWriteLockedError, IngestionLockedError):
         return (
             "## Cortex sync locked\n\n"
             "Another sync is already in progress. Refusing to write "
