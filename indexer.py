@@ -74,17 +74,26 @@ from data_home import ensure_index_location  # noqa: E402
 from embedding_fingerprint import get_validated_collection  # noqa: E402
 from ingestion.config import (  # noqa: E402
     IngestionConfigError,
+    IngestionSettings,
     load_ingestion_settings,
 )
 from ingestion.locking import source_sync_lock  # noqa: E402
 from ingestion.storage import IngestionStorage  # noqa: E402
 from lexical_index import LexicalIndex, prepare_lexical_index  # noqa: E402
 from reranker import rerank_fused_hits, warmup_reranker  # noqa: E402
+from sync_contract import (  # noqa: E402
+    SyncError,
+    SyncIndexes,
+    SyncIngestion,
+    SyncReport,
+    SyncScope,
+    build_sync_report,
+)
 from sync_hash_aware import (  # noqa: E402
     empty_sync_stats,
     merge_sync_stats,
-    sync_ingestion_documents,
-    sync_section,
+    sync_ingestion_documents_report,
+    sync_section_report,
 )
 from write_lock import chroma_write_lock  # noqa: E402
 
@@ -202,11 +211,19 @@ def sync(section: str | None = None, verbose: bool = True) -> dict[str, int]:
     write_lock.chroma_write_lock(). Raises CortexWriteLockedError, without
     writing anything, if another writer already holds it.
     """
+    return sync_report(section, verbose).counters.to_stats()
+
+
+def sync_report(section: str | None = None, verbose: bool = True) -> SyncReport:
+    """Run one locked synchronization and return its machine-readable report."""
     should_sync_documents = _should_sync_ingestion_documents(section)
     ensure_index_location(Path(LEGACY_CHROMA_PATH), Path(CHROMA_PATH))
     with chroma_write_lock():
         if should_sync_documents:
-            ingestion_settings = load_ingestion_settings()
+            try:
+                ingestion_settings = load_ingestion_settings()
+            except IngestionConfigError as exc:
+                return _sync_locked_report(section, verbose, ingestion_settings_state=exc)
             storage = IngestionStorage(
                 ingestion_settings.data_root,
                 INGESTION_DOCUMENT_SOURCE_KIND,
@@ -216,18 +233,46 @@ def sync(section: str | None = None, verbose: bool = True) -> dict[str, int]:
                 storage,
                 timeout_seconds=ingestion_settings.lock_timeout_seconds,
             ):
-                return _sync_locked(section, verbose)
-        return _sync_locked(section, verbose)
+                return _sync_locked_report(
+                    section,
+                    verbose,
+                    ingestion_settings_state=ingestion_settings,
+                )
+        return _sync_locked_report(section, verbose)
 
 
 def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, int]:
+    return _sync_locked_report(section, verbose).counters.to_stats()
+
+
+def _sync_locked_report(
+    section: str | None = None,
+    verbose: bool = True,
+    *,
+    ingestion_settings_state: IngestionSettings | IngestionConfigError | None = None,
+) -> SyncReport:
+    """Run synchronization with the Chroma lock already held."""
     kb_root = Path(require_kb_path(KB_PATH))
     stats = empty_sync_stats()
+    errors: list[SyncError] = []
+    lexical_prepared = True
+    indexed_generation_id: str | None = None
+    should_sync_documents = _should_sync_ingestion_documents(section)
+    section_names: list[str] = []
 
     if not kb_root.is_dir():
         log.error("KB_PATH is not a directory: %s", kb_root)
         stats["errors"] += 1
-        return stats
+        errors.append(SyncError(code="vault_unavailable", phase="validate", path=str(kb_root)))
+        return _build_sync_report(
+            section=section,
+            section_names=section_names,
+            should_sync_documents=should_sync_documents,
+            stats=stats,
+            errors=errors,
+            lexical_prepared=lexical_prepared,
+            indexed_generation_id=indexed_generation_id,
+        )
 
     client = get_client()
     collection = get_collection(client)
@@ -239,19 +284,45 @@ def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, 
         )
     except Exception as exc:  # noqa: BLE001 -- vector index remains authoritative.
         stats["errors"] += 1
+        lexical_prepared = False
         log.exception("lexical_prepare_error reason=%s", exc)
+        errors.append(
+            SyncError(
+                code="lexical_preparation_failed",
+                phase="prepare_lexical",
+                path=str(Path(CHROMA_PATH).parent / "lexical.db"),
+            )
+        )
 
     if INDEX_WHOLE_FOLDER:
         if section not in {None, ROOT_SECTION}:
             log.error("Unknown section in whole-folder mode: %s", section)
             stats["errors"] += 1
-            return stats
+            errors.append(SyncError(code="invalid_section", phase="validate", path=section))
+            return _build_sync_report(
+                section=section,
+                section_names=section_names,
+                should_sync_documents=should_sync_documents,
+                stats=stats,
+                errors=errors,
+                lexical_prepared=lexical_prepared,
+                indexed_generation_id=indexed_generation_id,
+            )
         section_names = [ROOT_SECTION]
     else:
         if section == ROOT_SECTION:
             log.error("Reserved root section is unavailable in sections mode")
             stats["errors"] += 1
-            return stats
+            errors.append(SyncError(code="invalid_section", phase="validate", path=section))
+            return _build_sync_report(
+                section=section,
+                section_names=section_names,
+                should_sync_documents=should_sync_documents,
+                stats=stats,
+                errors=errors,
+                lexical_prepared=lexical_prepared,
+                indexed_generation_id=indexed_generation_id,
+            )
         section_names = [section] if section else sorted(INCLUDED_SECTIONS)
 
     for sec_name in section_names:
@@ -259,31 +330,37 @@ def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, 
             label = "whole knowledge base" if sec_name == ROOT_SECTION else sec_name
             log.info("--- Section: %s ---", label)
 
-        section_stats = sync_section(
+        section_stats = sync_section_report(
             collection,
             kb_root,
             sec_name,
             checkpoint=None,
             verbose=verbose,
             lexical_index=lexical_index,
+            errors=errors,
         )
         merge_sync_stats(stats, section_stats)
 
-    should_sync_documents = _should_sync_ingestion_documents(section)
     if should_sync_documents:
-        try:
-            ingestion_settings = load_ingestion_settings()
-        except IngestionConfigError as exc:
+        settings_state = ingestion_settings_state
+        if settings_state is None:
+            try:
+                settings_state = load_ingestion_settings()
+            except IngestionConfigError as exc:
+                settings_state = exc
+        if isinstance(settings_state, IngestionConfigError):
             stats["errors"] += 1
-            log.error("ingestion_config_error reason=%s", exc)
+            log.error("ingestion_config_error reason=%s", settings_state)
+            errors.append(SyncError(code="invalid_configuration", phase="validate", path=None))
         else:
-            document_stats = sync_ingestion_documents(
+            document_stats, indexed_generation_id = sync_ingestion_documents_report(
                 collection,
-                ingestion_settings.data_root,
-                retention_generations=ingestion_settings.retention_generations,
+                settings_state.data_root,
+                retention_generations=settings_state.retention_generations,
                 checkpoint=None,
                 verbose=verbose,
                 lexical_index=lexical_index,
+                errors=errors,
             )
             merge_sync_stats(stats, document_stats)
 
@@ -298,7 +375,64 @@ def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, 
             stats["skipped_files"],
             stats["errors"],
         )
-    return stats
+    return _build_sync_report(
+        section=section,
+        section_names=section_names,
+        should_sync_documents=should_sync_documents,
+        stats=stats,
+        errors=errors,
+        lexical_prepared=lexical_prepared,
+        indexed_generation_id=indexed_generation_id,
+    )
+
+
+def _build_sync_report(
+    *,
+    section: str | None,
+    section_names: list[str],
+    should_sync_documents: bool,
+    stats: dict[str, int],
+    errors: list[SyncError],
+    lexical_prepared: bool,
+    indexed_generation_id: str | None,
+) -> SyncReport:
+    """Build one report from counters and ordered error samples."""
+    error_codes = {error.code for error in errors}
+    chroma_failure_codes = {
+        "chroma_publication_failed",
+        "extraction_failed",
+        "inconsistent_generation",
+        "section_unavailable",
+        "vault_unavailable",
+    }
+    chroma_failed = bool(error_codes & chroma_failure_codes)
+    successful_mutations = stats["published_files"] + stats["removed_files"]
+    chroma_status = (
+        ("degraded" if chroma_failed and successful_mutations > 0 else "failed")
+        if chroma_failed
+        else "ok"
+    )
+    if not lexical_prepared:
+        lexical_status = "failed"
+    elif "lexical_publication_failed" in error_codes:
+        lexical_status = "degraded"
+    else:
+        lexical_status = "ok"
+    return build_sync_report(
+        counters=stats,
+        scope=SyncScope(
+            requested_section=section,
+            resolved_sections=tuple(section_names),
+            index_whole_folder=INDEX_WHOLE_FOLDER,
+            included_ingestion_documents=should_sync_documents,
+        ),
+        ingestion=SyncIngestion(
+            source_kind=INGESTION_DOCUMENT_SOURCE_KIND,
+            indexed_generation_id=indexed_generation_id,
+        ),
+        indexes=SyncIndexes(chroma=chroma_status, lexical=lexical_status),
+        errors=errors,
+    )
 
 
 # -- Search --------------------------------------------------------------------
