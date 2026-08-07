@@ -36,6 +36,8 @@ py-modules = [
   "chunker_utils",
   "cli",
   "config",
+  "config_command",
+  "config_contract",
   "cortex_logging",
   "data_home",
   "dependencies",
@@ -53,6 +55,7 @@ py-modules = [
   "sync_hash_aware",
   "sync_summary",
   "user_config",
+  "user_config_mutation",
   "write_lock",
 ]
 license-files = ["LICENSE"]
