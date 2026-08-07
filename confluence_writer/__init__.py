@@ -13,6 +13,13 @@
 # limitations under the License.
 """Incremental Confluence writer for Cortex ingestion generations."""
 
-from confluence_writer.writer import ConfluenceWriter
+
+def __getattr__(name: str) -> object:
+    """Load the public writer only when that public attribute is requested."""
+    if name != "ConfluenceWriter":
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from confluence_writer.writer import ConfluenceWriter
+
+    return ConfluenceWriter
 
 __all__ = ["ConfluenceWriter"]

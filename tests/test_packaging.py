@@ -74,6 +74,7 @@ def test_requirements_is_the_single_runtime_dependency_source() -> None:
     assert dynamic["dependencies"] == {"file": ["requirements.txt"]}
     assert {requirement.name for requirement in parsed} == {
         "mcp",
+        "cryptography",
         "chromadb",
         "fastembed",
         "pydantic",
