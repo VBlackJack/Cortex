@@ -39,6 +39,7 @@ from config import (
 from ingestion.constants import DOCUMENTS_DIRECTORY_NAME
 from ingestion.storage import IngestionStorage, IngestionStorageError
 from lexical_index import LexicalIndex
+from sync_contract import SYNC_ERROR_SAMPLE_LIMIT, SyncError
 from write_lock import chroma_write_lock
 
 _LOG = logging.getLogger("cortex.sync")
@@ -94,6 +95,18 @@ def merge_sync_stats(target: dict[str, int], source: dict[str, int]) -> None:
     """Add one section's counters to an aggregate counter set."""
     for key in target:
         target[key] += source[key]
+
+
+def _record_sync_error(
+    errors: list[SyncError] | None,
+    *,
+    code: str,
+    phase: str,
+    path: str | None,
+) -> None:
+    """Append one ordered error sample without affecting exact counters."""
+    if errors is not None and len(errors) < SYNC_ERROR_SAMPLE_LIMIT:
+        errors.append(SyncError(code=code, phase=phase, path=path))
 
 
 def _delete_ids(collection: Any, ids: set[str] | list[str]) -> int:
@@ -259,6 +272,28 @@ def sync_section(
     lexical_index: LexicalIndex | None = None,
 ) -> dict[str, int]:
     """Reconcile one section under the exclusive Chroma write lock."""
+    return sync_section_report(
+        collection,
+        root,
+        section,
+        checkpoint=checkpoint,
+        verbose=verbose,
+        lexical_index=lexical_index,
+        errors=[],
+    )
+
+
+def sync_section_report(
+    collection: Any,
+    root: Path,
+    section: str,
+    checkpoint: SyncCheckpoint | None = None,
+    verbose: bool = False,
+    lexical_index: LexicalIndex | None = None,
+    *,
+    errors: list[SyncError],
+) -> dict[str, int]:
+    """Reconcile one section and append structured error samples."""
     with chroma_write_lock():
         return _sync_section_locked(
             collection,
@@ -267,6 +302,7 @@ def sync_section(
             checkpoint=checkpoint,
             verbose=verbose,
             lexical_index=lexical_index,
+            errors=errors,
         )
 
 
@@ -280,14 +316,37 @@ def sync_ingestion_documents(
     lexical_index: LexicalIndex | None = None,
 ) -> dict[str, int]:
     """Reconcile the current published document generation into both indexes."""
+    return sync_ingestion_documents_report(
+        collection,
+        ingestion_root,
+        retention_generations=retention_generations,
+        checkpoint=checkpoint,
+        verbose=verbose,
+        lexical_index=lexical_index,
+    )[0]
+
+
+def sync_ingestion_documents_report(
+    collection: Any,
+    ingestion_root: Path,
+    *,
+    retention_generations: int,
+    checkpoint: SyncCheckpoint | None = None,
+    verbose: bool = False,
+    lexical_index: LexicalIndex | None = None,
+    errors: list[SyncError] | None = None,
+) -> tuple[dict[str, int], str | None]:
+    """Reconcile ingestion documents and return counters plus selected generation."""
+    error_samples = [] if errors is None else errors
     with chroma_write_lock():
-        return _sync_ingestion_documents_locked(
+        return _sync_ingestion_documents_locked_report(
             collection,
             ingestion_root,
             retention_generations=retention_generations,
             checkpoint=checkpoint,
             verbose=verbose,
             lexical_index=lexical_index,
+            errors=error_samples,
         )
 
 
@@ -301,6 +360,28 @@ def _sync_ingestion_documents_locked(
     lexical_index: LexicalIndex | None = None,
 ) -> dict[str, int]:
     """Resolve only the current pointer and fail closed on invalid published state."""
+    return _sync_ingestion_documents_locked_report(
+        collection,
+        ingestion_root,
+        retention_generations=retention_generations,
+        checkpoint=checkpoint,
+        verbose=verbose,
+        lexical_index=lexical_index,
+        errors=[],
+    )[0]
+
+
+def _sync_ingestion_documents_locked_report(
+    collection: Any,
+    ingestion_root: Path,
+    *,
+    retention_generations: int,
+    checkpoint: SyncCheckpoint | None = None,
+    verbose: bool = False,
+    lexical_index: LexicalIndex | None = None,
+    errors: list[SyncError],
+) -> tuple[dict[str, int], str | None]:
+    """Resolve one immutable generation and append structured error samples."""
     stats = empty_sync_stats()
     storage = IngestionStorage(
         ingestion_root,
@@ -308,19 +389,25 @@ def _sync_ingestion_documents_locked(
         retention_generations,
     )
     if not storage.source_root.exists():
-        return stats
+        return stats, None
     try:
         generation_id = storage.current_generation_id()
-        manifest = storage.load_current_manifest()
+        if generation_id is None:
+            return stats, None
+        manifest = storage.load_manifest(generation_id)
     except IngestionStorageError:
         stats["errors"] += 1
         _LOG.exception(
             "ingestion_generation_unavailable source_kind=%s; preserving indexed content",
             INGESTION_DOCUMENT_SOURCE_KIND,
         )
-        return stats
-    if generation_id is None or manifest is None:
-        return stats
+        _record_sync_error(
+            errors,
+            code="inconsistent_generation",
+            phase="resolve_generation",
+            path=str(storage.source_root),
+        )
+        return stats, None
 
     documents_root = storage.generation_path(generation_id) / DOCUMENTS_DIRECTORY_NAME
     if not documents_root.is_dir():
@@ -332,7 +419,13 @@ def _sync_ingestion_documents_locked(
             generation_id,
             documents_root,
         )
-        return stats
+        _record_sync_error(
+            errors,
+            code="inconsistent_generation",
+            phase="resolve_generation",
+            path=str(documents_root),
+        )
+        return stats, None
 
     expected_paths = {document.path for document in manifest.documents}
     files = sorted(
@@ -353,20 +446,30 @@ def _sync_ingestion_documents_locked(
             generation_id,
             len(missing_paths),
         )
-        return stats
+        _record_sync_error(
+            errors,
+            code="inconsistent_generation",
+            phase="resolve_generation",
+            path=sorted(missing_paths)[0],
+        )
+        return stats, None
 
-    return _sync_files_locked(
-        collection,
-        root=documents_root,
-        section=INGESTION_DOCUMENT_SECTION,
-        files=files,
-        source_kind=INGESTION_DOCUMENT_SOURCE_KIND,
-        checkpoint=checkpoint,
-        verbose=verbose,
-        lexical_index=lexical_index,
-        rebase_chunks=True,
-        apply_exclusions=False,
-        generation_id=generation_id,
+    return (
+        _sync_files_locked(
+            collection,
+            root=documents_root,
+            section=INGESTION_DOCUMENT_SECTION,
+            files=files,
+            source_kind=INGESTION_DOCUMENT_SOURCE_KIND,
+            checkpoint=checkpoint,
+            verbose=verbose,
+            lexical_index=lexical_index,
+            rebase_chunks=True,
+            apply_exclusions=False,
+            generation_id=generation_id,
+            errors=errors,
+        ),
+        generation_id,
     )
 
 
@@ -377,6 +480,7 @@ def _sync_section_locked(
     checkpoint: SyncCheckpoint | None = None,
     verbose: bool = False,
     lexical_index: LexicalIndex | None = None,
+    errors: list[SyncError] | None = None,
 ) -> dict[str, int]:
     """Reconcile live, excluded and removed paths for one section."""
     stats = empty_sync_stats()
@@ -387,6 +491,12 @@ def _sync_section_locked(
             "section_unavailable section=%s path=%s; preserving indexed content",
             section,
             section_root,
+        )
+        _record_sync_error(
+            errors,
+            code="section_unavailable",
+            phase="validate",
+            path=str(section_root),
         )
         return stats
 
@@ -406,6 +516,7 @@ def _sync_section_locked(
         lexical_index=lexical_index,
         rebase_chunks=False,
         apply_exclusions=True,
+        errors=errors,
     )
 
 
@@ -446,6 +557,7 @@ def _sync_files_locked(
     rebase_chunks: bool,
     apply_exclusions: bool,
     generation_id: str | None = None,
+    errors: list[SyncError] | None = None,
 ) -> dict[str, int]:
     """Reconcile an explicit immutable file set for one ownership domain."""
     stats = empty_sync_stats()
@@ -497,6 +609,12 @@ def _sync_files_locked(
             except Exception:  # noqa: BLE001 -- preserve the old version on any backend failure.
                 stats["errors"] += 1
                 _LOG.exception("file_publish_error path=%s", rel_path)
+                _record_sync_error(
+                    errors,
+                    code="chroma_publication_failed",
+                    phase="publish_chroma",
+                    path=rel_path,
+                )
                 continue
             stats["published_files"] += 1
             stats["added_chunks"] += added
@@ -507,6 +625,12 @@ def _sync_files_locked(
                 except Exception:  # noqa: BLE001 -- Chroma remains authoritative.
                     stats["errors"] += 1
                     _LOG.exception("lexical_publish_error path=%s", rel_path)
+                    _record_sync_error(
+                        errors,
+                        code="lexical_publication_failed",
+                        phase="publish_lexical",
+                        path=rel_path,
+                    )
                     continue
             if checkpoint:
                 checkpoint.mark_completed(rel_path)
@@ -521,6 +645,12 @@ def _sync_files_locked(
                     _LOG.exception(
                         "file_remove_error path=%s reason=%s", rel_path, result.status
                     )
+                    _record_sync_error(
+                        errors,
+                        code="chroma_publication_failed",
+                        phase="publish_chroma",
+                        path=rel_path,
+                    )
                     continue
                 stats["removed_files"] += 1
                 _LOG.info(
@@ -532,6 +662,12 @@ def _sync_files_locked(
                     except Exception:  # noqa: BLE001 -- Chroma remains authoritative.
                         stats["errors"] += 1
                         _LOG.exception("lexical_remove_error path=%s", rel_path)
+                        _record_sync_error(
+                            errors,
+                            code="lexical_publication_failed",
+                            phase="publish_lexical",
+                            path=rel_path,
+                        )
                         continue
             else:
                 stats["skipped_files"] += 1
@@ -546,6 +682,12 @@ def _sync_files_locked(
             result.status,
             result.error or "unknown",
         )
+        _record_sync_error(
+            errors,
+            code="extraction_failed",
+            phase="extract",
+            path=rel_path,
+        )
 
     for rel_path in sorted(set(existing) - eligible_paths):
         old_ids, _ = existing[rel_path]
@@ -554,6 +696,12 @@ def _sync_files_locked(
         except Exception:  # noqa: BLE001 -- reconciliation errors are isolated per file.
             stats["errors"] += 1
             _LOG.exception("file_reconcile_remove_error path=%s", rel_path)
+            _record_sync_error(
+                errors,
+                code="chroma_publication_failed",
+                phase="publish_chroma",
+                path=rel_path,
+            )
             continue
         stats["removed_files"] += 1
         _LOG.info("file_removed path=%s removed_reason=absent_or_excluded", rel_path)
@@ -563,6 +711,12 @@ def _sync_files_locked(
             except Exception:  # noqa: BLE001 -- Chroma remains authoritative.
                 stats["errors"] += 1
                 _LOG.exception("lexical_reconcile_remove_error path=%s", rel_path)
+                _record_sync_error(
+                    errors,
+                    code="lexical_publication_failed",
+                    phase="publish_lexical",
+                    path=rel_path,
+                )
                 continue
         if checkpoint:
             checkpoint.mark_completed(f"removed:absent_or_excluded:{rel_path}")

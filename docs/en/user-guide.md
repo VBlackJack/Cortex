@@ -141,7 +141,7 @@ historical scripts:
 
 ```powershell
 cortex setup [--clients all] [--no-index] [--reset] [--yes]
-cortex sync [section]
+cortex sync [section] [--json]
 cortex ingestion [--config FILE] {status,due} SOURCE_KIND
 cortex confluence [--config FILE] [--ingestion-config FILE] {store-credential,sync}
 cortex doctor [--json]
@@ -149,6 +149,12 @@ cortex init
 cortex register [--clients all]
 cortex check [--clients all]
 ```
+
+`cortex sync --json` writes exactly one versioned JSON document to stdout while
+operational logs remain on stderr. Its process exit code is `0` for a successful
+sync, `1` for a partial or failed sync, `2` when a writer lock is unavailable,
+and `6` for invalid input or configuration. Search is not available in JSON
+mode. Without `--json`, the existing human-facing sync behavior is unchanged.
 
 `cortex setup` chains init, index and client registration in a single call (see
 [Setup](setup.md#one-command-setup)).

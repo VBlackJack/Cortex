@@ -423,6 +423,88 @@ def _publish_generation(
     return result.generation_id
 
 
+def test_generation_pointer_switch_cannot_publish_stale_document_content(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ingestion_root = tmp_path / "ingestion"
+    storage = IngestionStorage(ingestion_root, "doc", retention_generations=3)
+    generation_a = _publish_generation(
+        storage,
+        (
+            _ingestion_document("shared", "Generation A content.", observed_at=_NOW),
+            _ingestion_document("only-a", "Generation A only.", observed_at=_NOW),
+        ),
+        frozenset({"shared", "only-a"}),
+        observed_at=_NOW,
+    )
+    next_observed_at = _NOW + timedelta(hours=1)
+    generation_b = _publish_generation(
+        storage,
+        (
+            _ingestion_document(
+                "shared",
+                "Generation B content.",
+                observed_at=next_observed_at,
+            ),
+        ),
+        frozenset({"shared"}),
+        observed_at=next_observed_at,
+    )
+    generation_ids = iter((generation_a, generation_b))
+
+    def current_generation_id(_storage: IngestionStorage) -> str:
+        return next(generation_ids, generation_b)
+
+    monkeypatch.setattr(IngestionStorage, "current_generation_id", current_generation_id)
+    collection = Collection()
+
+    stats = sync_ingestion_documents(
+        collection,
+        ingestion_root,
+        retention_generations=3,
+    )
+
+    assert stats["published_files"] == 2
+    assert stats["errors"] == 0
+    assert {row["metadata"]["source_uid"] for row in collection.rows.values()} == {
+        "shared",
+        "only-a",
+    }
+    assert any("Generation A only." in row["document"] for row in collection.rows.values())
+
+
+def test_incomplete_generation_with_missing_document_preserves_index(
+    tmp_path: Path,
+) -> None:
+    ingestion_root = tmp_path / "ingestion"
+    storage = IngestionStorage(ingestion_root, "doc", retention_generations=3)
+    shared_document = _ingestion_document("shared", "Shared content.", observed_at=_NOW)
+    missing_document = _ingestion_document("missing", "Missing content.", observed_at=_NOW)
+    generation_id = _publish_generation(
+        storage,
+        (shared_document, missing_document),
+        frozenset({"shared", "missing"}),
+        observed_at=_NOW,
+    )
+    storage.document_path(generation_id, missing_document.path).unlink()
+    collection = Collection()
+    collection.seed(_chunks(path="knowledge/preserved.md"))
+    rows_before = dict(collection.rows)
+
+    stats = sync_ingestion_documents(
+        collection,
+        ingestion_root,
+        retention_generations=3,
+    )
+
+    assert stats["errors"] == 1
+    assert stats["published_files"] == 0
+    assert collection.rows == rows_before
+    assert collection.upsert_calls == 0
+    assert collection.delete_calls == 0
+
+
 def test_current_document_generation_reconciles_chroma_and_lexical(
     tmp_path: Path,
 ) -> None:
