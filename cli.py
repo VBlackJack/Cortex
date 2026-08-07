@@ -16,10 +16,14 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Sequence
 
 from _version import __version__
+from confluence_writer.constants import EXIT_INVALID_INPUT
 from offline_models import activate_if_embedded
+from sync_contract import SyncError, build_sync_failure_report
+from user_config import CortexConfigError
 
 activate_if_embedded()
 
@@ -47,6 +51,33 @@ def _run_setup(arguments: list[str]) -> int:
     return 0
 
 
+def _requested_sync_section(arguments: list[str]) -> str | None:
+    """Read the optional section from the canonical sync argument order."""
+    if arguments and not arguments[0].startswith("-"):
+        return arguments[0]
+    return None
+
+
+def _handle_sync_configuration_error(
+    arguments: list[str],
+    error: CortexConfigError,
+) -> int:
+    """Render an import-time configuration failure for the requested output mode."""
+    if "--json" not in arguments:
+        sys.stderr.write(f"Cortex sync error: {error}\n")
+        return EXIT_INVALID_INPUT
+    report = build_sync_failure_report(
+        requested_section=_requested_sync_section(arguments),
+        index_whole_folder=False,
+        included_ingestion_documents=False,
+        error=SyncError(code="invalid_configuration", phase="validate", path=None),
+        status="failed",
+        recommendation="none",
+    )
+    sys.stdout.write(report.model_dump_json(indent=2) + "\n")
+    return EXIT_INVALID_INPUT
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Dispatch a Cortex subcommand without duplicating domain logic."""
     parser = argparse.ArgumentParser(prog="cortex")
@@ -62,7 +93,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_stdio()
         return 0
     if namespace.command == "sync":
-        from indexer import main as sync_main
+        try:
+            from indexer import main as sync_main
+        except CortexConfigError as exc:
+            return _handle_sync_configuration_error(arguments, exc)
 
         return sync_main(arguments)
     if namespace.command == "ingestion":

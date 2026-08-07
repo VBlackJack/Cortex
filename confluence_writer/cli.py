@@ -71,6 +71,7 @@ from ingestion.engine import GenerationContractError
 from ingestion.models import AttemptResult
 from ingestion.scheduling import TransientIngestionError
 from ingestion.storage import IngestionStorage, IngestionStorageError
+from user_config import CortexConfigError
 
 _LOG = logging.getLogger("cortex.confluence_writer.cli")
 _CREDENTIAL_ERROR_CODES = {
@@ -144,10 +145,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     pages_parser.add_argument("--json", action="store_true", required=True)
     namespace = parser.parse_args(argv)
 
-    from cortex_logging import configure_logging
-
-    configure_logging()
     try:
+        from cortex_logging import configure_logging
+
+        configure_logging()
         settings = load_confluence_settings(path=namespace.config)
         if namespace.command == "store-credential":
             return _store_credential(settings.credential_target)
@@ -186,6 +187,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             credential_target=settings.credential_target,
             auth_expires_at=settings.auth_expires_at,
         )
+    except CortexConfigError as exc:
+        _LOG.error("confluence_invalid_user_configuration")
+        sys.stderr.write(f"Cortex Confluence error: {exc}\n")
+        return EXIT_INVALID_INPUT
     except InvalidPageReferenceError as exc:
         _LOG.error("confluence_resolve_invalid")
         sys.stderr.write(f"Cortex Confluence error: {exc}\n")
