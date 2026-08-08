@@ -525,6 +525,7 @@ jobs:
           }
           & python packaging\license_bundle.py `
             --verify-only `
+            --python-license $env:CORTEX_CPYTHON_LICENSE `
             --output-dir $installedLicenseRoot
           if ($LASTEXITCODE -ne 0) {
             throw "Installed redistribution license bundle verification failed."
