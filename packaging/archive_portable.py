@@ -84,9 +84,17 @@ def _regular_file(path: Path, *, label: str) -> Path:
     return path
 
 
-def _license_files(license_dir: Path) -> tuple[Path, ...]:
+def _license_files(
+    license_dir: Path,
+    *,
+    python_license: Path | None = None,
+) -> tuple[Path, ...]:
     try:
-        verify_license_bundle(license_dir, analysis_toc=_ANALYSIS_TOC)
+        verify_license_bundle(
+            license_dir,
+            analysis_toc=_ANALYSIS_TOC,
+            python_license=python_license,
+        )
     except LicenseBundleError as exc:
         raise PortableArchiveError(f"License bundle verification failed: {exc}") from exc
     files: list[Path] = []
@@ -139,6 +147,7 @@ def create_portable_archive(
     binary_name: str,
     license_dir: Path,
     output: Path,
+    python_license: Path | None = None,
 ) -> Path:
     """Create and re-open a portable ZIP with an exact file inventory."""
     source_binary = _regular_file(binary, label="portable executable")
@@ -149,7 +158,10 @@ def create_portable_archive(
         or archive_binary.name not in {"cortex", "cortex.exe"}
     ):
         raise PortableArchiveError(f"Invalid portable executable name: {binary_name!r}")
-    license_files = _license_files(license_dir)
+    license_files = _license_files(
+        license_dir,
+        python_license=python_license,
+    )
     expected_names = [archive_binary.as_posix()]
     expected_names.extend(
         f"licenses/{path.relative_to(license_dir).as_posix()}" for path in license_files
@@ -226,6 +238,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--binary-name", choices=("cortex", "cortex.exe"), required=True)
     parser.add_argument("--licenses", type=Path, default=_DEFAULT_LICENSES)
+    parser.add_argument(
+        "--python-license",
+        type=Path,
+        help="Explicit CPython runtime license used to verify the license bundle.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     return parser
 
@@ -240,6 +257,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             binary_name=arguments.binary_name,
             license_dir=arguments.licenses,
             output=output,
+            python_license=arguments.python_license,
         )
         print(f"[portable] Built archive with verified licenses: {result}")
         return 0

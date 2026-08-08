@@ -114,7 +114,7 @@ def test_standalone_distribution_contract_is_declared() -> None:
         "3bb231a6a5dc02b95658877318bf61501a7209e9/LICENSE"
     ) in release
     assert "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf" in release
-    assert '--python-license "${CORTEX_CPYTHON_LICENSE}"' in release
+    assert release.count('--python-license "${CORTEX_CPYTHON_LICENSE}"') == 2
     assert "packaging\\build_executable.py" in WINDOWS_BUILD_SCRIPT.read_text(
         encoding="utf-8"
     )
