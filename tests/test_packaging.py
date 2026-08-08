@@ -39,6 +39,7 @@ LAUNCHER = ROOT / "packaging" / "cortex_launcher.py"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 WINDOWS_BUILD_SCRIPT = ROOT / "scripts" / "build_installer.ps1"
 POSIX_BUILD_SCRIPT = ROOT / "scripts" / "build_installer.sh"
+CANONICAL_BUILD_SCRIPT = ROOT / "packaging" / "build_executable.py"
 MODEL_MANIFEST_WORKFLOW = ROOT / ".github" / "workflows" / "generate-model-manifest.yml"
 
 # Human CalVer source format: YYYY.MMDD.XX, zero-padded (e.g. 2026.0714.00).
@@ -92,35 +93,50 @@ def test_standalone_distribution_contract_is_declared() -> None:
     launcher = LAUNCHER.read_text(encoding="utf-8")
     release = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
-    assert project["project"]["optional-dependencies"]["build"] == ["pyinstaller>=6.0"]
+    assert project["project"]["optional-dependencies"]["build"] == [
+        "build==1.5.0",
+        "pyinstaller==6.21.0",
+        "twine==7.0.0",
+        "wheel==0.47.0",
+    ]
     assert "from cli import main" in launcher
     assert launcher.index("truststore.inject_into_ssl()") < launcher.index("from cli import main")
     assert launcher.index("activate_if_embedded()") < launcher.index("from cli import main")
     assert 'tags: ["v*"]' in release
-    assert "--hidden-import truststore" in release
-    assert "--hidden-import offline_models" in release
-    assert '"truststore"' in WINDOWS_BUILD_SCRIPT.read_text(encoding="utf-8")
-    assert '"offline_models"' in WINDOWS_BUILD_SCRIPT.read_text(encoding="utf-8")
-    assert "--hidden-import truststore" in POSIX_BUILD_SCRIPT.read_text(encoding="utf-8")
-    assert "--hidden-import offline_models" in POSIX_BUILD_SCRIPT.read_text(encoding="utf-8")
+    assert "packaging/build_executable.py" in release
+    canonical_builder = CANONICAL_BUILD_SCRIPT.read_text(encoding="utf-8")
+    assert '"truststore"' in canonical_builder
+    assert '"fastembed"' in canonical_builder
+    assert '"--copy-metadata"' in canonical_builder
+    assert "packaging\\build_executable.py" in WINDOWS_BUILD_SCRIPT.read_text(
+        encoding="utf-8"
+    )
+    assert "packaging/build_executable.py" in POSIX_BUILD_SCRIPT.read_text(encoding="utf-8")
     for artifact in (
-        "cortex-windows-x64.exe",
-        "cortex-macos-arm64",
-        "cortex-linux-x64",
+        "cortex-windows-x64.zip",
+        "cortex-macos-arm64.zip",
+        "cortex-linux-x64.zip",
     ):
         assert artifact in release
+    assert "packaging/archive_portable.py" in release
 
 
 def test_model_manifest_workflow_is_manual_and_uploads_only_attestation() -> None:
     workflow = MODEL_MANIFEST_WORKFLOW.read_text(encoding="utf-8")
 
     assert "workflow_dispatch:" in workflow
+    assert "pip install --require-hashes -r requirements-model.lock" in workflow
+    assert 'pip install "huggingface-hub==' not in workflow
+    assert 'pip install "fastembed==' not in workflow
+    assert 'importlib.metadata.version("fastembed")' in workflow
+    assert 'importlib.metadata.version("huggingface-hub")' in workflow
     assert "scripts/model_payload.py fetch" in workflow
     assert "scripts/model_payload.py smoke" in workflow
     assert "scripts/model_payload.py generate" in workflow
-    assert "actions/upload-artifact@v4" in workflow
+    upload_action = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+    assert upload_action in workflow
     assert "path: model-attestation" in workflow
-    upload_step = workflow[workflow.index("uses: actions/upload-artifact@v4") :]
+    upload_step = workflow[workflow.index(f"uses: {upload_action}") :]
     assert "cortex-model-snapshot" not in upload_step
 
 

@@ -1,5 +1,5 @@
 mcp[cli]==1.28.1
-cryptography==49.0.0
+cryptography==50.0.0
 chromadb==1.5.7
 fastembed==0.8.0
 pydantic==2.12.5

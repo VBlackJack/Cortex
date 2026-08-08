@@ -1,0 +1,35 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.VBlackJack/cortex",
+  "description": "Local multi-client RAG server over the Model Context Protocol.",
+  "repository": {
+    "url": "https://github.com/VBlackJack/Cortex",
+    "source": "github"
+  },
+  "version": "2026.808.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "cortex-local-rag",
+      "version": "2026.808.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "serve"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "CORTEX_KB_PATH",
+          "description": "Absolute path to the local knowledge base Cortex indexes and serves.",
+          "isRequired": true
+        }
+      ]
+    }
+  ]
+}

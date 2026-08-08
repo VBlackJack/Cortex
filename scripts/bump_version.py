@@ -26,16 +26,21 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 from re import Pattern
 from re import compile as re_compile
 
 _VERSION_PATH: Path = Path(__file__).resolve().parent.parent / "_version.py"
+_SERVER_JSON_PATH: Path = Path(__file__).resolve().parent.parent / "server.json"
 _VERSION_RE: Pattern[str] = re_compile(
     r'(?P<prefix>__version__\s*=\s*")(?P<value>[^"]*)(?P<suffix>")'
 )
 _CALVER_RE: Pattern[str] = re_compile(r"(?P<year>\d{4})\.(?P<mmdd>\d{4})\.(?P<counter>\d+)")
+_STRICT_CALVER_RE: Pattern[str] = re_compile(
+    r"(?P<year>\d{4})\.(?P<month>\d{2})(?P<day>\d{2})\.(?P<counter>\d{2})"
+)
 
 
 def next_calver(current: str, today: date) -> str:
@@ -66,7 +71,39 @@ def write_version(version_path: Path, new_version: str) -> None:
     updated, replaced = _VERSION_RE.subn(rf"\g<prefix>{new_version}\g<suffix>", text)
     if replaced != 1:
         raise ValueError(f"Expected exactly one __version__ in {version_path}, found {replaced}")
-    version_path.write_text(updated, encoding="utf-8")
+    version_path.write_text(updated, encoding="utf-8", newline="\n")
+
+
+def normalize_calver(version: str) -> str:
+    """Return the PEP 440 normalized form of a Cortex calendar version."""
+    match = _STRICT_CALVER_RE.fullmatch(version)
+    if match is None:
+        raise ValueError(f"Invalid Cortex CalVer {version!r}; expected YYYY.MMDD.XX")
+    year = int(match["year"])
+    month = int(match["month"])
+    day = int(match["day"])
+    counter = int(match["counter"])
+    date(year, month, day)
+    return f"{year}.{int(f'{month:02d}{day:02d}')}.{counter}"
+
+
+def write_server_version(server_path: Path, new_version: str) -> None:
+    """Write the normalized package version to both MCP Registry fields."""
+    raw: object = json.loads(server_path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError(f"{server_path} must contain a JSON object")
+    packages = raw.get("packages")
+    if not isinstance(packages, list) or len(packages) != 1:
+        raise ValueError(f"{server_path} must contain exactly one package object")
+    package = packages[0]
+    if not isinstance(package, dict):
+        raise ValueError(f"{server_path} package entry must contain a JSON object")
+
+    normalized = normalize_calver(new_version)
+    raw["version"] = normalized
+    package["version"] = normalized
+    rendered = json.dumps(raw, indent=2, ensure_ascii=False) + "\n"
+    server_path.write_text(rendered, encoding="utf-8", newline="\n")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -90,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     write_version(_VERSION_PATH, new_version)
+    write_server_version(_SERVER_JSON_PATH, new_version)
     print(f"Bumped __version__: {current} -> {new_version}")
     print(f"Now release: git tag -a v{new_version} -m 'Cortex {new_version}'")
     print(f"            then: git push origin v{new_version}")

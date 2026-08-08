@@ -91,6 +91,7 @@ BundleErrorCode = Literal[
     "header_field_rejected",
     "kdf_parameters_rejected",
     "password_missing",
+    "password_input_invalid",
     "kdf_unavailable",
     "authentication_failed",
     "truncated_archive",

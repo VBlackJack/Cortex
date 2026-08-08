@@ -18,10 +18,9 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
+from importlib import metadata
 from pathlib import Path
 from typing import BinaryIO, TextIO
-
-import fastembed
 
 from bundle_contract import (
     BundleDescribeReport,
@@ -38,6 +37,8 @@ from confluence_writer.constants import (
     EXIT_OK,
 )
 
+_FASTEMBED_VERSION = metadata.version("fastembed")
+
 _EXIT_CODES: dict[BundleErrorCode, int] = {
     "archive_not_found": EXIT_NOT_FOUND,
     "archive_unreadable": EXIT_ERROR,
@@ -46,6 +47,7 @@ _EXIT_CODES: dict[BundleErrorCode, int] = {
     "header_field_rejected": EXIT_INVALID_INPUT,
     "kdf_parameters_rejected": EXIT_INVALID_INPUT,
     "password_missing": EXIT_INVALID_INPUT,
+    "password_input_invalid": EXIT_INVALID_INPUT,
     "kdf_unavailable": EXIT_ERROR,
     "authentication_failed": EXIT_INTEGRITY,
     "truncated_archive": EXIT_INTEGRITY,
@@ -120,7 +122,7 @@ def _describe(path: Path, output: TextIO) -> int:
         claimed_compatible=is_compatible(
             header.contracts,
             header.embedding_fingerprint,
-            fastembed.__version__,
+            _FASTEMBED_VERSION,
         ),
         created_at=header.created_at,
         cortex_version=header.cortex_version,
@@ -138,6 +140,12 @@ def _read_password(input_stream: TextIO) -> str:
     password = line.removesuffix("\n").removesuffix("\r")
     if not line or not password:
         raise BundleFormatError("password_missing", "read_password")
+    try:
+        remainder = input_stream.readline()
+    except OSError as exc:
+        raise BundleFormatError("password_input_invalid", "read_password") from exc
+    if remainder:
+        raise BundleFormatError("password_input_invalid", "read_password")
     return password
 
 
@@ -145,7 +153,7 @@ def _verify(path: Path, input_stream: TextIO, output: TextIO) -> int:
     try:
         with _open_archive(path) as stream:
             password = _read_password(input_stream)
-            verification = verify_bundle(stream, password, fastembed.__version__)
+            verification = verify_bundle(stream, password, _FASTEMBED_VERSION)
     except BundleFormatError as exc:
         _write_report(_verify_failure(exc), output)
         return _EXIT_CODES[exc.code]

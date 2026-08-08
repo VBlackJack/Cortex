@@ -25,21 +25,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.12"
 
       - name: Install locked model runtime
         shell: bash
         run: |
-          hub_version="$(python -c 'import json; print(json.load(open("models.lock"))["huggingface_hub_version"])')"
-          fastembed_version="$(python -c 'import json; print(json.load(open("models.lock"))["fastembed_version"])')"
-          python -m pip install \
-            "huggingface-hub==${hub_version}" \
-            "fastembed==${fastembed_version}"
+          python -m pip install --require-hashes -r requirements-model.lock
+          python - <<'PY'
+          import importlib.metadata
+          import json
+          from pathlib import Path
+
+          expected = json.loads(Path("models.lock").read_text(encoding="utf-8"))
+          assert importlib.metadata.version("fastembed") == expected["fastembed_version"]
+          assert (
+              importlib.metadata.version("huggingface-hub")
+              == expected["huggingface_hub_version"]
+          )
+          PY
 
       - name: Fetch pinned FastEmbed runtime files
         shell: bash
@@ -68,7 +76,7 @@ jobs:
       # Only the small attestation crosses the job boundary. The model payload
       # stays in RUNNER_TEMP and is destroyed with the runner.
       - name: Upload attestation for review
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: cortex-model-attestation
           path: model-attestation

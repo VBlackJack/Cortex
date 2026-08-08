@@ -26,6 +26,8 @@ EN_SPEC = ROOT / "docs" / "en" / "spec.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
 FR_RELEASE_NOTES = ROOT / "docs" / "fr" / "notes-de-version.md"
 EN_RELEASE_NOTES = ROOT / "docs" / "en" / "release-notes.md"
+FR_WINDOWS_INSTALL = ROOT / "docs" / "fr" / "installation-windows.md"
+EN_WINDOWS_INSTALL = ROOT / "docs" / "en" / "windows-install.md"
 FAQ_MARKERS = (
     "install-or-source",
     "data-locations",
@@ -174,3 +176,38 @@ def test_release_notes_are_linked_from_both_indexes_and_readmes() -> None:
         document = path.read_text(encoding="utf-8")
         for link in links:
             assert link in document
+
+
+def test_novice_local_sync_docs_use_the_exact_companion_labels() -> None:
+    paths = (
+        ROOT / "README.md",
+        ROOT / "README.en.md",
+        FR_WINDOWS_INSTALL,
+        EN_WINDOWS_INSTALL,
+        FR_RELEASE_NOTES,
+        EN_RELEASE_NOTES,
+    )
+
+    for path in paths:
+        document = path.read_text(encoding="utf-8")
+        assert "`Base locale`" in document
+        assert "`Synchroniser les documents locaux`" in document
+        assert "`Sync maintenant`" not in document
+        assert "ouvrir `Sync`" not in document
+        assert "open `Sync`" not in document
+
+
+def test_unsigned_installer_docs_verify_sha256_before_smartscreen_bypass() -> None:
+    expectations = {
+        ROOT / "README.md": "`Executer quand meme`",
+        ROOT / "README.en.md": "`Run anyway`",
+        FR_WINDOWS_INSTALL: "`Executer quand meme`",
+        EN_WINDOWS_INSTALL: "`Run anyway`",
+    }
+
+    for path, bypass_label in expectations.items():
+        document = path.read_text(encoding="utf-8")
+        checksum_position = document.index("SHA256SUMS")
+        hash_command_position = document.index("Get-FileHash")
+        bypass_position = document.index(bypass_label)
+        assert checksum_position < hash_command_position < bypass_position

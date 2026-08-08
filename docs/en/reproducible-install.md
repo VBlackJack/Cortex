@@ -4,20 +4,25 @@
 
 [Back to table of contents](index.md)
 
-## Two files, two roles
+## Four contracts, four roles
 
-Cortex separates two levels of dependency pinning:
+Cortex separates four levels of dependency pinning:
 
 | File | Scope | Use |
 |---|---|---|
-| `requirements.txt` | The direct dependencies (6), pinned to exact versions | Single source read by `pyproject.toml`; standard install |
+| `requirements.txt` | Direct runtime dependencies, pinned to exact versions | Single source read by `pyproject.toml`; standard install |
 | `requirements.lock` | The full transitive tree, hash-locked | Reproducible install and supply-chain audit |
+| `requirements-dev.lock` | The runtime + test + build tree, hash-locked | CI, binary builds, and publication |
+| `requirements-model.txt` / `requirements-model.lock` | The `fastembed` and `huggingface-hub` versions declared by `models.lock`, with their hash-locked tree | Isolated model-payload build and attestation |
 
 `requirements.txt` pins the versions of the packages Cortex imports directly but
 lets pip resolve their own dependencies freely. `requirements.lock` additionally
-pins the entire transitive tree and attaches each package's SHA-256 hashes,
-which makes the install byte-for-byte identical and silently refuses any
-substituted artifact.
+pins the entire transitive tree and attaches each package's SHA-256 hashes.
+`requirements-dev.lock` applies the same contract to the tools that test and
+build the artifacts. Pip therefore refuses any unlisted artifact instead of
+silently resolving a different version in CI.
+The model lock stays separate because its download tool is attested with the
+payload and may differ from the transitive version used by Cortex.
 
 The lock is universal (cross-platform): a single file covers Windows, Linux and
 macOS through environment markers. It captures the conditional branches a
@@ -45,7 +50,7 @@ pip install --require-hashes --dry-run -r requirements.lock
 The standard install described in [Setup](setup.md) remains valid for everyday
 use; the lock is the strict mode, not a mandatory replacement.
 
-## Regenerate the lock when requirements.txt changes
+## Regenerate the locks
 
 As soon as `requirements.txt` changes (bumping a dependency, adding, removing),
 `requirements.lock` must be regenerated, otherwise the two drift apart. The
@@ -66,10 +71,32 @@ Things to watch:
 - Commit `requirements.lock` together with the matching `requirements.txt` in
   the same commit.
 
+When the `dev` or `build` extras in `pyproject.toml` change, or after regenerating
+the runtime lock, regenerate the build lock too:
+
+```powershell
+uv pip compile --universal --generate-hashes --python-version 3.10 --extra dev --extra build pyproject.toml -o requirements-dev.lock
+```
+
+CI installs `requirements-dev.lock` with `--require-hashes`, then installs the
+project with `--no-build-isolation --no-deps`. Tests and binaries therefore use
+the exact audited tree without a second implicit resolution.
+
+When `fastembed_version` or `huggingface_hub_version` changes in `models.lock`,
+align `requirements-model.txt`, then regenerate its lock:
+
+```powershell
+uv pip compile --universal --generate-hashes --python-version 3.10 requirements-model.txt -o requirements-model.lock
+```
+
+The release installs this lock in an isolated virtual environment and rejects
+the payload unless the installed version exactly matches `models.lock`.
+
 ## Supply-chain audit in CI
 
-The CI `dependency-audit` job runs `pip-audit` on `requirements.lock`, so on the
-full transitive tree rather than the direct dependencies alone. This maximizes
+The CI `dependency-audit` job runs `pip-audit` on `requirements.lock` with
+Python 3.10 and 3.12, covering both variants of the full transitive tree rather
+than the direct dependencies alone. This maximizes
 coverage for known vulnerabilities. One vulnerability is explicitly ignored and
 documented in the workflow (`PYSEC-2026-311`, the ChromaDB HTTP server path that
 Cortex never uses, see [Security](security.md)); any other vulnerability fails

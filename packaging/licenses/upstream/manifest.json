@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "licenses": [
+    {
+      "distribution": "flatbuffers",
+      "version": "25.12.19",
+      "file": "flatbuffers-25.12.19.LICENSE",
+      "source_url": "https://raw.githubusercontent.com/google/flatbuffers/v25.12.19/LICENSE",
+      "git_ref": "v25.12.19",
+      "git_commit": "7e163021e59cca4f8e1e35a7c828b5c6b7915953",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "distribution": "loguru",
+      "version": "0.7.3",
+      "file": "loguru-0.7.3.LICENSE",
+      "source_url": "https://raw.githubusercontent.com/Delgan/loguru/0.7.3/LICENSE",
+      "git_ref": "0.7.3",
+      "git_commit": "ae3bfd1b85b6b4a3db535f69b975687c79498be4",
+      "sha256": "b35d026cc7aca9d5859a02eb87ddf7a386a24c986838651bd1f283f94e003327"
+    },
+    {
+      "distribution": "tokenizers",
+      "version": "0.23.1",
+      "file": "tokenizers-0.23.1.LICENSE",
+      "source_url": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.23.1/LICENSE",
+      "git_ref": "v0.23.1",
+      "git_commit": "7f1623b90b5adfb9bc327d4c3468d2f70bbce262",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  ]
+}

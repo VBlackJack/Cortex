@@ -7,6 +7,23 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0808-00 -->
+## 2026.0808.00 - 2026-08-08
+
+- Un seul installeur Windows fournit maintenant Cortex, les modeles hors ligne
+  et Cortex Companion. Aucun Python ni runtime .NET separe n'est requis.
+- Companion devient le parcours recommande sans terminal : `Réglages` detecte
+  Cortex et permet de choisir le dossier documentaire ; `Base locale` puis
+  `Synchroniser les documents locaux` lancent et suivent une synchronisation.
+- L'export, l'import et le retour arriere des bases sont reportes hors de cette
+  release. L'index local peut etre reconstruit depuis le Vault et les sources
+  configurees en relancant une synchronisation.
+- Les utilisateurs Python avances peuvent installer le paquet public
+  `cortex-local-rag` depuis PyPI. Les releases publient aussi la declaration du
+  serveur dans le registre MCP.
+- La chaine de release construit et teste l'installeur unifie avant de publier
+  les paquets et artefacts.
+
 <!-- release:notice-2026-08-06 -->
 ## Avis du 2026-08-06 - historique publie reecrit
 
@@ -30,7 +47,7 @@ d'abord tout travail a conserver.
 Aucun octet de contenu n'a change et cette reecriture ne modifie aucun
 comportement. Les 121 arbres sont byte-identiques dans le meme ordre, les dates
 auteur et committer sont inchangees, et `git fsck` a rendu le code 0. Les cinq
-tags ont ete repointes. Les cinq Releases GitHub et leurs 30 assets restent
+tags ont ete repointes. Les cinq Releases GitHub et leurs artefacts restent
 telechargeables.
 
 <!-- release:2026-0805-00 -->

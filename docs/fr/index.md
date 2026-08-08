@@ -25,8 +25,8 @@ demandes, selon sa propre politique.
 
 - [Installation](setup.md) : prerequis, `install.bat`, connexion des clients
   MCP (Claude, Codex, Gemini).
-- [Installation Windows](installation-windows.md) : assistant sans Python,
-  choix du corpus, raccourcis et deploiement silencieux.
+- [Installation Windows](installation-windows.md) : installateur unique sans
+  Python pour Cortex, Companion et les modeles, puis deploiement silencieux.
 - [Distribution autonome](distribution.md) : executables one-file, builds
   PyInstaller locaux et artefacts de release.
 - [Guide d'utilisation](user-guide.md) : indexation et sync, recherche, les

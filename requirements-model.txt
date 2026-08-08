@@ -1,0 +1,3 @@
+# Must match models.lock exactly.
+fastembed==0.8.0
+huggingface-hub==1.9.2

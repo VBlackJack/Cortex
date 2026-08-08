@@ -19,12 +19,83 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  MCP_SERVER_JSON_PATH: server.json
+  MCP_SERVER_NAME: io.github.VBlackJack/cortex
+  PYPI_PACKAGE: cortex-local-rag
+  PYPI_API_BASE_URL: https://pypi.org/pypi
+  MCP_REGISTRY_API_BASE_URL: https://registry.modelcontextprotocol.io
+  MCP_PUBLISHER_DOWNLOAD_BASE_URL: https://github.com/modelcontextprotocol/registry/releases/download
+  MCP_PUBLISHER_VERSION: v1.8.1
+  MCP_PUBLISHER_ASSET: mcp-publisher_linux_amd64.tar.gz
+  MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+  MCP_PYPI_POLL_ATTEMPTS: "12"
+  MCP_PYPI_POLL_INTERVAL_SECONDS: "10"
+  MCP_CURL_CONNECT_TIMEOUT_SECONDS: "10"
+  MCP_CURL_MAX_TIME_SECONDS: "30"
+  MCP_DOWNLOAD_MAX_TIME_SECONDS: "120"
 
 jobs:
+  verify:
+    name: Verify release source
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+
+      - name: Install the locked verification environment
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock
+          python -m pip install --no-build-isolation --no-deps -e .
+
+      - name: Verify the tag matches the single version source
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          source_version="$(python -c 'from _version import __version__; print(__version__)')"
+          test "${GITHUB_REF_NAME}" = "v${source_version}"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          from packaging.version import Version
+
+          from _version import __version__
+
+          descriptor = json.loads(Path("server.json").read_text(encoding="utf-8"))
+          expected = str(Version(__version__))
+          assert descriptor["version"] == expected
+          packages = descriptor["packages"]
+          assert len(packages) == 1
+          assert packages[0]["version"] == expected
+          assert packages[0]["identifier"] == "cortex-local-rag"
+          PY
+
+      - name: Run release gates
+        run: |
+          python -m ruff check .
+          python -m mypy
+          python -m pytest tests/ -q
+          python -m pip_audit -r requirements.lock --ignore-vuln PYSEC-2026-311
+          python -m pip_audit -r requirements-dev.lock --ignore-vuln PYSEC-2026-311
+          python -m pip_audit -r requirements-model.lock
+          bash -n scripts/build_installer.sh
+
   build:
     name: Build executable (${{ matrix.os }})
+    needs: verify
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -33,64 +104,158 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact: cortex-windows-x64.exe
+            artifact: cortex-windows-x64-portable
+            archive: cortex-windows-x64.zip
             binary: dist/cortex.exe
+            binary_name: cortex.exe
+            expected_machine: AMD64
           - os: macos-latest
-            artifact: cortex-macos-arm64
+            artifact: cortex-macos-arm64-portable
+            archive: cortex-macos-arm64.zip
             binary: dist/cortex
+            binary_name: cortex
+            expected_machine: arm64
           - os: ubuntu-latest
-            artifact: cortex-linux-x64
+            artifact: cortex-linux-x64-portable
+            archive: cortex-linux-x64.zip
             binary: dist/cortex
+            binary_name: cortex
+            expected_machine: x86_64
     steps:
       - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+
+      - name: Checkout matching Cortex Companion source
+        if: runner.os == 'Windows'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+        with:
+          repository: VBlackJack/CortexCompanion
+          ref: ${{ github.ref_type == 'tag' && github.ref_name || 'main' }}
+          path: companion-source
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: requirements-dev.lock
 
-      - name: Install project and build tooling
-        run: python -m pip install -e ".[build]"
+      - name: Verify runner architecture matches the release asset name
+        shell: bash
+        env:
+          EXPECTED_MACHINE: ${{ matrix.expected_machine }}
+        run: |
+          python - <<'PY'
+          import os
+          import platform
+
+          actual = platform.machine()
+          expected = os.environ["EXPECTED_MACHINE"]
+          if actual.casefold() != expected.casefold():
+              raise SystemExit(
+                  f"Runner architecture mismatch: expected {expected!r}, got {actual!r}."
+              )
+          print(f"Verified release runner architecture: {actual}")
+          PY
+
+      - name: Install the locked project and build tooling
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock
+          python -m pip install --no-build-isolation --no-deps -e .
 
       - name: Build standalone executable
         shell: bash
+        run: python packaging/build_executable.py --clean
+
+      - name: Set up .NET 10
+        if: runner.os == 'Windows'
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1  # v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Verify matching Cortex Companion source
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: companion-source
         run: |
-          python -m PyInstaller \
-            --noconfirm \
-            --onefile \
-            --name cortex \
-            --paths . \
-            --collect-all chromadb \
-            --collect-all onnxruntime \
-            --collect-all fastembed \
-            --collect-all tokenizers \
-            --hidden-import server \
-            --hidden-import indexer \
-            --hidden-import doctor \
-            --hidden-import setup_wizard \
-            --hidden-import setup_config \
-            --hidden-import sync_hash_aware \
-            --hidden-import sync_summary \
-            --hidden-import lexical_index \
-            --hidden-import reranker \
-            --hidden-import chroma_client \
-            --hidden-import chunker \
-            --hidden-import chunker_pdf \
-            --hidden-import chunker_utils \
-            --hidden-import config \
-            --hidden-import cortex_logging \
-            --hidden-import data_home \
-            --hidden-import dependencies \
-            --hidden-import embedding_fingerprint \
-            --hidden-import freshness \
-            --hidden-import offline_models \
-            --hidden-import user_config \
-            --hidden-import write_lock \
-            --hidden-import truststore \
-            --hidden-import _version \
-            packaging/cortex_launcher.py
+          & dotnet restore CortexCompanion.sln --locked-mode
+          if ($LASTEXITCODE -ne 0) {
+            throw "Cortex Companion restore failed with exit code $LASTEXITCODE."
+          }
+          & dotnet format CortexCompanion.sln --no-restore --verify-no-changes
+          if ($LASTEXITCODE -ne 0) {
+            throw "Cortex Companion format gate failed with exit code $LASTEXITCODE."
+          }
+          & .\tools\ci-csharp-style.ps1
+          if ($LASTEXITCODE -ne 0) {
+            throw "Cortex Companion style gate failed with exit code $LASTEXITCODE."
+          }
+          & dotnet build CortexCompanion.sln `
+            --configuration Release `
+            --no-restore `
+            -warnaserror
+          if ($LASTEXITCODE -ne 0) {
+            throw "Cortex Companion build failed with exit code $LASTEXITCODE."
+          }
+          & dotnet test CortexCompanion.sln `
+            --configuration Release `
+            --no-build `
+            --no-restore
+          if ($LASTEXITCODE -ne 0) {
+            throw "Cortex Companion tests failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Publish matching self-contained Cortex Companion
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          function Get-CompanionVersion {
+            param([Parameter(Mandatory = $true)][string]$ExecutablePath)
+
+            $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+            $startInfo.FileName = $ExecutablePath
+            [void]$startInfo.ArgumentList.Add("--version")
+            $startInfo.UseShellExecute = $false
+            $startInfo.RedirectStandardOutput = $true
+            $startInfo.RedirectStandardError = $true
+            $startInfo.CreateNoWindow = $true
+            $process = [System.Diagnostics.Process]::new()
+            $process.StartInfo = $startInfo
+            try {
+              if (-not $process.Start()) {
+                throw "Cortex Companion version process did not start."
+              }
+              $standardOutput = $process.StandardOutput.ReadToEnd()
+              $standardError = $process.StandardError.ReadToEnd()
+              $process.WaitForExit()
+              if ($process.ExitCode -ne 0) {
+                throw (
+                  "Cortex Companion --version failed with exit code " +
+                  "$($process.ExitCode): $($standardError.Trim())"
+                )
+              }
+              return $standardOutput.Trim()
+            }
+            finally {
+              $process.Dispose()
+            }
+          }
+
+          $project = "companion-source\src\CortexCompanion\CortexCompanion.csproj"
+          & dotnet publish $project `
+            --configuration Release `
+            --no-restore `
+            -p:PublishProfile=win-x64 `
+            --output dist-companion
+          if ($LASTEXITCODE -ne 0) {
+            throw "Cortex Companion publish failed with exit code $LASTEXITCODE."
+          }
+          $version = (& python -c "from _version import __version__; print(__version__)").Trim()
+          $companionVersion = Get-CompanionVersion `
+            -ExecutablePath ".\dist-companion\CortexCompanion.exe"
+          if ($companionVersion -cne $version) {
+            throw "Cortex Companion version mismatch: expected '$version', got '$companionVersion'."
+          }
 
       - name: Smoke-test CLI and server imports
         shell: bash
@@ -186,12 +351,29 @@ jobs:
           $hubVersion = & python -c `
             'import json; print(json.load(open("models.lock"))["huggingface_hub_version"])'
           $hubVersion = $hubVersion.Trim()
-          & python -m pip install "huggingface-hub==$hubVersion"
+          $modelToolVenv = Join-Path $env:RUNNER_TEMP "cortex-model-tools"
+          & python -m venv $modelToolVenv
           if ($LASTEXITCODE -ne 0) {
-            throw "Installing huggingface-hub $hubVersion failed with exit code $LASTEXITCODE."
+            throw "Creating the isolated model-tool environment failed."
+          }
+          $modelToolPython = Join-Path $modelToolVenv "Scripts\python.exe"
+          & $modelToolPython -m pip install `
+            --require-hashes `
+            -r requirements-model.lock
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installing the locked model toolchain failed with exit code $LASTEXITCODE."
+          }
+          $installedHubVersion = (& $modelToolPython -c `
+            'import importlib.metadata; print(importlib.metadata.version("huggingface-hub"))'
+          ).Trim()
+          if ($installedHubVersion -cne $hubVersion) {
+            throw (
+              "Model toolchain mismatch: models.lock requires '$hubVersion', " +
+              "requirements-model.lock installed '$installedHubVersion'."
+            )
           }
           $payload = Join-Path $env:RUNNER_TEMP "cortex-model-payload"
-          & python scripts/model_payload.py prepare --output $payload
+          & $modelToolPython scripts/model_payload.py prepare --output $payload
           if ($LASTEXITCODE -ne 0) {
             throw "Preparing the verified model payload failed with exit code $LASTEXITCODE."
           }
@@ -209,6 +391,7 @@ jobs:
           }
           & python packaging\windows\build_installer.py `
             --app-version $version `
+            --companion-payload-dir dist-companion `
             --model-payload-dir $env:CORTEX_MODEL_PAYLOAD_DIR `
             --iscc $iscc
           if ($LASTEXITCODE -ne 0) {
@@ -282,8 +465,25 @@ jobs:
             throw "Offline installer smoke failed with exit code $($installProcess.ExitCode)."
           }
           $installed = Join-Path $env:LOCALAPPDATA "Programs\Cortex\cortex.exe"
+          $installedRoot = Join-Path $env:LOCALAPPDATA "Programs\Cortex"
+          $installedCompanion = Join-Path `
+            $env:LOCALAPPDATA `
+            "Programs\Cortex\Companion\CortexCompanion.exe"
+          $installedLicenseRoot = Join-Path $installedRoot "licenses"
+          $installedCompanionRoot = Join-Path $installedRoot "Companion"
           foreach ($required in @(
             $installed,
+            $installedCompanion,
+            (Join-Path $installedLicenseRoot "Cortex-LICENSE.txt"),
+            (Join-Path $installedLicenseRoot "PYTHON_LICENSE.txt"),
+            (Join-Path $installedLicenseRoot "THIRD_PARTY_LICENSES.json"),
+            (Join-Path $installedLicenseRoot "SHA256SUMS"),
+            (Join-Path $installedCompanionRoot "CortexCompanion-LICENSE.txt"),
+            (Join-Path $installedCompanionRoot "LICENSE.txt"),
+            (Join-Path $installedCompanionRoot "ThirdPartyNotices.txt"),
+            (Join-Path $installedCompanionRoot "WPF-LICENSE.txt"),
+            (Join-Path $installedCompanionRoot "WPF-ThirdPartyNotices.txt"),
+            (Join-Path $installedCompanionRoot "Tomlyn-LICENSE.txt"),
             (Join-Path $modelRoot "manifest.json"),
             (Join-Path $modelRoot "licenses\Apache-2.0.txt"),
             (Join-Path $modelRoot "licenses\THIRD_PARTY_NOTICES.md")
@@ -291,6 +491,46 @@ jobs:
             if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
               throw "Offline installer did not install required file: $required"
             }
+          }
+          & python packaging\license_bundle.py `
+            --verify-only `
+            --output-dir $installedLicenseRoot
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed redistribution license bundle verification failed."
+          }
+          $installedVersion = (& $installed --version).Trim()
+          $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+          $startInfo.FileName = $installedCompanion
+          [void]$startInfo.ArgumentList.Add("--version")
+          $startInfo.UseShellExecute = $false
+          $startInfo.RedirectStandardOutput = $true
+          $startInfo.RedirectStandardError = $true
+          $startInfo.CreateNoWindow = $true
+          $versionProcess = [System.Diagnostics.Process]::new()
+          $versionProcess.StartInfo = $startInfo
+          try {
+            if (-not $versionProcess.Start()) {
+              throw "Installed Cortex Companion version process did not start."
+            }
+            $companionStandardOutput = $versionProcess.StandardOutput.ReadToEnd()
+            $companionStandardError = $versionProcess.StandardError.ReadToEnd()
+            $versionProcess.WaitForExit()
+            if ($versionProcess.ExitCode -ne 0) {
+              throw (
+                "Installed Cortex Companion --version failed with exit code " +
+                "$($versionProcess.ExitCode): $($companionStandardError.Trim())"
+              )
+            }
+            $installedCompanionVersion = $companionStandardOutput.Trim()
+          }
+          finally {
+            $versionProcess.Dispose()
+          }
+          if ($installedVersion -cne $installedCompanionVersion) {
+            throw (
+              "Installed payload version mismatch: CLI '$installedVersion', " +
+              "Companion '$installedCompanionVersion'."
+            )
           }
           $searchOutput = & $installed sync --search "offline installer smoke" 2>&1
           if ($LASTEXITCODE -ne 0) {
@@ -336,7 +576,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p out
-          cp "${{ matrix.binary }}" "out/${{ matrix.artifact }}"
+          python packaging/archive_portable.py \
+            --binary "${{ matrix.binary }}" \
+            --binary-name "${{ matrix.binary_name }}" \
+            --licenses dist/licenses \
+            --output "out/${{ matrix.archive }}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             cp "dist-installer/Cortex-Setup.exe" "out/Cortex-Setup.exe"
           fi
@@ -349,9 +593,164 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  build-dist:
+    name: Build Python distributions
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release-metadata.outputs.version }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+
+      - name: Install the locked build toolchain
+        run: python -m pip install --require-hashes -r requirements-dev.lock
+
+      - name: Set reproducible release metadata
+        id: release-metadata
+        shell: bash
+        run: |
+          version="$(python -c 'from packaging.version import Version; from _version import __version__; print(Version(__version__))')"
+          source_date_epoch="$(git show -s --format=%ct HEAD)"
+          test -n "${version}"
+          test "${source_date_epoch}" -gt 0
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "SOURCE_DATE_EPOCH=${source_date_epoch}" >> "${GITHUB_ENV}"
+
+      - name: Build distributions
+        run: python -m build --wheel --no-isolation
+
+      - name: Check distribution metadata
+        run: python -m twine check dist/*
+
+      - name: Smoke-test installed wheel
+        shell: bash
+        run: |
+          wheel="$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          test -n "${wheel}"
+          python -m venv wheel-smoke
+          wheel-smoke/bin/python -m pip install --require-hashes -r requirements.lock
+          wheel-smoke/bin/python -m pip install --no-deps "${wheel}"
+          wheel-smoke/bin/cortex --version
+          wheel-smoke/bin/cortex --help
+
+      - name: Validate registry publisher script
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+          shellcheck scripts/mcp_registry_publish.sh
+          bash scripts/mcp_registry_publish.sh --validate-only
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6
+        with:
+          name: pypi-distributions
+          path: dist/*
+          if-no-files-found: error
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build-dist
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
+        with:
+          name: pypi-distributions
+          path: dist
+
+      - name: Verify exact PyPI publication state
+        id: pypi-state
+        env:
+          RELEASE_VERSION: ${{ needs.build-dist.outputs.version }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          from urllib.error import HTTPError
+          from urllib.request import Request, urlopen
+
+          package = os.environ["PYPI_PACKAGE"]
+          version = os.environ["RELEASE_VERSION"]
+          base_url = os.environ["PYPI_API_BASE_URL"].rstrip("/")
+          request = Request(
+              f"{base_url}/{package}/{version}/json",
+              headers={"Accept": "application/json"},
+          )
+          published: dict[str, str] | None
+          try:
+              with urlopen(request, timeout=30) as response:
+                  payload = json.load(response)
+          except HTTPError as error:
+              if error.code != 404:
+                  raise
+              published = None
+          else:
+              if payload.get("info", {}).get("version") != version:
+                  raise SystemExit("PyPI returned an unexpected release version.")
+              published = {
+                  item["filename"]: item["digests"]["sha256"]
+                  for item in payload.get("urls", [])
+              }
+              if not published:
+                  raise SystemExit("PyPI returned a release without distribution files.")
+
+          local = {
+              path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in sorted(Path("dist").iterdir())
+              if path.is_file()
+          }
+          if not local:
+              raise SystemExit("No local distributions were downloaded.")
+          if published is not None and published != local:
+              raise SystemExit(
+                  "PyPI already has this version with different files or SHA-256 digests."
+              )
+
+          exists = "true" if published is not None else "false"
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"exists={exists}\n")
+          PY
+
+      - name: Publish distributions
+        if: steps.pypi-state.outputs.exists != 'true'
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # v1.14.0
+        with:
+          packages-dir: dist/
+
+  publish-mcp-registry:
+    name: Publish server metadata to the MCP Registry
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+
+      - name: Publish committed server metadata after PyPI
+        run: bash scripts/mcp_registry_publish.sh
+
   release:
     name: Attach binaries to the GitHub Release
-    needs: build
+    needs: [build-dist, publish-mcp-registry]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
@@ -364,6 +763,33 @@ jobs:
         with:
           path: dist-artifacts
           merge-multiple: true
+
+      - name: Verify exact release asset set
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.build-dist.outputs.version }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          expected = {
+              "Cortex-Setup.exe",
+              "cortex-linux-x64.zip",
+              "cortex-macos-arm64.zip",
+              "cortex-windows-x64.zip",
+              f"cortex_local_rag-{os.environ['RELEASE_VERSION']}-py3-none-any.whl",
+          }
+          root = Path("dist-artifacts")
+          actual = {path.name for path in root.iterdir() if path.is_file()}
+          non_files = sorted(path.name for path in root.iterdir() if not path.is_file())
+          if actual != expected or non_files:
+              raise SystemExit(
+                  f"Release asset set mismatch: expected={sorted(expected)}, "
+                  f"actual={sorted(actual)}, non_files={non_files}"
+              )
+          print(f"Verified exact release asset set: {sorted(actual)}")
+          PY
 
       - name: Generate SHA256 checksums
         shell: bash

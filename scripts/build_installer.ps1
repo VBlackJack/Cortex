@@ -1,3 +1,4 @@
+#Requires -Version 5.1
 # Copyright 2026 Julien Bombled
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,13 +17,13 @@
 .SYNOPSIS
     Build the standalone Cortex executable on Windows with PyInstaller.
 .DESCRIPTION
-    Produces a single-file cortex.exe containing the CLI and MCP server. Install
-    the build extra first with: python -m pip install -e ".[build]".
+    Delegates to the canonical Python builder, which derives every hidden
+    import from pyproject.toml and produces a single-file cortex.exe.
 .PARAMETER Python
     Python interpreter used for the build. Defaults to the repository virtual
     environment and falls back to python on PATH.
 .PARAMETER OutputDir
-    Directory receiving the executable. Defaults to dist.
+    Dedicated directory receiving the executable. Must resolve to repository dist.
 .PARAMETER Clean
     Remove previous PyInstaller build and output directories before building.
 .EXAMPLE
@@ -41,94 +42,55 @@ param(
     [switch]$Clean
 )
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$Entry = Join-Path $RepoRoot "packaging\cortex_launcher.py"
-$WorkPath = Join-Path $RepoRoot "build\pyinstaller"
-$DistPath = Join-Path $RepoRoot $OutputDir
-$ExeName = "cortex"
-$CollectedPackages = @("chromadb", "onnxruntime", "fastembed", "tokenizers")
-$HiddenImports = @(
-    "server",
-    "indexer",
-    "doctor",
-    "setup_wizard",
-    "setup_config",
-    "sync_hash_aware",
-    "sync_summary",
-    "lexical_index",
-    "reranker",
-    "chroma_client",
-    "chunker",
-    "chunker_pdf",
-    "chunker_utils",
-    "config",
-    "cortex_logging",
-    "data_home",
-    "dependencies",
-    "embedding_fingerprint",
-    "freshness",
-    "offline_models",
-    "user_config",
-    "write_lock",
-    "truststore",
-    "_version"
-)
+[string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+[string]$Builder = Join-Path $RepoRoot "packaging\build_executable.py"
 
 try {
-    if (-not (Test-Path -LiteralPath $Python)) {
-        Write-Warning "Interpreter '$Python' not found; falling back to 'python' on PATH."
-        $Python = "python"
+    [string]$PythonCommand = $Python
+    if (-not [IO.Path]::IsPathRooted($PythonCommand)) {
+        [string]$RepositoryCandidate = Join-Path $RepoRoot $PythonCommand
+        if (Test-Path -LiteralPath $RepositoryCandidate -PathType Leaf) {
+            $PythonCommand = $RepositoryCandidate
+        }
+        elseif ($PythonCommand -ceq ".venv\Scripts\python.exe") {
+            Write-Warning (
+                "Interpreter '$PythonCommand' was not found in the repository; " +
+                "falling back to 'python' on PATH."
+            )
+            $PythonCommand = "python"
+        }
     }
-    if (-not (Test-Path -LiteralPath $Entry)) {
-        throw "Entry script not found: $Entry"
+    if (-not (Test-Path -LiteralPath $PythonCommand -PathType Leaf)) {
+        [System.Management.Automation.CommandInfo]$DiscoveredPython =
+            Get-Command $PythonCommand -ErrorAction Stop
+        $PythonCommand = $DiscoveredPython.Source
+    }
+    if (-not (Test-Path -LiteralPath $Builder -PathType Leaf)) {
+        throw "Canonical build script not found: $Builder"
     }
 
-    & $Python -c "import PyInstaller" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw "PyInstaller is not installed. Run: $Python -m pip install -e `".[build]`""
+    [string[]]$Arguments = @($Builder, "--output-dir", $OutputDir)
+    if ($Clean.IsPresent) {
+        $Arguments += "--clean"
     }
 
-    if ($Clean) {
-        foreach ($path in @($WorkPath, $DistPath)) {
-            if ((Test-Path -LiteralPath $path) -and $PSCmdlet.ShouldProcess($path, "Remove")) {
-                Remove-Item -LiteralPath $path -Recurse -Force
+    if ($PSCmdlet.ShouldProcess($RepoRoot, "Build the standalone Cortex executable")) {
+        Push-Location $RepoRoot
+        try {
+            & $PythonCommand @Arguments
+            if ($LASTEXITCODE -ne 0) {
+                throw "Canonical executable build failed with exit code $LASTEXITCODE."
             }
         }
-    }
-
-    $arguments = @(
-        "-m", "PyInstaller",
-        "--noconfirm",
-        "--onefile",
-        "--name", $ExeName,
-        "--paths", $RepoRoot,
-        "--distpath", $DistPath,
-        "--workpath", $WorkPath,
-        "--specpath", $WorkPath
-    )
-    foreach ($package in $CollectedPackages) {
-        $arguments += @("--collect-all", $package)
-    }
-    foreach ($module in $HiddenImports) {
-        $arguments += @("--hidden-import", $module)
-    }
-    $arguments += $Entry
-
-    if ($PSCmdlet.ShouldProcess($Entry, "Build cortex.exe")) {
-        & $Python @arguments
-        if ($LASTEXITCODE -ne 0) {
-            throw "PyInstaller build failed with exit code $LASTEXITCODE."
+        finally {
+            Pop-Location
         }
-        $exePath = Join-Path $DistPath "$ExeName.exe"
-        if (-not (Test-Path -LiteralPath $exePath)) {
-            throw "Build reported success but $exePath is missing."
-        }
-        Write-Output "Built standalone executable: $exePath"
     }
 }
 catch {
-    Write-Error "Build failed: $_"
+    Write-Error "Build failed: $($_.Exception.Message)"
     exit 1
 }

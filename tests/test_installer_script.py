@@ -86,6 +86,37 @@ def test_uninstaller_unregisters_before_removing_user_path() -> None:
     assert "PathWithoutEntry" in script
 
 
+def test_uninstaller_cleans_only_the_companion_owned_task_before_unregistering() -> None:
+    script = INSTALLER.read_text(encoding="utf-8")
+    uninstall = script[script.index("procedure CurUninstallStepChanged") :]
+
+    cleanup = script[script.index("procedure RunCompanionUninstallCleanup") :]
+    assert "ExecAndCaptureOutput(" in cleanup
+    assert "TExecOutput" in cleanup
+    assert "--uninstall-cleanup" in cleanup
+    assert "CleanupOutput.Error" in cleanup
+    assert "GetArrayLength(CleanupOutput.StdErr) <> 0" in cleanup
+    assert "GetArrayLength(CleanupOutput.StdOut) <> 1" in cleanup
+    for status in (
+        "cleanup=deleted",
+        "cleanup=absent",
+        "cleanup=foreign-preserved",
+        "cleanup=failed",
+        "cleanup=cancelled",
+    ):
+        assert status in cleanup
+    assert "(ResultCode = 0)" in cleanup
+    assert "(ResultCode = 1)" in cleanup
+    assert "CompanionCleanupFailed" in script
+    assert "schtasks" not in script.casefold()
+    assert uninstall.index("RunCompanionUninstallCleanup;") < uninstall.index(
+        "unregister --yes --clients all"
+    )
+    assert uninstall.index("unregister --yes --clients all") < uninstall.index(
+        "RemoveAppFromUserPath"
+    )
+
+
 def test_release_builds_and_attaches_windows_installer() -> None:
     workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
@@ -107,6 +138,21 @@ def test_installer_embeds_models_in_the_stable_per_user_cache() -> None:
     assert 'Source: "{#ModelPayloadDir}\\*"' in script
     assert 'DestDir: "{localappdata}\\Cortex\\models"' in script
     assert "recursesubdirs createallsubdirs" in script
+
+
+def test_installer_embeds_and_launches_the_version_checked_companion() -> None:
+    script = INSTALLER.read_text(encoding="utf-8")
+
+    assert "#ifndef CompanionPayloadDir" in script
+    assert "#ifndef CompanionPayloadVersionVerified" in script
+    assert "#if !SameStr(AppVersion, CompanionPayloadVersionVerified)" in script
+    assert 'Source: "{#CompanionPayloadDir}\\*"' in script
+    assert 'DestDir: "{app}\\Companion"' in script
+    assert 'Name: "{group}\\Cortex Companion"' in script
+    assert 'Filename: "{app}\\Companion\\CortexCompanion.exe"' in script
+    assert "Flags: nowait postinstall skipifsilent" in script
+    assert "Check: ShouldLaunchCompanion" in script
+    assert "CloseApplicationsFilter=cortex.exe,CortexCompanion.exe" in script
 
 
 def test_installer_embeds_apache_license_and_model_notices() -> None:
@@ -131,6 +177,38 @@ def test_installer_embeds_apache_license_and_model_notices() -> None:
         assert value in notices
 
 
+def test_installer_embeds_the_generated_runtime_license_bundle() -> None:
+    script = INSTALLER.read_text(encoding="utf-8")
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert 'Source: "..\\..\\dist\\licenses\\*"' in script
+    assert 'DestDir: "{app}\\licenses"' in script
+    assert "recursesubdirs createallsubdirs" in script
+    for required in (
+        "Cortex-LICENSE.txt",
+        "PYTHON_LICENSE.txt",
+        "THIRD_PARTY_LICENSES.json",
+        "SHA256SUMS",
+    ):
+        assert required in workflow
+    assert "packaging\\license_bundle.py `" in workflow
+    assert "--verify-only `" in workflow
+
+
+def test_installer_smoke_requires_all_companion_redistribution_notices() -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    for required in (
+        "CortexCompanion-LICENSE.txt",
+        "LICENSE.txt",
+        "ThirdPartyNotices.txt",
+        "WPF-LICENSE.txt",
+        "WPF-ThirdPartyNotices.txt",
+        "Tomlyn-LICENSE.txt",
+    ):
+        assert f'(Join-Path $installedCompanionRoot "{required}")' in workflow
+
+
 def test_release_verifies_a_fresh_fetch_without_generating_its_manifest() -> None:
     workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
@@ -145,7 +223,7 @@ def test_release_publishes_checksums_and_attested_artifacts_once() -> None:
     workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
     for pinned_action in (
-        "actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd",
+        "actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
         "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
         "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f",
         "actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131",

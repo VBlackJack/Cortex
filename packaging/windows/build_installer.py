@@ -20,6 +20,7 @@ import argparse
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -28,11 +29,16 @@ from typing import Final
 
 _REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
 _DEFAULT_PAYLOAD: Final[Path] = _REPO_ROOT / "dist" / "cortex.exe"
+_DEFAULT_COMPANION_PAYLOAD_DIR: Final[Path] = _REPO_ROOT / "dist-companion"
+_COMPANION_EXECUTABLE_NAME: Final[str] = "CortexCompanion.exe"
 _INSTALLER_SCRIPT: Final[Path] = Path(__file__).with_name("cortex-installer.iss")
 _INSTALLER_OUTPUT: Final[Path] = _REPO_ROOT / "dist-installer" / "Cortex-Setup.exe"
 _VERSION_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\d{4}\.\d{4}\.\d{2}$")
 _RESERVED_ISCC_DEFINES: Final[tuple[str, ...]] = (
     "/dappversion",
+    "/dcompanionpayloaddir",
+    "/dcompanionpayloadversionverified",
+    "/dmodelpayloaddir",
     "/dpayloadversionverified",
 )
 
@@ -100,6 +106,58 @@ def validate_payload(executable: Path, app_version: str) -> str:
     return actual_output
 
 
+def validate_companion_payload_dir(
+    companion_payload_dir: Path,
+    app_version: str,
+) -> Path:
+    """Return a Companion publish directory with an exact version match."""
+    _validate_app_version(app_version)
+    if not companion_payload_dir.is_dir():
+        raise InstallerBuildError(
+            f"Companion payload directory is missing: {companion_payload_dir}. "
+            "Publish CortexCompanion before compiling the installer."
+        )
+
+    executable = companion_payload_dir / _COMPANION_EXECUTABLE_NAME
+    if not executable.is_file():
+        raise InstallerBuildError(
+            f"Companion payload is missing: {executable}. "
+            "Publish CortexCompanion before compiling the installer."
+        )
+
+    try:
+        completed = subprocess.run(  # noqa: S603
+            [str(executable), "--version"],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise InstallerBuildError(
+            f"Could not execute Companion payload '{executable}': {exc}. "
+            "Publish CortexCompanion before compiling the installer."
+        ) from exc
+
+    actual_output = completed.stdout.strip()
+    if completed.returncode != 0:
+        diagnostic = (completed.stderr or completed.stdout).strip()
+        suffix = f" Output: {diagnostic}" if diagnostic else ""
+        raise InstallerBuildError(
+            "Companion payload version check failed with exit code "
+            f"{completed.returncode}.{suffix} Publish CortexCompanion before "
+            "compiling the installer."
+        )
+    if actual_output != app_version:
+        displayed_output = actual_output or "<empty>"
+        raise InstallerBuildError(
+            f"Companion payload version mismatch: expected '{app_version}', "
+            f"got '{displayed_output}'. Publish CortexCompanion before "
+            "compiling the installer."
+        )
+    return companion_payload_dir.resolve()
+
+
 def validate_model_payload_dir(model_payload_dir: Path) -> Path:
     """Return a non-empty model payload directory resolved for ISCC."""
     if not model_payload_dir.is_dir():
@@ -138,41 +196,90 @@ def _validate_additional_iscc_arguments(arguments: Sequence[str]) -> None:
             )
 
 
+def _validate_installer_output_path(output: Path, *, repository_root: Path) -> Path:
+    """Return the exact lexical output after rejecting linked path components."""
+    lexical_root = Path(os.path.abspath(repository_root))
+    lexical_output = Path(os.path.abspath(output))
+    expected = lexical_root / "dist-installer" / "Cortex-Setup.exe"
+    if lexical_output != expected:
+        raise InstallerBuildError(
+            f"Installer output must be the dedicated path {expected}: {lexical_output}"
+        )
+
+    current = lexical_root
+    components = [current]
+    for part in lexical_output.relative_to(lexical_root).parts:
+        current /= part
+        components.append(current)
+    for component in components:
+        try:
+            metadata = component.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise InstallerBuildError(
+                f"Could not inspect installer output component '{component}': {exc}"
+            ) from exc
+        file_attributes = int(getattr(metadata, "st_file_attributes", 0))
+        if stat.S_ISLNK(metadata.st_mode) or file_attributes & 0x400:
+            raise InstallerBuildError(
+                f"Installer output contains a symbolic link or reparse point: {component}"
+            )
+    return lexical_output
+
+
 def build_installer(
     *,
     app_version: str,
     executable: Path,
+    companion_payload_dir: Path,
     model_payload_dir: Path,
     iscc: Path,
     additional_iscc_arguments: Sequence[str],
 ) -> Path:
     """Validate the payloads, invoke ISCC, and return the installer path."""
     validated_output = validate_payload(executable, app_version)
+    validated_companion_payload_dir = validate_companion_payload_dir(
+        companion_payload_dir,
+        app_version,
+    )
     validated_model_payload_dir = validate_model_payload_dir(model_payload_dir)
     _validate_additional_iscc_arguments(additional_iscc_arguments)
     compiler = _resolve_iscc_path(iscc)
     if not _INSTALLER_SCRIPT.is_file():
         raise InstallerBuildError(f"Installer script is missing: {_INSTALLER_SCRIPT}")
+    installer_output = _validate_installer_output_path(
+        _INSTALLER_OUTPUT,
+        repository_root=_REPO_ROOT,
+    )
 
     print(f"[installer] Validated payload: {validated_output}", flush=True)
     command = [
         str(compiler),
         f"/DAppVersion={app_version}",
         f"/DPayloadVersionVerified={app_version}",
+        f"/DCompanionPayloadDir={validated_companion_payload_dir}",
+        f"/DCompanionPayloadVersionVerified={app_version}",
         f"/DModelPayloadDir={validated_model_payload_dir}",
         *additional_iscc_arguments,
         str(_INSTALLER_SCRIPT),
     ]
+    try:
+        installer_output.unlink(missing_ok=True)
+    except OSError as exc:
+        raise InstallerBuildError(
+            f"Could not remove stale installer output '{installer_output}': {exc}"
+        ) from exc
     completed = subprocess.run(command, cwd=_REPO_ROOT, check=False)  # noqa: S603
     if completed.returncode != 0:
         raise InstallerBuildError(
             f"Inno Setup compilation failed with exit code {completed.returncode}."
         )
-    if not _INSTALLER_OUTPUT.is_file():
+    if not installer_output.is_file():
         raise InstallerBuildError(
-            f"Inno Setup reported success but the installer is missing: {_INSTALLER_OUTPUT}"
+            f"Inno Setup reported success but the installer is missing: {installer_output}"
         )
-    return _INSTALLER_OUTPUT
+    return installer_output
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -185,6 +292,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=_DEFAULT_PAYLOAD,
         help="Executable payload to validate and package.",
+    )
+    parser.add_argument(
+        "--companion-payload-dir",
+        type=Path,
+        default=_DEFAULT_COMPANION_PAYLOAD_DIR,
+        help="Self-contained CortexCompanion publish directory.",
     )
     parser.add_argument(
         "--model-payload-dir",
@@ -217,6 +330,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if arguments.validate_only:
             validated_output = validate_payload(arguments.payload, arguments.app_version)
+            validate_companion_payload_dir(
+                arguments.companion_payload_dir,
+                arguments.app_version,
+            )
             print(f"[installer] Validated payload: {validated_output}")
             return 0
         if arguments.model_payload_dir is None:
@@ -226,6 +343,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = build_installer(
             app_version=arguments.app_version,
             executable=arguments.payload,
+            companion_payload_dir=arguments.companion_payload_dir,
             model_payload_dir=arguments.model_payload_dir,
             iscc=arguments.iscc,
             additional_iscc_arguments=arguments.iscc_argument,

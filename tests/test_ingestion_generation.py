@@ -91,6 +91,10 @@ def _filesystem_name(path: Path) -> str:
     return filesystem.value
 
 
+@pytest.mark.skipif(
+    os.name != "nt",
+    reason="process-kill durability contract requires the Windows NTFS implementation",
+)
 def test_killed_process_preserves_served_generation_and_coherent_health(
     tmp_path: Path,
 ) -> None:
