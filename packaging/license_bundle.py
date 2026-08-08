@@ -1331,6 +1331,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--analysis-toc", type=Path, default=_DEFAULT_TOC)
     parser.add_argument("--output-dir", type=Path, default=_DEFAULT_OUTPUT_DIR)
+    parser.add_argument(
+        "--python-license",
+        type=Path,
+        help="Explicit CPython runtime license when the runtime omits a local copy.",
+    )
     parser.add_argument("--verify-only", action="store_true")
     return parser
 
@@ -1346,7 +1351,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if arguments.verify_only:
             output_dir = Path(os.path.abspath(arguments.output_dir))
-            verify_license_bundle(output_dir, analysis_toc=analysis_toc)
+            verify_license_bundle(
+                output_dir,
+                analysis_toc=analysis_toc,
+                python_license=arguments.python_license,
+            )
             print(f"[licenses] Verified redistribution license bundle: {output_dir}")
             return 0
         output_dir = _validate_cli_path(
@@ -1357,9 +1366,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         manifest = generate_license_bundle(
             analysis_toc=analysis_toc,
             output_dir=output_dir,
+            python_license=arguments.python_license,
             safety_root=_REPO_ROOT,
         )
-        verify_license_bundle(output_dir, analysis_toc=analysis_toc)
+        verify_license_bundle(
+            output_dir,
+            analysis_toc=analysis_toc,
+            python_license=arguments.python_license,
+        )
         raw = cast(
             "Mapping[str, object]",
             json.loads(manifest.read_text(encoding="utf-8")),

@@ -207,7 +207,12 @@ def _assert_clean_analysis_toc(path: Path) -> None:
             )
 
 
-def build_executable(*, output_dir: Path, clean: bool) -> Path:
+def build_executable(
+    *,
+    output_dir: Path,
+    clean: bool,
+    python_license: Path | None = None,
+) -> Path:
     """Build Cortex and return the produced executable after safety checks."""
     resolved_output = _dedicated_build_path(
         output_dir,
@@ -252,6 +257,8 @@ def build_executable(*, output_dir: Path, clean: bool) -> Path:
         "--output-dir",
         str(_LICENSE_OUTPUT_DIR),
     ]
+    if python_license is not None:
+        license_command.extend(("--python-license", str(python_license)))
     license_result = subprocess.run(  # noqa: S603
         license_command,
         cwd=_REPO_ROOT,
@@ -283,6 +290,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Remove the dedicated PyInstaller work/output directories first.",
     )
+    parser.add_argument(
+        "--python-license",
+        type=Path,
+        help="Explicit CPython runtime license used for redistribution metadata.",
+    )
     return parser
 
 
@@ -293,6 +305,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         executable = build_executable(
             output_dir=arguments.output_dir,
             clean=arguments.clean,
+            python_license=arguments.python_license,
         )
     except ExecutableBuildError as exc:
         print(f"[build] ERROR: {exc}", file=sys.stderr)
