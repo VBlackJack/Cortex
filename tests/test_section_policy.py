@@ -114,10 +114,35 @@ def test_sync_excludes_datacron_via_is_excluded_path(
     monkeypatch.setattr(indexer, "CHROMA_PATH", str(chroma_path))
     monkeypatch.setattr(indexer, "LEGACY_CHROMA_PATH", str(chroma_path))
 
+    class EmptyCollection:
+        def count(self) -> int:
+            return 0
+
+        def get(self, **_kwargs: object) -> dict[str, list[object]]:
+            return {"ids": [], "metadatas": []}
+
+        def upsert(self, **_kwargs: object) -> None:
+            raise AssertionError("excluded content must never reach Chroma")
+
+        def delete(self, **_kwargs: object) -> None:
+            raise AssertionError("the empty isolated collection must not be mutated")
+
+    collection = EmptyCollection()
+    monkeypatch.setattr(indexer, "get_client", object)
+    monkeypatch.setattr(
+        indexer,
+        "get_collection",
+        lambda _client=None: collection,
+    )
+    monkeypatch.setattr(
+        indexer,
+        "prepare_lexical_index",
+        lambda *_args, **_kwargs: None,
+    )
+
     stats = indexer._sync_locked(section=".datacron", verbose=False)
 
     assert stats["added_chunks"] == 0
     assert stats["errors"] == 0
 
-    collection = indexer.get_collection()  # type: ignore[no-untyped-call]  # legacy indexer.py, not touched by this lot
     assert collection.count() == 0, ".datacron content must never be embedded"
