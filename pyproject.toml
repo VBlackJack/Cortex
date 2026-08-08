@@ -30,6 +30,9 @@ cortex = "cli:main"
 packages = ["confluence_writer", "confluence_writer.resources", "ingestion"]
 py-modules = [
   "_version",
+  "bundle_command",
+  "bundle_contract",
+  "bundle_format",
   "chroma_client",
   "chunker",
   "chunker_pdf",
@@ -44,6 +47,7 @@ py-modules = [
   "doctor",
   "embedding_fingerprint",
   "freshness",
+  "index_contract",
   "indexer",
   "lexical_index",
   "offline_models",
@@ -85,6 +89,7 @@ exclude = ["^tests/", "^local/"]
 [[tool.mypy.overrides]]
 module = [
   "chromadb.*",
+  "cryptography.*",
   "fastembed.*",
   "filelock.*",
   "huggingface_hub.*",

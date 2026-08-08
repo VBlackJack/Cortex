@@ -18,20 +18,21 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from _version import __version__
 from confluence_writer.constants import EXIT_INVALID_INPUT
-from offline_models import activate_if_embedded
 from sync_contract import SyncError, build_sync_failure_report
-from user_config import CortexConfigError
 
-activate_if_embedded()
+if TYPE_CHECKING:
+    from user_config import CortexConfigError
 
 _COMMANDS = (
     "serve",
     "sync",
     "ingestion",
     "confluence",
+    "bundle",
     "config",
     "doctor",
     "setup",
@@ -88,12 +89,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         subparsers.add_parser(name, add_help=False)
     namespace, arguments = parser.parse_known_args(argv)
 
+    if namespace.command == "bundle":
+        from bundle_command import main as bundle_main
+
+        return bundle_main(arguments)
+
+    from offline_models import activate_if_embedded
+
+    activate_if_embedded()
+
     if namespace.command == "serve":
         from server import run_stdio
 
         run_stdio()
         return 0
     if namespace.command == "sync":
+        from user_config import CortexConfigError
+
         try:
             from indexer import main as sync_main
         except CortexConfigError as exc:

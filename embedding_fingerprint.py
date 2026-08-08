@@ -24,12 +24,11 @@ from chromadb.errors import NotFoundError
 from config import (
     CHROMA_PATH,
     COLLECTION_NAME,
-    EMBEDDING_MODEL,
-    EMBEDDING_POOLING,
     LEGACY_INDEX_EMBEDDING_MODEL,
     LEGACY_INDEX_EMBEDDING_POOLING,
     LEGACY_INDEX_FASTEMBED_VERSION,
 )
+from index_contract import build_embedding_fingerprint
 from write_lock import chroma_write_lock
 
 _LOG = logging.getLogger("cortex.embedding_fingerprint")
@@ -66,11 +65,7 @@ class EmbeddingFingerprintMismatchError(RuntimeError):
 
 def current_embedding_fingerprint() -> dict[str, str]:
     """Return the runtime vector-space contract persisted with the index."""
-    return {
-        "embedding_model": EMBEDDING_MODEL,
-        "fastembed_version": fastembed.__version__,
-        "pooling": EMBEDDING_POOLING,
-    }
+    return build_embedding_fingerprint(fastembed.__version__)
 
 
 def legacy_index_fingerprint() -> dict[str, str]:

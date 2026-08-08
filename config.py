@@ -15,6 +15,17 @@
 
 from pathlib import Path
 
+from index_contract import (
+    CHUNKING_CONTRACT_VERSION,
+    COLLECTION_NAME,
+    EMBEDDING_MODEL,
+    EMBEDDING_POOLING,
+    LEGACY_INDEX_EMBEDDING_MODEL,
+    LEGACY_INDEX_EMBEDDING_POOLING,
+    LEGACY_INDEX_FASTEMBED_VERSION,
+    LEXICAL_INDEX_CONTRACT_VERSION,
+    METADATA_SCHEMA_VERSION,
+)
 from user_config import (
     CortexConfigError,
     load_user_config,
@@ -41,21 +52,7 @@ CORTEX_DATA_HOME = str(local_data_home())
 CORTEX_LOG_DIR = str(Path(CORTEX_DATA_HOME) / "logs")
 LEGACY_CHROMA_PATH = str(_SCRIPT_DIR / "chroma_db")
 
-# Product contracts. Changing these values requires an explicit index contract
-# migration; they are intentionally not user-configurable.
-COLLECTION_NAME = "cortex"
 ROOT_SECTION = "."
-EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-# Explicit contract: FastEmbed exposes no reliable pooling introspection.
-# Mean pooling has applied to this model since qdrant/fastembed#436 (v0.6.0).
-EMBEDDING_POOLING = "mean"
-
-# Independent attestation of the legacy unstamped index on 2026-07-12.
-LEGACY_INDEX_EMBEDDING_MODEL = (
-    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-)
-LEGACY_INDEX_FASTEMBED_VERSION = "0.8.0"
-LEGACY_INDEX_EMBEDDING_POOLING = "mean"
 
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64
@@ -65,9 +62,6 @@ SEARCH_TOP_K_MAX = 10
 
 FRESHNESS_CONTRACT_ID = "freshness-contract-v1"
 FRESHNESS_CONTRACT_VERSION = "v1"
-CHUNKING_CONTRACT_VERSION = "v3"
-METADATA_SCHEMA_VERSION = 2
-LEXICAL_INDEX_CONTRACT_VERSION = "v2"
 INGESTION_DOCUMENT_SOURCE_KIND = "doc"
 INGESTION_DOCUMENT_SECTION = "sources"
 INGESTION_DOCUMENT_SUFFIX = ".md"
