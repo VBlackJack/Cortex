@@ -611,6 +611,7 @@ jobs:
             --binary "${{ matrix.binary }}" \
             --binary-name "${{ matrix.binary_name }}" \
             --licenses dist/licenses \
+            --python-license "${CORTEX_CPYTHON_LICENSE}" \
             --output "out/${{ matrix.archive }}"
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             cp "dist-installer/Cortex-Setup.exe" "out/Cortex-Setup.exe"

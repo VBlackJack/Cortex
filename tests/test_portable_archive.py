@@ -94,6 +94,32 @@ def test_portable_archive_has_exact_layout_permissions_and_stable_bytes(
         assert archive.testzip() is None
 
 
+def test_portable_archive_verifies_the_explicit_python_license(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    received: list[Path | None] = []
+
+    def verify(*_args: object, **kwargs: object) -> None:
+        received.append(cast("Path | None", kwargs.get("python_license")))
+
+    monkeypatch.setitem(_RUNTIME_GLOBALS, "verify_license_bundle", verify)
+    binary = tmp_path / "cortex"
+    binary.write_bytes(b"executable")
+    python_license = tmp_path / "CPython-LICENSE.txt"
+    python_license.write_text("CPython terms\n", encoding="utf-8")
+
+    _GLOBALS["create_portable_archive"](
+        binary=binary,
+        binary_name="cortex",
+        license_dir=_license_tree(tmp_path),
+        output=tmp_path / "portable.zip",
+        python_license=python_license,
+    )
+
+    assert received == [python_license]
+
+
 @pytest.mark.parametrize("binary_name", ["Cortex.exe", "../cortex", "cortex.bin"])
 def test_portable_archive_rejects_noncanonical_binary_names(
     tmp_path: Path,
