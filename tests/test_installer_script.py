@@ -193,6 +193,7 @@ def test_installer_embeds_the_generated_runtime_license_bundle() -> None:
         assert required in workflow
     assert "packaging\\license_bundle.py `" in workflow
     assert "--verify-only `" in workflow
+    assert "--python-license $env:CORTEX_CPYTHON_LICENSE `" in workflow
 
 
 def test_installer_smoke_requires_all_companion_redistribution_notices() -> None:
