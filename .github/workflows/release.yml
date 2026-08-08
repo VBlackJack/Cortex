@@ -37,6 +37,8 @@ env:
   MCP_CURL_CONNECT_TIMEOUT_SECONDS: "10"
   MCP_CURL_MAX_TIME_SECONDS: "30"
   MCP_DOWNLOAD_MAX_TIME_SECONDS: "120"
+  CPYTHON_LICENSE_URL: https://raw.githubusercontent.com/python/cpython/3bb231a6a5dc02b95658877318bf61501a7209e9/LICENSE
+  CPYTHON_LICENSE_SHA256: 3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf
 
 jobs:
   verify:
@@ -163,9 +165,38 @@ jobs:
           python -m pip install --require-hashes -r requirements-dev.lock
           python -m pip install --no-build-isolation --no-deps -e .
 
+      - name: Materialize the pinned CPython runtime license
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+
+          request = Request(
+              os.environ["CPYTHON_LICENSE_URL"],
+              headers={"Accept": "text/plain"},
+          )
+          with urlopen(request, timeout=30) as response:
+              content = response.read()
+          actual = hashlib.sha256(content).hexdigest()
+          expected = os.environ["CPYTHON_LICENSE_SHA256"]
+          if actual != expected:
+              raise SystemExit(
+                  f"CPython license SHA-256 mismatch: expected {expected}, got {actual}."
+              )
+          destination = Path(os.environ["RUNNER_TEMP"]) / "CPython-3.12.13-LICENSE.txt"
+          destination.write_bytes(content)
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as output:
+              output.write(f"CORTEX_CPYTHON_LICENSE={destination}\n")
+          PY
+
       - name: Build standalone executable
         shell: bash
-        run: python packaging/build_executable.py --clean
+        run: >-
+          python packaging/build_executable.py --clean
+          --python-license "${CORTEX_CPYTHON_LICENSE}"
 
       - name: Set up .NET 10
         if: runner.os == 'Windows'
