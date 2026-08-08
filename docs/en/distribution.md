@@ -4,8 +4,9 @@
 
 [Back to table of contents](index.md)
 
-Cortex can be delivered as one standalone executable containing both the CLI
-and the MCP stdio server. The executable does not require Python on the target
+Cortex can be delivered as a standalone ZIP archive. It contains one executable
+providing both the CLI and the MCP stdio server, plus the exact licenses for its
+embedded dependencies. The executable does not require Python on the target
 machine.
 
 ## Command model
@@ -35,14 +36,16 @@ wizard installs Cortex without administrator privileges, collects the document
 folder, adds the binary to PATH, and registers the MCP clients. See the
 [Windows installation guide](windows-install.md).
 
-The raw Windows binary remains available for portable or advanced use.
+The `cortex-windows-x64.zip` archive remains available for portable or advanced
+use.
 
-## Install a released raw binary
+## Install a released standalone archive
 
-1. Download the binary for your operating system from the matching GitHub
-   Release.
-2. Put it in a stable location that will not be renamed or deleted.
-3. On Linux or macOS, make it executable with `chmod +x cortex-*`.
+1. Download the archive for your operating system and `SHA256SUMS` from the
+   matching GitHub Release, then verify its SHA-256 digest.
+2. Extract the complete archive into a stable location that will not be renamed
+   or deleted. Keep the `licenses` folder beside the binary.
+3. On Linux or macOS, make the binary executable with `chmod +x cortex`.
 4. Run `cortex setup` from that binary, then restart the registered MCP clients.
 
 The setup is user-scoped. Project-scoped MCP registration is intentionally not
@@ -73,22 +76,22 @@ On Linux or macOS:
 ./scripts/build_installer.sh --clean
 ```
 
-Both scripts create a PyInstaller one-file executable under `dist/`. The binary
-bundles ChromaDB, FastEmbed, ONNX Runtime, Tokenizers and the Cortex modules, so
-it is substantially larger than a simple Python CLI. The model files themselves
-are not bundled.
+Both scripts create a PyInstaller one-file executable and a verified license
+inventory under `dist/`. The binary bundles ChromaDB, FastEmbed, ONNX Runtime,
+Tokenizers and the Cortex modules, so it is substantially larger than a simple
+Python CLI. The model files themselves are not bundled.
 
 ## Release workflow
 
-Pushing a `v*` tag starts `.github/workflows/release.yml`. It builds on Windows,
-macOS arm64 and Linux x64, smoke-tests the CLI and server imports, and attaches
-the three binaries to the GitHub Release. `workflow_dispatch` can build the same
-artifacts without publishing a release.
+Pushing a `v*` tag starts `.github/workflows/release.yml`. It builds on Windows
+x64, macOS arm64 and Linux x64, smoke-tests the CLI and server imports, and
+attaches three ZIP archives with their licenses to the GitHub Release.
+`workflow_dispatch` can build the same artifacts without publishing a release.
 The Windows leg also compiles `Cortex-Setup.exe` with Inno Setup and attaches it
-to the release. When the Windows signing secrets are configured, the workflow
-signs the Windows binary before packaging and then signs the resulting installer.
-The publish job generates `SHA256SUMS` for every artifact and creates a GitHub
-build provenance attestation before publishing the release once.
+to the release. This Windows version is unsigned; users must compare its digest
+with `SHA256SUMS` before running it. The publish job generates checksums for every
+artifact and creates a GitHub build provenance attestation before publishing the
+release once.
 
-The release job must never publish a binary from a failed platform build or a
-failed smoke-test.
+The release job must never publish an archive from a failed platform build,
+license inventory, or smoke-test.

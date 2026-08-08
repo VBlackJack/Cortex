@@ -39,21 +39,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 # Suppress fastembed pooling migration notice (mean pooling is correct for this model)
 warnings.filterwarnings("ignore", message=".*mean pooling.*", category=UserWarning)
 
-from offline_models import activate_if_embedded  # noqa: E402
-
-_MODEL_RUNTIME = activate_if_embedded()
-
-import chromadb  # noqa: E402
-from chromadb import EmbeddingFunction, Embeddings  # noqa: E402
-from fastembed import TextEmbedding  # noqa: E402
-
-from chroma_client import create_persistent_client  # noqa: E402
-from chunker_utils import (  # noqa: E402
-    SOURCE_KINDS,
-    discover_out_of_policy_dirs,
-    normalize_rfc3339,
-    timestamp_epoch_ms,
-)
 from config import (  # noqa: E402
     CHROMA_PATH,
     EMBEDDING_MODEL,
@@ -72,6 +57,21 @@ from config import (  # noqa: E402
     SEARCH_TOP_K_MIN,
     CortexConfigError,
     require_kb_path,
+)
+from offline_models import activate_if_embedded  # noqa: E402
+
+_MODEL_RUNTIME = activate_if_embedded()
+
+import chromadb  # noqa: E402
+from chromadb import EmbeddingFunction, Embeddings  # noqa: E402
+from fastembed import TextEmbedding  # noqa: E402
+
+from chroma_client import create_persistent_client  # noqa: E402
+from chunker_utils import (  # noqa: E402
+    SOURCE_KINDS,
+    discover_out_of_policy_dirs,
+    normalize_rfc3339,
+    timestamp_epoch_ms,
 )
 from confluence_writer.constants import (  # noqa: E402
     EXIT_ERROR,

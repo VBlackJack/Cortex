@@ -21,6 +21,15 @@
 #if !SameStr(AppVersion, PayloadVersionVerified)
   #error AppVersion does not match the validated dist/cortex.exe version
 #endif
+#ifndef CompanionPayloadDir
+  #error CompanionPayloadDir must be provided by build_installer.py
+#endif
+#ifndef CompanionPayloadVersionVerified
+  #error Compile through build_installer.py to validate CortexCompanion.exe first
+#endif
+#if !SameStr(AppVersion, CompanionPayloadVersionVerified)
+  #error AppVersion does not match the validated CortexCompanion.exe version
+#endif
 
 ; Direct ISCC compilation is intentionally blocked above. The shared local and
 ; CI wrapper validates dist/cortex.exe --version before supplying the proof.
@@ -51,7 +60,7 @@ SolidCompression=yes
 WizardStyle=modern
 SetupLogging=yes
 CloseApplications=force
-CloseApplicationsFilter=cortex.exe
+CloseApplicationsFilter=cortex.exe,CortexCompanion.exe
 #ifdef InstallerSignTool
 SignTool={#InstallerSignTool}
 SignedUninstaller=yes
@@ -88,6 +97,7 @@ english.EnvironmentFailed=Cortex could not pass the selected knowledge base fold
 english.DirectoryFailed=Cortex could not create the selected knowledge base folder:
 english.ResetFailed=Cortex could not reset its configuration and generated index. Close every AI application using Cortex, then run the installer again.
 english.UnregisterFailed=Cortex could not remove every MCP client entry. The uninstall will continue; review the client configurations manually.
+english.CompanionCleanupFailed=Cortex Companion could not safely remove its owned ingestion task. The uninstall will continue; review Task Scheduler manually.
 french.ReinstallCaption=Configuration Cortex existante
 french.ReinstallDescription=Choisissez ce que cette installation doit faire de votre configuration actuelle.
 french.ReinstallSubCaption=Garder conserve la configuration et l'index. Reinitialiser efface les donnees Cortex generees, puis applique le dossier et le mode choisis aux pages suivantes.
@@ -114,16 +124,23 @@ french.EnvironmentFailed=Cortex n'a pas pu transmettre le dossier de base de con
 french.DirectoryFailed=Cortex n'a pas pu creer le dossier de base de connaissances selectionne :
 french.ResetFailed=Cortex n'a pas pu reinitialiser sa configuration et son index genere. Fermez toutes les applications IA utilisant Cortex, puis relancez l'installeur.
 french.UnregisterFailed=Cortex n'a pas pu retirer toutes les entrees des clients MCP. La desinstallation continue ; verifiez manuellement les configurations clientes.
+french.CompanionCleanupFailed=Cortex Companion n'a pas pu retirer de facon sure sa tache d'ingestion detenue. La desinstallation continue ; verifiez manuellement le Planificateur de taches.
 
 [Files]
 Source: "..\..\dist\cortex.exe"; DestDir: "{app}"; DestName: "cortex.exe"; Flags: ignoreversion
+Source: "..\..\dist\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#CompanionPayloadDir}\*"; DestDir: "{app}\Companion"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ModelPayloadDir}\*"; DestDir: "{localappdata}\Cortex\models"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\LICENSE"; DestDir: "{localappdata}\Cortex\models\licenses"; DestName: "Apache-2.0.txt"; Flags: ignoreversion
 Source: "..\..\THIRD_PARTY_NOTICES.md"; DestDir: "{localappdata}\Cortex\models\licenses"; Flags: ignoreversion
 
 [Icons]
+Name: "{group}\Cortex Companion"; Filename: "{app}\Companion\CortexCompanion.exe"; WorkingDir: "{app}\Companion"
 Name: "{group}\Cortex Doctor"; Filename: "{cmd}"; Parameters: "/k """"{app}\cortex.exe"" doctor"""
 Name: "{group}\Cortex Sync"; Filename: "{cmd}"; Parameters: "/k """"{app}\cortex.exe"" sync"""
+
+[Run]
+Filename: "{app}\Companion\CortexCompanion.exe"; Description: "{cm:LaunchProgram,Cortex Companion}"; WorkingDir: "{app}\Companion"; Flags: nowait postinstall skipifsilent; Check: ShouldLaunchCompanion
 
 [Code]
 var
@@ -545,6 +562,100 @@ begin
     Result := 0;
 end;
 
+function ShouldLaunchCompanion: Boolean;
+begin
+  Result := not SetupFailed;
+end;
+
+procedure ReportCompanionCleanupFailure(const Details: String);
+begin
+  Log('Cortex Companion uninstall cleanup failed: ' + Details);
+  SuppressibleMsgBox(
+    CustomMessage('CompanionCleanupFailed'),
+    mbError,
+    MB_OK,
+    IDOK
+  );
+end;
+
+procedure RunCompanionUninstallCleanup;
+var
+  CompanionPath: String;
+  CleanupOutput: TExecOutput;
+  CleanupStatus: String;
+  Launched: Boolean;
+  ResultCode: Integer;
+begin
+  CompanionPath := ExpandConstant('{app}\Companion\CortexCompanion.exe');
+  if not FileExists(CompanionPath) then
+  begin
+    ReportCompanionCleanupFailure('CortexCompanion.exe is missing.');
+    Exit;
+  end;
+
+  Launched := False;
+  ResultCode := -1;
+  try
+    Launched := ExecAndCaptureOutput(
+      CompanionPath,
+      '--uninstall-cleanup',
+      ExpandConstant('{app}\Companion'),
+      SW_SHOWNORMAL,
+      ewWaitUntilTerminated,
+      ResultCode,
+      CleanupOutput
+    );
+  except
+    Log('Cortex Companion cleanup capture failed: ' + GetExceptionMessage);
+  end;
+
+  if not Launched then
+  begin
+    ReportCompanionCleanupFailure(
+      'process launch failed with code ' + IntToStr(ResultCode) + '.'
+    );
+    Exit;
+  end;
+  if CleanupOutput.Error then
+  begin
+    ReportCompanionCleanupFailure('stdout/stderr capture failed.');
+    Exit;
+  end;
+  if GetArrayLength(CleanupOutput.StdErr) <> 0 then
+  begin
+    ReportCompanionCleanupFailure('unexpected stderr output.');
+    Exit;
+  end;
+  if GetArrayLength(CleanupOutput.StdOut) <> 1 then
+  begin
+    ReportCompanionCleanupFailure('stdout was not exactly one status line.');
+    Exit;
+  end;
+
+  CleanupStatus := CleanupOutput.StdOut[0];
+  if (ResultCode = 0) and
+     ((CleanupStatus = 'cleanup=deleted') or
+      (CleanupStatus = 'cleanup=absent') or
+      (CleanupStatus = 'cleanup=foreign-preserved')) then
+  begin
+    Log('Cortex Companion uninstall cleanup: ' + CleanupStatus);
+    Exit;
+  end;
+
+  if (ResultCode = 1) and
+     ((CleanupStatus = 'cleanup=failed') or
+      (CleanupStatus = 'cleanup=cancelled')) then
+  begin
+    ReportCompanionCleanupFailure(CleanupStatus + '.');
+    Exit;
+  end;
+
+  ReportCompanionCleanupFailure(
+    'unexpected exit/status pair: exit=' + IntToStr(ResultCode) +
+    ', stdout=' + CleanupStatus + '.'
+  );
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   ExecutablePath: String;
@@ -552,6 +663,8 @@ var
 begin
   if CurUninstallStep <> usUninstall then
     Exit;
+
+  RunCompanionUninstallCleanup;
 
   ExecutablePath := ExpandConstant('{app}\cortex.exe');
   if FileExists(ExecutablePath) then

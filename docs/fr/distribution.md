@@ -4,9 +4,10 @@
 
 [Retour au sommaire](index.md)
 
-Cortex peut etre livre sous la forme d'un executable autonome unique qui
-contient a la fois le CLI et le serveur MCP stdio. L'executable n'exige pas
-Python sur le poste cible.
+Cortex peut etre livre sous la forme d'une archive ZIP autonome. Elle contient
+un executable unique qui fournit a la fois le CLI et le serveur MCP stdio,
+ainsi que les licences exactes de ses dependances embarquees. L'executable
+n'exige pas Python sur le poste cible.
 
 ## Modele de commandes
 
@@ -36,13 +37,16 @@ release. L'assistant installe Cortex sans droits administrateur, collecte le
 dossier de documents, ajoute le binaire au PATH et enregistre les clients MCP.
 Voir le [guide d'installation Windows](installation-windows.md).
 
-Le binaire Windows nu reste disponible pour un usage portable ou avance.
+L'archive `cortex-windows-x64.zip` reste disponible pour un usage portable ou
+avance.
 
-## Installer un binaire nu publie
+## Installer une archive autonome publiee
 
-1. Telecharger le binaire de son systeme depuis la GitHub Release correspondante.
-2. Le placer dans un emplacement stable qui ne sera ni renomme ni supprime.
-3. Sous Linux ou macOS, le rendre executable avec `chmod +x cortex-*`.
+1. Telecharger l'archive de son systeme et `SHA256SUMS` depuis la GitHub Release
+   correspondante, puis verifier son empreinte SHA-256.
+2. Extraire toute l'archive dans un emplacement stable qui ne sera ni renomme
+   ni supprime. Conserver le dossier `licenses` avec le binaire.
+3. Sous Linux ou macOS, rendre le binaire executable avec `chmod +x cortex`.
 4. Lancer `cortex setup` depuis ce binaire, puis redemarrer les clients MCP
    enregistres.
 
@@ -74,22 +78,22 @@ Sous Linux ou macOS :
 ./scripts/build_installer.sh --clean
 ```
 
-Les deux scripts creent un executable PyInstaller one-file sous `dist/`. Le
-binaire embarque ChromaDB, FastEmbed, ONNX Runtime, Tokenizers et les modules
-Cortex ; il est donc nettement plus lourd qu'un simple CLI Python. Les fichiers
-des modeles ne sont pas embarques.
+Les deux scripts creent un executable PyInstaller one-file et un inventaire de
+licences verifie sous `dist/`. Le binaire embarque ChromaDB, FastEmbed, ONNX
+Runtime, Tokenizers et les modules Cortex ; il est donc nettement plus lourd
+qu'un simple CLI Python. Les fichiers des modeles ne sont pas embarques.
 
 ## Workflow de release
 
 Le push d'un tag `v*` demarre `.github/workflows/release.yml`. Le workflow build
-sous Windows, macOS arm64 et Linux x64, smoke-teste le CLI et les imports du
-serveur, puis attache les trois binaires a la GitHub Release.
+sous Windows x64, macOS arm64 et Linux x64, smoke-teste le CLI et les imports du
+serveur, puis attache trois archives ZIP avec leurs licences a la GitHub Release.
 Le leg Windows compile aussi `Cortex-Setup.exe` avec Inno Setup et l'attache a
-la release. Si les secrets de signature Windows sont configures, le workflow
-signe le binaire Windows avant son emballage, puis signe l'installeur produit.
-Le job de publication genere `SHA256SUMS` pour tous les artefacts et produit
-une attestation de provenance GitHub avant de publier la release en une fois.
-`workflow_dispatch` peut construire les memes artefacts sans publier de release.
+la release. Cette version Windows n'est pas signee ; son empreinte doit etre
+comparee a `SHA256SUMS` avant execution. Le job de publication genere les
+empreintes de tous les artefacts et produit une attestation de provenance
+GitHub avant de publier la release en une fois. `workflow_dispatch` peut
+construire les memes artefacts sans publier de release.
 
-Le job de release ne doit jamais publier le binaire d'une plateforme dont le
-build ou le smoke-test a echoue.
+Le job de release ne doit jamais publier l'archive d'une plateforme dont le
+build, l'inventaire de licences ou le smoke-test a echoue.

@@ -17,26 +17,48 @@ locaux.
 
 ### Windows, sans Python (recommande)
 
-La voie la plus simple : un installeur autonome, aucun Python a installer.
+La voie la plus simple : un seul installeur pour Cortex, Cortex Companion et
+les modeles hors ligne. Aucun Python ni runtime .NET n'est a installer
+separement.
 
-1. Telecharger `Cortex-Setup.exe` depuis la
+1. Telecharger `Cortex-Setup.exe` et `SHA256SUMS` depuis la
    [derniere release](https://github.com/VBlackJack/Cortex/releases/latest).
-2. Double-cliquer. L'installeur n'etant pas encore signe, SmartScreen peut
-   afficher un avertissement : `Informations complementaires`, puis
+2. Avant de lancer l'installeur non signe, calculer son empreinte avec
+   `Get-FileHash .\Cortex-Setup.exe -Algorithm SHA256` dans PowerShell et
+   verifier qu'elle correspond exactement a la ligne `Cortex-Setup.exe` de
+   `SHA256SUMS`.
+3. Double-cliquer seulement apres cette verification. Si SmartScreen affiche
+   encore un avertissement, choisir `Informations complementaires`, puis
    `Executer quand meme`.
-3. Choisir le dossier de vos documents, laisser `Tout indexer dans ce dossier`,
-   terminer.
-4. Redemarrer votre application IA : Cortex y apparait comme serveur MCP.
+4. Choisir le dossier de vos documents, laisser `Tout indexer dans ce dossier`
+   et terminer. Cortex Companion s'ouvre a la fin de l'installation.
+5. Dans Companion, ouvrir `Réglages` pour verifier le dossier de la base de
+   connaissances. L'executable Cortex installe avec Companion est detecte
+   automatiquement.
+6. Deposer vos documents dans ce dossier, ouvrir `Base locale`, puis choisir
+   `Synchroniser les documents locaux`.
+7. Redemarrer votre application IA : Cortex y apparait comme serveur MCP.
 
-Deposez ensuite vos documents dans le dossier et lancez le raccourci
-`Cortex Sync`. Details, mode silencieux et reinstallation :
+Companion permet ensuite de synchroniser, planifier, diagnostiquer et configurer
+Cortex sans terminal. Details, mode silencieux et reinstallation :
 [Installation Windows](docs/fr/installation-windows.md).
 
-### Binaire autonome (macOS Apple Silicon, Linux x64)
+### Archives autonomes (Windows x64, macOS Apple Silicon, Linux x64)
 
-Chaque release fournit aussi un binaire unique `cortex` pour macOS Apple
-Silicon (arm64) et Linux x64 (serveur MCP + CLI, sans Python). Voir
+Chaque release fournit aussi une archive ZIP par plateforme. Elle contient le
+binaire unique `cortex` ou `cortex.exe` (serveur MCP + CLI, sans Python) et les
+licences de toutes les dependances embarquees. Voir
 [Distribution autonome](docs/fr/distribution.md).
+
+### Depuis PyPI (Python, avance)
+
+```powershell
+py -m pip install --upgrade cortex-local-rag
+cortex setup
+```
+
+Cette voie installe la CLI et le serveur MCP, mais pas Cortex Companion. Le
+modele est telecharge lors de sa premiere utilisation si son cache est vide.
 
 ### Depuis les sources (Python, avance)
 
@@ -100,6 +122,8 @@ Le paquet installe expose une commande unique :
 | `cortex sync` | Synchronisation incrementale de l'index. |
 | `cortex ingestion` | Affiche la sante d'une source et indique si un rattrapage est du. |
 | `cortex confluence` | Stocke le PAT interactivement ou lance le writer sur liste blanche. |
+| `cortex config` | Lit ou modifie la configuration via un contrat JSON atomique, notamment pour Companion. |
+| `cortex bundle` | Decrit ou verifie une archive portable chiffree. |
 | `cortex doctor` | Diagnostic de l'installation (lecture seule). |
 | `cortex register` / `cortex unregister` | Ajoute ou retire Cortex des clients MCP. |
 | `cortex check` | Verifie l'installation. |
@@ -116,9 +140,9 @@ Le paquet installe expose une commande unique :
 ## Documentation
 
 - [Sommaire](docs/fr/index.md)
-- [Installation Windows](docs/fr/installation-windows.md) : assistant sans
-  Python, choix du corpus, mode silencieux, reinstallation.
-- [Distribution autonome](docs/fr/distribution.md) : binaires one-file et builds.
+- [Installation Windows](docs/fr/installation-windows.md) : installateur unique
+  Cortex + Companion + modeles, choix du corpus, mode silencieux, reinstallation.
+- [Distribution autonome](docs/fr/distribution.md) : archives par plateforme et builds reproductibles.
 - [Installation depuis les sources](docs/fr/setup.md) : prerequis, clients MCP.
 - [Guide d'utilisation](docs/fr/user-guide.md) : sync, recherche, outils,
   doctor, logs.
@@ -146,7 +170,8 @@ Le paquet installe expose une commande unique :
 
 | Voie | Prerequis |
 |---|---|
-| Installeur Windows / binaire autonome | Aucun Python. ~500 Mo d'espace (modele + index). |
+| Installeur Windows | Aucun Python ni runtime .NET separe. ~500 Mo d'espace minimum (applications, modele + index). |
+| Archive autonome | Aucun Python. ~500 Mo d'espace (modele + index). |
 | Depuis les sources | Python 3.10+. ~500 Mo d'espace. |
 | Client | Claude Desktop/Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf ou VS Code (support MCP). |
 

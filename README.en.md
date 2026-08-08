@@ -1,5 +1,7 @@
 # Cortex - RAG MCP for a knowledge base
 
+<!-- mcp-name: io.github.VBlackJack/cortex -->
+
 [Francais](README.md) | **English**
 
 Cortex is an MCP (Model Context Protocol) server that exposes semantic search
@@ -15,25 +17,46 @@ the generated Markdown, vector index, and lexical index remain local.
 
 ### Windows, no Python (recommended)
 
-The simplest path: a standalone installer, no Python required.
+The simplest path: one installer for Cortex, Cortex Companion, and the offline
+models. No separate Python or .NET runtime is required.
 
-1. Download `Cortex-Setup.exe` from the
+1. Download `Cortex-Setup.exe` and `SHA256SUMS` from the
    [latest release](https://github.com/VBlackJack/Cortex/releases/latest).
-2. Double-click. The installer is not signed yet, so SmartScreen may show a
-   warning: `More info`, then `Run anyway`.
-3. Choose the folder that holds your documents, keep `Index everything in this
-   folder`, finish.
-4. Restart your AI application: Cortex shows up there as an MCP server.
+2. Before running the unsigned installer, calculate its digest with
+   `Get-FileHash .\Cortex-Setup.exe -Algorithm SHA256` in PowerShell and verify
+   that it exactly matches the `Cortex-Setup.exe` line in `SHA256SUMS`.
+3. Double-click only after that check. If SmartScreen still warns, select
+   `More info`, then `Run anyway`.
+4. Choose the folder that holds your documents, keep `Index everything in this
+   folder`, and finish. Cortex Companion opens when installation completes.
+5. In Companion, open `Réglages` (Settings) and verify the knowledge-base
+   folder. The Cortex executable installed with Companion is detected
+   automatically.
+6. Drop your documents in that folder, open `Base locale` (Local knowledge
+   base), then select `Synchroniser les documents locaux` (Synchronize local
+   documents).
+7. Restart your AI application: Cortex shows up there as an MCP server.
 
-Then drop your documents in the folder and run the `Cortex Sync` shortcut.
-Details, silent mode and reinstall:
+Companion then lets you synchronize, schedule, diagnose, and configure Cortex
+without a terminal. Details, silent mode and reinstall:
 [Windows install](docs/en/windows-install.md).
 
-### Standalone binary (macOS Apple Silicon, Linux x64)
+### Standalone archives (Windows x64, macOS Apple Silicon, Linux x64)
 
-Every release also ships a single `cortex` binary for macOS Apple Silicon
-(arm64) and Linux x64 (MCP server + CLI, no Python). See
+Every release also ships one ZIP archive per platform. It contains the single
+`cortex` or `cortex.exe` binary (MCP server + CLI, no Python) and the licenses
+for every embedded dependency. See
 [Standalone distribution](docs/en/distribution.md).
+
+### From PyPI (Python, advanced)
+
+```powershell
+py -m pip install --upgrade cortex-local-rag
+cortex setup
+```
+
+This path installs the CLI and MCP server, but not Cortex Companion. The model
+is downloaded on first use if its cache is empty.
 
 ### From source (Python, advanced)
 
@@ -96,6 +119,8 @@ The installed package exposes a single command:
 | `cortex sync` | Incremental index synchronization. |
 | `cortex ingestion` | Shows source health and whether catch-up is due. |
 | `cortex confluence` | Stores the PAT interactively or runs the allowlisted writer. |
+| `cortex config` | Reads or changes configuration through an atomic JSON contract, notably for Companion. |
+| `cortex bundle` | Describes or verifies an encrypted portable archive. |
 | `cortex doctor` | Installation diagnostics (read-only). |
 | `cortex register` / `cortex unregister` | Adds or removes Cortex from MCP clients. |
 | `cortex check` | Verifies the installation. |
@@ -112,9 +137,9 @@ The installed package exposes a single command:
 ## Documentation
 
 - [Table of contents](docs/en/index.md)
-- [Windows install](docs/en/windows-install.md): no-Python wizard, corpus
-  choice, silent mode, reinstall.
-- [Standalone distribution](docs/en/distribution.md): one-file binaries and builds.
+- [Windows install](docs/en/windows-install.md): unified Cortex + Companion +
+  models installer, corpus choice, silent mode, reinstall.
+- [Standalone distribution](docs/en/distribution.md): per-platform archives and reproducible builds.
 - [Install from source](docs/en/setup.md): prerequisites, MCP clients.
 - [User guide](docs/en/user-guide.md): sync, search, tools, doctor, logs.
 - [FAQ](docs/en/faq.md): installation, local data, sync, and diagnostics.
@@ -141,7 +166,8 @@ The installed package exposes a single command:
 
 | Path | Requirements |
 |---|---|
-| Windows installer / standalone binary | No Python. ~500 MB of space (model + index). |
+| Windows installer | No separate Python or .NET runtime. At least ~500 MB of space (applications, model + index). |
+| Standalone archive | No Python. ~500 MB of space (model + index). |
 | From source | Python 3.10+. ~500 MB of space. |
 | Client | Claude Desktop/Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf or VS Code (MCP support). |
 

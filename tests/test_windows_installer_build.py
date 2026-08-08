@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import runpy
 import subprocess
+import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import cast
@@ -37,9 +38,17 @@ _VALIDATE_MODEL_PAYLOAD_DIR = cast(
     "Callable[[Path], Path]",
     _SCRIPT_GLOBALS["validate_model_payload_dir"],
 )
+_VALIDATE_COMPANION_PAYLOAD_DIR = cast(
+    "Callable[[Path, str], Path]",
+    _SCRIPT_GLOBALS["validate_companion_payload_dir"],
+)
 _VALIDATE_ISCC_ARGUMENTS = cast(
     "Callable[[Sequence[str]], None]",
     _SCRIPT_GLOBALS["_validate_additional_iscc_arguments"],
+)
+_VALIDATE_INSTALLER_OUTPUT = cast(
+    "Callable[..., Path]",
+    _SCRIPT_GLOBALS["_validate_installer_output_path"],
 )
 _BUILD_INSTALLER = cast("Callable[..., Path]", _SCRIPT_GLOBALS["build_installer"])
 _MAIN = cast(
@@ -52,6 +61,13 @@ def _payload(tmp_path: Path) -> Path:
     executable = tmp_path / "cortex.exe"
     executable.write_bytes(b"placeholder")
     return executable
+
+
+def _companion_payload(tmp_path: Path) -> Path:
+    payload_dir = tmp_path / "companion publish"
+    payload_dir.mkdir()
+    (payload_dir / "CortexCompanion.exe").write_bytes(b"placeholder")
+    return payload_dir
 
 
 def test_invalid_calver_is_rejected(tmp_path: Path) -> None:
@@ -111,10 +127,38 @@ def test_payload_version_rejects_a_mismatch(
     assert "Rebuild dist/cortex.exe" in str(error.value)
 
 
+def test_missing_companion_payload_directory_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(_BUILD_ERROR, match="Companion payload directory is missing"):
+        _VALIDATE_COMPANION_PAYLOAD_DIR(tmp_path / "missing", "2026.0721.01")
+
+
+def test_companion_payload_version_rejects_a_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload_dir = _companion_payload(tmp_path)
+
+    def fake_run(command: Sequence[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=list(command),
+            returncode=0,
+            stdout="2026.0715.01\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(_BUILD_ERROR, match="Companion payload version mismatch"):
+        _VALIDATE_COMPANION_PAYLOAD_DIR(payload_dir, "2026.0721.01")
+
+
 @pytest.mark.parametrize(
     "argument",
     [
         "/DAppVersion=2026.0721.99",
+        "/DCompanionPayloadDir=C:" + chr(92) + "untrusted",
+        "/DCompanionPayloadVersionVerified=2026.0721.99",
+        "/DModelPayloadDir=C:" + chr(92) + "untrusted",
         "/DPayloadVersionVerified=2026.0721.99",
     ],
 )
@@ -146,19 +190,29 @@ def test_nominal_build_constructs_the_expected_iscc_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     executable = _payload(tmp_path)
+    companion_payload_dir = _companion_payload(tmp_path)
     compiler = tmp_path / "ISCC.exe"
     compiler.write_bytes(b"placeholder")
     model_payload_dir = tmp_path / "model payload"
     model_payload_dir.mkdir()
     (model_payload_dir / "manifest.json").write_text("{}", encoding="utf-8")
-    installer_output = tmp_path / "Cortex-Setup.exe"
+    installer_output = tmp_path / "dist-installer" / "Cortex-Setup.exe"
+    installer_output.parent.mkdir()
+    installer_output.write_bytes(b"stale installer")
     build_globals = cast("dict[str, object]", _BUILD_INSTALLER.__globals__)
+    monkeypatch.setitem(build_globals, "_REPO_ROOT", tmp_path)
     monkeypatch.setitem(build_globals, "_INSTALLER_OUTPUT", installer_output)
     commands: list[Sequence[str]] = []
 
     def fake_run(command: Sequence[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         commands.append(command)
-        if command == [str(executable), "--version"]:
+        if command in (
+            [str(executable), "--version"],
+            [
+                str(companion_payload_dir / "CortexCompanion.exe"),
+                "--version",
+            ],
+        ):
             return subprocess.CompletedProcess(
                 args=list(command),
                 returncode=0,
@@ -173,20 +227,103 @@ def test_nominal_build_constructs_the_expected_iscc_command(
     result = _BUILD_INSTALLER(
         app_version="2026.0721.01",
         executable=executable,
+        companion_payload_dir=companion_payload_dir,
         model_payload_dir=model_payload_dir,
         iscc=compiler,
         additional_iscc_arguments=["/Qp"],
     )
 
     assert result == installer_output
-    assert commands[1] == [
+    assert installer_output.read_bytes() == b"installer"
+    assert commands[2] == [
         str(compiler.resolve()),
         "/DAppVersion=2026.0721.01",
         "/DPayloadVersionVerified=2026.0721.01",
+        f"/DCompanionPayloadDir={companion_payload_dir.resolve()}",
+        "/DCompanionPayloadVersionVerified=2026.0721.01",
         f"/DModelPayloadDir={model_payload_dir.resolve()}",
         "/Qp",
         str(_INSTALLER_SCRIPT),
     ]
+
+
+def test_successful_noop_compiler_cannot_reuse_a_stale_installer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable = _payload(tmp_path)
+    companion_payload_dir = _companion_payload(tmp_path)
+    compiler = tmp_path / "ISCC.exe"
+    compiler.write_bytes(b"placeholder")
+    model_payload_dir = tmp_path / "model payload"
+    model_payload_dir.mkdir()
+    (model_payload_dir / "manifest.json").write_text("{}", encoding="utf-8")
+    installer_output = tmp_path / "dist-installer" / "Cortex-Setup.exe"
+    installer_output.parent.mkdir()
+    installer_output.write_bytes(b"stale installer")
+    build_globals = cast("dict[str, object]", _BUILD_INSTALLER.__globals__)
+    monkeypatch.setitem(build_globals, "_REPO_ROOT", tmp_path)
+    monkeypatch.setitem(build_globals, "_INSTALLER_OUTPUT", installer_output)
+
+    def fake_run(command: Sequence[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if command in (
+            [str(executable), "--version"],
+            [str(companion_payload_dir / "CortexCompanion.exe"), "--version"],
+        ):
+            return subprocess.CompletedProcess(
+                args=list(command),
+                returncode=0,
+                stdout="2026.0721.01\n",
+                stderr="",
+            )
+        return subprocess.CompletedProcess(args=list(command), returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(_BUILD_ERROR, match="reported success but the installer is missing"):
+        _BUILD_INSTALLER(
+            app_version="2026.0721.01",
+            executable=executable,
+            companion_payload_dir=companion_payload_dir,
+            model_payload_dir=model_payload_dir,
+            iscc=compiler,
+            additional_iscc_arguments=[],
+        )
+    assert not installer_output.exists()
+
+
+def test_installer_output_rejects_a_linked_directory(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    external = tmp_path / "external"
+    external.mkdir()
+    output_directory = repository / "dist-installer"
+
+    if sys.platform == "win32":
+        completed = subprocess.run(  # noqa: S603
+            [
+                "cmd.exe",
+                "/d",
+                "/c",
+                "mklink",
+                "/J",
+                str(output_directory),
+                str(external),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            pytest.skip(f"Could not create a Windows junction: {completed.stderr}")
+    else:
+        output_directory.symlink_to(external, target_is_directory=True)
+
+    with pytest.raises(_BUILD_ERROR, match="symbolic link or reparse point"):
+        _VALIDATE_INSTALLER_OUTPUT(
+            output_directory / "Cortex-Setup.exe",
+            repository_root=repository,
+        )
 
 
 def test_ci_and_iss_require_the_shared_version_guard() -> None:
@@ -195,7 +332,9 @@ def test_ci_and_iss_require_the_shared_version_guard() -> None:
 
     assert "#ifndef PayloadVersionVerified" in installer
     assert "#if !SameStr(AppVersion, PayloadVersionVerified)" in installer
+    assert "#if !SameStr(AppVersion, CompanionPayloadVersionVerified)" in installer
     assert "CloseApplications=force" in installer
-    assert "CloseApplicationsFilter=cortex.exe" in installer
+    assert "CloseApplicationsFilter=cortex.exe,CortexCompanion.exe" in installer
+    assert 'DestDir: "{app}\\Companion"' in installer
     assert "packaging\\windows\\build_installer.py" in workflow
     assert "& $iscc" not in workflow

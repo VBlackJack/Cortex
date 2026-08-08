@@ -5,37 +5,59 @@
 [Back to table of contents](index.md)
 
 The Windows installer is the recommended way to use Cortex without Python or a
-terminal. It installs the binary at user scope, adds Cortex to PATH, and
-configures the supported MCP clients.
+terminal. The same file installs the Cortex CLI, offline models, and Cortex
+Companion, the graphical interface. It adds Cortex to PATH and configures the
+supported MCP clients.
 
 ## Guided installation
 
-1. Download `Cortex-Setup.exe` from the matching
+1. Download `Cortex-Setup.exe` and `SHA256SUMS` from the matching
    [GitHub Release](https://github.com/VBlackJack/Cortex/releases).
-2. Double-click the installer. Until the binary is signed, SmartScreen may show
-   an unknown-publisher warning. Verify that the file came from the official
-   release before selecting `More info`, then `Run anyway`.
-3. Choose the knowledge-base folder. The default is
+2. In PowerShell, run `Get-FileHash .\Cortex-Setup.exe -Algorithm SHA256`, then
+   verify that the digest exactly matches the `Cortex-Setup.exe` line in
+   `SHA256SUMS`.
+3. Double-click only after that check. Until the binary is signed, SmartScreen
+   may still show an unknown-publisher warning; then select `More info` and
+   `Run anyway`.
+4. Choose the knowledge-base folder. The default is
    `%USERPROFILE%\Documents\Cortex-KB`; it may start empty.
-4. Keep `Index everything in this folder` so documents at the root or in any
+5. Keep `Index everything in this folder` so documents at the root or in any
    subfolder become searchable. The advanced `Organize into sections` mode
    limits indexing to named folders; its defaults are `knowledge` (reference),
    `projects` (work), and `notes` (free-form notes).
-5. Keep `Index this folder now` selected for an initial index, or clear it to
+6. Keep `Index this folder now` selected for an initial index, or clear it to
    finish faster and synchronize later.
-6. Restart the registered AI applications when installation completes.
+7. Keep `Launch Cortex Companion` selected at the end. Then restart the
+   registered AI applications.
 
 Installation does not require administrator privileges. Cortex is installed
 under `%LOCALAPPDATA%\Programs\Cortex`. New terminals opened after installation
 can resolve the `cortex` command through PATH.
 
-The installer bundles FastEmbed/ONNX models verified against its manifest. The
-first synchronization therefore works offline and downloads no model. The
-corpus and generated index remain local.
+The installer bundles Cortex Companion and FastEmbed/ONNX models verified
+against its manifest. The first synchronization therefore works offline and
+downloads no model. The corpus and generated index remain local.
 
 ## Terminal-free use
 
-Two shortcuts are added to the Start menu:
+Cortex Companion is added to the Start menu and opens after a guided install.
+For first use:
+
+1. Open `Réglages` (Settings). Companion normally detects the `cortex.exe`
+   installed in the parent folder of the same Cortex installation. If the path
+   needs correction, select
+   `%LOCALAPPDATA%\Programs\Cortex\cortex.exe`, then
+   `Enregistrer et connecter` (Save and connect).
+2. Verify the `Dossier de la base de connaissances` (Knowledge-base folder).
+   To change it, choose an existing folder, then select `Enregistrer le dossier`
+   (Save folder).
+3. Add documents to that folder.
+4. Open `Base locale` (Local knowledge base), then select
+   `Synchroniser les documents locaux` (Synchronize local documents). The
+   screen remains
+   available to follow the result and inspect details if the operation fails.
+
+Two technical shortcuts remain available in the Start menu:
 
 - `Cortex Sync` indexes new documents and keeps the console open to show the
   result.
@@ -49,9 +71,9 @@ For automated per-user deployment:
 Cortex-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB"
 ```
 
-Silent mode creates the folder when needed, installs Cortex, and registers the
-clients, but does not index immediately. Add `/INDEX` to force the first index
-during deployment:
+Silent mode creates the folder when needed, installs Cortex and Companion, and
+registers the clients, but does not launch Companion or index immediately. Add
+`/INDEX` to force the first index during deployment:
 
 ```powershell
 Cortex-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB" /INDEX
@@ -88,7 +110,9 @@ Cortex-Setup.exe /VERYSILENT /RESETCONFIG /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE
 
 Uninstall Cortex from `Settings > Apps`. The uninstaller runs
 `cortex unregister --yes --clients all` before deleting the binary, then removes
-only its entry from the user PATH.
+only its entry from the user PATH. Companion also removes its scheduled task
+only when the ownership token matches; an absent or foreign task is never
+deleted.
 
-The Cortex configuration, index, and document folder are preserved so that an
-uninstall never destroys user data.
+The Cortex configuration, local Companion settings, index, and document folder
+are preserved so that an uninstall never destroys user data.

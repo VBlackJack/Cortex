@@ -18,10 +18,11 @@ from __future__ import annotations
 import ctypes
 import logging
 import os
+from collections.abc import Callable
 from ctypes import wintypes
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Protocol, final
+from typing import Protocol, cast, final
 
 from ingestion.constants import (
     ACTION_RENEW_CREDENTIAL,
@@ -33,6 +34,28 @@ from ingestion.models import HealthStatus
 _CRED_TYPE_GENERIC = 1
 _CRED_PERSIST_LOCAL_MACHINE = 2
 _LOG = logging.getLogger("cortex.ingestion.credentials")
+
+
+def _load_windows_library(name: str) -> ctypes.CDLL | None:
+    """Load one Windows library without exposing platform-only ctypes attributes."""
+    if os.name != "nt":
+        return None
+    loader = cast(
+        "Callable[..., ctypes.CDLL] | None",
+        getattr(ctypes, "WinDLL", None),
+    )
+    if loader is None:
+        return None
+    return loader(name, use_last_error=True)
+
+
+def _windows_last_error() -> int:
+    """Return the native Windows error code, or zero if ctypes cannot provide it."""
+    getter = cast(
+        "Callable[[], int] | None",
+        getattr(ctypes, "get_last_error", None),
+    )
+    return getter() if getter is not None else 0
 
 
 class CredentialReadError(RuntimeError):
@@ -103,11 +126,11 @@ class WindowsCredentialReader:
 
     def read(self, target_name: str) -> SecretValue:
         """Read one generic credential and free the native allocation."""
-        if os.name != "nt":
+        advapi32 = _load_windows_library("Advapi32.dll")
+        if advapi32 is None:
             raise CredentialReadError("Windows Credential Manager is unavailable.")
         if not target_name.strip():
             raise CredentialReadError("Credential target name must not be empty.")
-        advapi32 = ctypes.WinDLL("Advapi32.dll", use_last_error=True)
         credential_pointer = ctypes.POINTER(_CredentialW)()
         cred_read = advapi32.CredReadW
         cred_read.argtypes = [
@@ -126,7 +149,7 @@ class WindowsCredentialReader:
             0,
             ctypes.byref(credential_pointer),
         ):
-            error_code = ctypes.get_last_error()
+            error_code = _windows_last_error()
             _LOG.error(
                 "credential_read_failed target=%s system_error=%d",
                 target_name,
@@ -157,7 +180,8 @@ class WindowsCredentialWriter:
 
     def write(self, target_name: str, secret: SecretValue) -> None:
         """Persist one UTF-16 generic credential for the current Windows user."""
-        if os.name != "nt":
+        advapi32 = _load_windows_library("Advapi32.dll")
+        if advapi32 is None:
             raise CredentialWriteError("Windows Credential Manager is unavailable.")
         if not target_name.strip():
             raise CredentialWriteError("Credential target name must not be empty.")
@@ -173,12 +197,11 @@ class WindowsCredentialWriter:
         credential.CredentialBlob = ctypes.cast(blob, ctypes.POINTER(ctypes.c_ubyte))
         credential.Persist = _CRED_PERSIST_LOCAL_MACHINE
         credential.UserName = "Cortex"
-        advapi32 = ctypes.WinDLL("Advapi32.dll", use_last_error=True)
         cred_write = advapi32.CredWriteW
         cred_write.argtypes = [ctypes.POINTER(_CredentialW), wintypes.DWORD]
         cred_write.restype = wintypes.BOOL
         if not cred_write(ctypes.byref(credential), 0):
-            error_code = ctypes.get_last_error()
+            error_code = _windows_last_error()
             _LOG.error(
                 "credential_write_failed target=%s system_error=%d",
                 target_name,

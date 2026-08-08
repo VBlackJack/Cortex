@@ -7,10 +7,41 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0808.00] - 2026-08-08
+
 ### Added
 
+- Added one Windows installer containing the Cortex CLI, verified offline
+  models, and the self-contained Cortex Companion application.
+- Added the versioned encrypted `.cortexbundle` format with `describe` and
+  `verify` inspection commands.
+- Added atomic `cortex config get` and `cortex config set` JSON operations for
+  graphical clients.
+- Added locked PyPI package publication for `cortex-local-rag` and MCP Registry
+  publication to the release chain.
+- Added a canonical PyInstaller builder and distribution tests that build,
+  install, and import the real wheel outside the source tree.
+- Added separate hash-locked runtime, development/build, and model dependency
+  contracts with reproducible installation documentation.
 - Added this technical changelog and bilingual user-facing release notes, linked
   from both documentation indexes and README files.
+- Deferred database export, import, and rollback. The local index remains
+  reconstructible from the Vault and configured sources through synchronization.
+
+### Changed
+
+- Made Cortex Companion the primary terminal-free Windows experience for
+  configuration, synchronization, scheduling, and diagnostics.
+- Made release publication build and smoke-test the unified Windows installer
+  before publishing packages, registry metadata, or GitHub assets.
+- Updated package metadata and the public package name to
+  `cortex-local-rag`.
+- Bumped the Cortex and Companion version to `2026.0808.00`.
+
+### Security
+
+- Made Windows credential access fail closed when native credential APIs are
+  unavailable.
 
 ## Notice - 2026-08-06 - published history rewritten
 

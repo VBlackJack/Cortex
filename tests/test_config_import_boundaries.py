@@ -62,6 +62,7 @@ def _run_cli(
     arguments: tuple[str, ...],
     *,
     config_body: str | None,
+    python_path: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run the installed dispatcher against one isolated user configuration."""
     appdata = tmp_path / "appdata"
@@ -71,6 +72,13 @@ def _run_cli(
         config_path.write_text(config_body, encoding="utf-8")
         assert not config_path.read_bytes().startswith(_UTF8_BOM)
     environment = {**os.environ, "APPDATA": str(appdata)}
+    if python_path is not None:
+        inherited_python_path = environment.get("PYTHONPATH")
+        environment["PYTHONPATH"] = os.pathsep.join(
+            part
+            for part in (str(python_path), inherited_python_path)
+            if part is not None
+        )
     return subprocess.run(
         [sys.executable, "cli.py", *arguments],
         cwd=_REPOSITORY_ROOT,
@@ -135,6 +143,28 @@ def test_invalid_user_config_keeps_human_sync_output_human(tmp_path: Path) -> No
     assert completed.stdout == ""
     assert completed.stderr.startswith("Cortex sync error:")
     assert "Traceback" not in completed.stderr
+
+
+def test_invalid_sync_config_stops_before_ml_runtime_import(tmp_path: Path) -> None:
+    guard_path = tmp_path / "module-guard"
+    guard_path.mkdir()
+    (guard_path / "fastembed.py").write_text(
+        "raise RuntimeError('fastembed imported before config validation')\n",
+        encoding="utf-8",
+    )
+
+    completed = _run_cli(
+        tmp_path,
+        ("sync", "--json"),
+        config_body="schema_version = 99\n",
+        python_path=guard_path,
+    )
+
+    assert completed.returncode == EXIT_INVALID_INPUT
+    assert completed.stderr == ""
+    assert json.loads(completed.stdout)["errors"] == [
+        {"code": "invalid_configuration", "phase": "validate", "path": None}
+    ]
 
 
 def test_absent_user_config_keeps_confluence_pages_json_valid(tmp_path: Path) -> None:
