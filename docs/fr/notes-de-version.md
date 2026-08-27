@@ -7,6 +7,17 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0827-01 -->
+## 2026.0827.01 - 2026-08-27
+
+- Une case "Forcer la collecte" permet desormais de lancer une collecte
+  Confluence sans attendre l'echeance planifiee par Cortex. Auparavant, une
+  collecte deja reussie dans l'intervalle bloquait le bouton jusqu'a
+  l'echeance, sans recours depuis l'interface.
+- Le message affiche dans ce cas explique ce qui se passe et indique la case a
+  cocher, au lieu de presenter un code de sortie brut a cote des vraies
+  erreurs.
+
 <!-- release:2026-0827-00 -->
 ## 2026.0827.00 - 2026-08-27
 

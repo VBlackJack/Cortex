@@ -7,6 +7,22 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0827.01] - 2026-08-27
+
+### Added
+
+- Added a Companion toggle that forces one Confluence collection past the
+  Cortex due interval. A collection that had already succeeded inside the
+  interval previously left the screen with no way to collect again until the
+  schedule elapsed, because the worker never passed `--force`.
+
+### Changed
+
+- Changed the Companion message for exit code 3 on a Confluence collection. It
+  now states that nothing is due, names the schedule as the reason, and points
+  at the force toggle. The exit code is kept at the end of the sentence for
+  support, instead of leading the message like a failure.
+
 ## [2026.0827.00] - 2026-08-27
 
 ### Added
