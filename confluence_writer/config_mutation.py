@@ -72,7 +72,7 @@ def _toml_datetime(value: datetime) -> str:
 
 
 def render_confluence_settings(settings: ConfluenceSettings) -> bytes:
-    """Serialize validated schema v1 or v2 settings as deterministic UTF-8 TOML."""
+    """Serialize validated schema v1, v2, or v3 settings as deterministic UTF-8 TOML."""
     lines = [f"schema_version = {settings.schema_version}"]
     if settings.base_url is not None:
         lines.append(f"base_url = {_toml_string(settings.base_url)}")
@@ -100,7 +100,7 @@ def render_confluence_settings(settings: ConfluenceSettings) -> bytes:
         if settings.schema_version == 1:
             continue
         lines.append(f"selection = {_toml_string(mapping.effective_selection)}")
-        if mapping.effective_selection != "pages":
+        if mapping.effective_selection not in {"pages", "subtree"}:
             continue
         if not mapping.selected_page_ids:
             lines.append("pages = []")

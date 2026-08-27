@@ -263,6 +263,40 @@ class ConfluenceRestClient:
         )
         return tuple(pages)
 
+    def enumerate_subtree(self, root_id: str, expected_space: str) -> tuple[RemotePage, ...]:
+        """Enumerate every current descendant page of one root at the fixed cadence.
+
+        Kazan answers `content/{id}/descendant/page` with HTTP 500 on the measured
+        deployment, so the subtree is read through the CQL ancestor search instead.
+        """
+        cql = f"ancestor={root_id} and type=page"
+        uri: str | None = self._api_uri(
+            "rest/api/content/search"
+            f"?cql={quote(cql, safe='')}"
+            "&expand=space,version,history.lastUpdated,history.createdBy"
+            f"&limit={PAGE_LIMIT}"
+        )
+        visited: set[str] = set()
+        pages: list[RemotePage] = []
+        while uri is not None:
+            if uri in visited:
+                raise ConfluenceRestError("Confluence pagination returned a cycle.")
+            visited.add(uri)
+            payload = self._transport.get_json(uri, self._headers)
+            for raw in _list(payload.get("results"), "results"):
+                pages.append(self._parse_page(_object(raw, "results[]"), expected_space))
+            links = _object(payload.get("_links", {}), "_links")
+            next_link = _optional_string(links.get("next"))
+            uri = None if next_link is None else self._resolve(next_link, current=uri)
+        _LOG.info(
+            "confluence_subtree_enumerated root_id=%s space_key=%s pages=%d requests=%d",
+            root_id,
+            expected_space,
+            len(pages),
+            len(visited),
+        )
+        return tuple(pages)
+
     def get_page_by_id(self, page_id: str) -> RemotePage:
         """Fetch one page by numeric ID and retain its declared space."""
         uri = self._api_uri(
@@ -275,6 +309,17 @@ class ConfluenceRestClient:
         if page.page_id != page_id:
             raise ConfluenceRestError("Confluence returned a different page ID.")
         return page
+
+    def ancestor_ids(self, page_id: str) -> tuple[str, ...]:
+        """Return the ancestor page IDs of one page, closest root first."""
+        uri = self._api_uri(
+            f"rest/api/content/{quote(page_id, safe='')}?expand=ancestors"
+        )
+        payload = self._transport.get_json(uri, self._headers)
+        return tuple(
+            _string(_object(raw, "ancestors[]").get("id"), "ancestors[].id")
+            for raw in _list(payload.get("ancestors", []), "ancestors")
+        )
 
     def get_page(self, page_id: str, expected_space: str) -> RemotePage:
         """Fetch one selected page and validate its declared space before staging."""

@@ -39,6 +39,7 @@ from confluence_writer.constants import (
     DEFAULT_ATTACHMENT_SIZE_MB,
     DEFAULT_CREDENTIAL_TARGET,
     DEFAULT_FAILURE_THRESHOLD,
+    SUBTREE_CONFIG_SCHEMA_VERSION,
     SUPPORTED_CONFIG_SCHEMA_VERSIONS,
 )
 from user_config import user_config_path
@@ -98,7 +99,7 @@ class SpaceMapping(BaseModel):  # type: ignore[misc]
     space_key: str
     target: str
     classification: Literal["perso-non-sensible", "pro-confidentiel"]
-    selection: Literal["whole_space", "pages"] | None = None
+    selection: Literal["whole_space", "pages", "subtree"] | None = None
     pages: tuple[PageSelection, ...] | None = None
 
     @field_validator("space_key")  # type: ignore[untyped-decorator]
@@ -136,6 +137,8 @@ class SpaceMapping(BaseModel):  # type: ignore[misc]
         """Reject ambiguous whole-space configuration and duplicate page IDs."""
         if self.selection == "whole_space" and self.pages is not None:
             raise ValueError("selection='whole_space' must not include a pages table")
+        if self.selection == "subtree" and self.pages is None:
+            raise ValueError("selection='subtree' requires an explicit pages table")
         if self.pages is not None:
             page_ids = [page.page_id for page in self.pages]
             if len(page_ids) != len(set(page_ids)):
@@ -143,7 +146,7 @@ class SpaceMapping(BaseModel):  # type: ignore[misc]
         return self
 
     @property
-    def effective_selection(self) -> Literal["whole_space", "pages"]:
+    def effective_selection(self) -> Literal["whole_space", "pages", "subtree"]:
         """Resolve legacy schema v1 mappings to whole-space collection."""
         return "whole_space" if self.selection is None else self.selection
 
@@ -158,7 +161,7 @@ class ConfluenceSettings(BaseModel):  # type: ignore[misc]
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Literal[1, 2] = 1
+    schema_version: Literal[1, 2, 3] = 1
     base_url: str | None = None
     credential_target: str = DEFAULT_CREDENTIAL_TARGET
     auth_expires_at: datetime | None = None
@@ -229,6 +232,13 @@ class ConfluenceSettings(BaseModel):  # type: ignore[misc]
             return self
         if any(mapping.selection is None for mapping in self.spaces):
             raise ValueError("schema_version=2 requires selection for every space")
+        if self.schema_version < SUBTREE_CONFIG_SCHEMA_VERSION and any(
+            mapping.selection == "subtree" for mapping in self.spaces
+        ):
+            raise ValueError(
+                f"selection='subtree' requires schema_version="
+                f"{SUBTREE_CONFIG_SCHEMA_VERSION}"
+            )
         return self
 
 

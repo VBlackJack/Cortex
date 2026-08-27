@@ -91,6 +91,29 @@ en echec compte dans `failure_threshold` ; elle n'est jamais stagee sous un
 autre espace et le moteur commun applique ses regles existantes de
 carry-forward et de publication.
 
+Le schema v3 ajoute `selection = "subtree"`. La table `pages` liste alors des
+racines de sous-arbre, et non l'ensemble complet des pages : chaque racine est
+collectee avec toutes ses pages descendantes courantes, resolues au moment de
+la collecte. Une racine sans descendant ne collecte qu'elle-meme. Des racines
+dont les sous-arbres se recouvrent collectent chaque page une seule fois. La
+table `pages` doit etre presente et peut etre vide, exactement comme pour la
+selection `pages`, et `subtree` est refuse en schema v1 et v2.
+
+```toml
+[[spaces]]
+space_key = "DOC"
+target = "knowledge/doc"
+classification = "perso-non-sensible"
+selection = "subtree"
+
+[[spaces.pages]]
+page_id = "1001"
+```
+
+Les descendants sont lus par la recherche CQL `ancestor` et non par l'endpoint
+`content/{id}/descendant/page`, qui repond HTTP 500 sur les deploiements Kazan
+mesures.
+
 Le schema v1 reste accepte sans migration. Une entree v1 ne porte ni
 `selection` ni `pages`, signifie toujours `whole_space` et le fichier n'est pas
 reecrit au chargement.

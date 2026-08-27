@@ -83,6 +83,40 @@ def _v2_settings(*, empty: bool = False, label: str = "doc") -> ConfluenceSettin
     )
 
 
+def _v3_subtree_settings() -> ConfluenceSettings:
+    return ConfluenceSettings(
+        schema_version=3,
+        base_url="https://confluence.example.test:8443",
+        credential_target="Cortex doc",
+        auth_expires_at=_NOW,
+        console_path=Path("C:/Tools/doc/console.exe"),
+        spaces=(
+            SpaceMapping(
+                space_key="DOC",
+                target="knowledge/doc",
+                classification="pro-confidentiel",
+                selection="subtree",
+                pages=(PageSelection(page_id="1001"), PageSelection(page_id="1002")),
+            ),
+        ),
+    )
+
+
+def test_subtree_round_trip_keeps_every_root_and_the_schema_version(tmp_path: Path) -> None:
+    settings = _v3_subtree_settings()
+    path = tmp_path / "confluence.toml"
+
+    first = render_confluence_settings(settings)
+    reloaded = parse_confluence_settings_bytes(first, source=path)
+    second = render_confluence_settings(reloaded)
+
+    assert reloaded == settings
+    assert second == first
+    assert b"schema_version = 3" in first
+    assert b'selection = "subtree"' in first
+    assert first.count(b"[[spaces.pages]]") == 2
+
+
 def _worker_settings(label: str) -> ConfluenceSettings:
     return ConfluenceSettings(
         schema_version=2,

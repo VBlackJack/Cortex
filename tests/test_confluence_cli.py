@@ -144,6 +144,82 @@ def test_v2_whole_space_rejects_present_pages_table(tmp_path: Path) -> None:
         load_confluence_settings(path=config_path, environ={})
 
 
+def test_v3_subtree_keeps_its_roots_as_selected_page_ids(tmp_path: Path) -> None:
+    config_path = tmp_path / "confluence.toml"
+    config_path.write_text(
+        "schema_version = 3\n"
+        "[[spaces]]\n"
+        'space_key = "DOC"\n'
+        'target = "knowledge/doc"\n'
+        'classification = "perso-non-sensible"\n'
+        'selection = "subtree"\n'
+        "[[spaces.pages]]\n"
+        'page_id = "1001"\n'
+        "[[spaces.pages]]\n"
+        'page_id = "1002"\n',
+        encoding="utf-8",
+    )
+
+    settings = load_confluence_settings(path=config_path, environ={})
+
+    assert settings.schema_version == 3
+    assert settings.spaces[0].effective_selection == "subtree"
+    assert settings.spaces[0].selected_page_ids == ("1001", "1002")
+
+
+def test_v2_rejects_the_subtree_selection_reserved_for_v3(tmp_path: Path) -> None:
+    config_path = tmp_path / "confluence.toml"
+    config_path.write_text(
+        "schema_version = 2\n"
+        "[[spaces]]\n"
+        'space_key = "DOC"\n'
+        'target = "knowledge/doc"\n'
+        'classification = "perso-non-sensible"\n'
+        'selection = "subtree"\n'
+        "[[spaces.pages]]\n"
+        'page_id = "1001"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfluenceConfigError, match="requires schema_version=3"):
+        load_confluence_settings(path=config_path, environ={})
+
+
+def test_v3_subtree_accepts_an_empty_root_selection(tmp_path: Path) -> None:
+    config_path = tmp_path / "confluence.toml"
+    config_path.write_text(
+        "schema_version = 3\n"
+        "[[spaces]]\n"
+        'space_key = "DOC"\n'
+        'target = "knowledge/doc"\n'
+        'classification = "perso-non-sensible"\n'
+        'selection = "subtree"\n'
+        "pages = []\n",
+        encoding="utf-8",
+    )
+
+    settings = load_confluence_settings(path=config_path, environ={})
+
+    assert settings.spaces[0].effective_selection == "subtree"
+    assert settings.spaces[0].selected_page_ids == ()
+
+
+def test_v3_subtree_requires_an_explicit_pages_table(tmp_path: Path) -> None:
+    config_path = tmp_path / "confluence.toml"
+    config_path.write_text(
+        "schema_version = 3\n"
+        "[[spaces]]\n"
+        'space_key = "DOC"\n'
+        'target = "knowledge/doc"\n'
+        'classification = "perso-non-sensible"\n'
+        'selection = "subtree"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfluenceConfigError, match="requires an explicit pages table"):
+        load_confluence_settings(path=config_path, environ={})
+
+
 def test_v2_pages_accepts_an_empty_selection(tmp_path: Path) -> None:
     config_path = tmp_path / "confluence.toml"
     config_path.write_text(

@@ -7,6 +7,20 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0827-02 -->
+## 2026.0827.02 - 2026-08-27
+
+- Un troisieme mode de collecte arrive : le sous-arbre. Chaque page listee
+  devient une racine, et Cortex collecte aussi toutes ses pages descendantes.
+  Utile quand vous voulez une branche entiere d'un espace sans prendre l'espace
+  complet.
+- L'arborescence est resolue a chaque collecte, pas figee dans le fichier : les
+  pages ajoutees plus tard sous une racine sont reprises automatiquement.
+- Dans Companion, le bouton de changement de mode fait maintenant le tour des
+  trois modes : espace entier, puis pages explicites, puis sous-arbre. En
+  passant de pages a sous-arbre, vos pages deja listees deviennent les racines.
+- Une racine de sous-arbre se retire comme n'importe quelle page explicite.
+
 <!-- release:2026-0827-01 -->
 ## 2026.0827.01 - 2026-08-27
 

@@ -89,6 +89,28 @@ is counted against `failure_threshold`; it is never staged under another
 space, and the common generation engine applies its existing carry-forward and
 publication rules.
 
+Schema v3 adds `selection = "subtree"`. The `pages` table then lists subtree
+roots instead of the complete page set: each root is collected together with
+every current descendant page, resolved at collection time. A root with no
+descendants collects exactly itself. Roots whose subtrees overlap collect each
+page once. The `pages` table must be present and may be empty, exactly like the
+`pages` selection, and `subtree` is refused under schema v1 and v2.
+
+```toml
+[[spaces]]
+space_key = "DOC"
+target = "knowledge/doc"
+classification = "perso-non-sensible"
+selection = "subtree"
+
+[[spaces.pages]]
+page_id = "1001"
+```
+
+Descendants are read through the CQL `ancestor` search rather than the
+`content/{id}/descendant/page` endpoint, which answers HTTP 500 on measured
+Kazan deployments.
+
 Schema v1 remains supported without migration. A v1 space entry has no
 `selection` or `pages` field, continues to mean `whole_space`, and the file is
 not rewritten while loading.

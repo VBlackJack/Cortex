@@ -92,7 +92,7 @@ class ConfiguredSpaceContract(CliContractModel):
     """One allowlisted space exposed to GUI clients."""
 
     space_key: str
-    selection: Literal["whole_space", "pages"]
+    selection: Literal["whole_space", "pages", "subtree"]
     target: str
     classification: Literal["perso-non-sensible", "pro-confidentiel"]
     pages: tuple[ConfiguredPageContract, ...] | None

@@ -169,6 +169,31 @@ class ConfluenceWriter:
                 pages.extend(enumerated)
                 requested_pages += len(enumerated)
                 continue
+            if mapping.effective_selection == "subtree":
+                subtree: dict[str, RemotePage] = {}
+                for root_id in mapping.selected_page_ids:
+                    try:
+                        root = client.get_page(root_id, mapping.space_key)
+                        descendants = client.enumerate_subtree(root_id, mapping.space_key)
+                    except ConfluenceRestError as exc:
+                        requested_pages += 1
+                        failures.append(
+                            DocumentFailure(source_uid=root_id, error_code="source_page_failed")
+                        )
+                        _LOG.warning(
+                            "confluence_subtree_selection_failed root_id=%s space_key=%s "
+                            "error_type=%s",
+                            root_id,
+                            mapping.space_key,
+                            type(exc).__name__,
+                        )
+                        continue
+                    subtree[root.page_id] = root
+                    for descendant in descendants:
+                        subtree[descendant.page_id] = descendant
+                pages.extend(subtree.values())
+                requested_pages += len(subtree)
+                continue
             for page_id in mapping.selected_page_ids:
                 requested_pages += 1
                 try:
