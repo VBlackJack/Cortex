@@ -191,6 +191,24 @@ def _prepare_cli(
             id="display",
         ),
         pytest.param(
+            "https://kazan.example.test/spaces/DOC/pages/1001/Run+Book",
+            [_page()],
+            [],
+            id="spaces-path",
+        ),
+        pytest.param(
+            "https://kazan.example.test/spaces/DOC/pages/1001",
+            [_page()],
+            [],
+            id="spaces-path-without-slug",
+        ),
+        pytest.param(
+            "https://kazan.example.test/wiki/spaces/DOC/pages/1001/Run+Book",
+            [_page()],
+            [],
+            id="spaces-path-with-wiki-prefix",
+        ),
+        pytest.param(
             "https://kazan.example.test/x/AbC",
             [_page()],
             ["/pages/viewpage.action?pageId=1001"],
@@ -256,6 +274,18 @@ def test_resolve_reports_page_configuration_in_pages_mode(
             id="not-found",
         ),
         pytest.param("not-a-page", [], EXIT_INVALID_INPUT, id="invalid-input"),
+        pytest.param(
+            "https://kazan.example.test/spaces/DOC/overview",
+            [],
+            EXIT_INVALID_INPUT,
+            id="spaces-overview-is-not-a-page",
+        ),
+        pytest.param(
+            "https://kazan.example.test/spaces/DOC/pages/not-numeric",
+            [],
+            EXIT_INVALID_INPUT,
+            id="spaces-non-numeric-page-id",
+        ),
         pytest.param("1001", [_page(space_key="OTHER")], EXIT_OUTSIDE_ALLOWLIST, id="outside"),
         pytest.param(
             "1001",

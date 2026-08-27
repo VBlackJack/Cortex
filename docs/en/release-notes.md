@@ -7,6 +7,19 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0827-00 -->
+## 2026.0827.00 - 2026-08-27
+
+- Adding a Confluence page now accepts the address recent Confluence versions
+  show in the browser, of the `/spaces/SPACE/pages/ID/Title` form. Looking up
+  the numeric page ID by hand is no longer necessary. Every previously accepted
+  form keeps working.
+- Pasting the address of a space home, rather than a page, now states what is
+  expected instead of reporting a plain refusal.
+- When the page belongs to a space missing from the configuration file,
+  Companion explains that the space must be declared there first, and that
+  Companion does not create it.
+
 <!-- release:2026-0808-00 -->
 ## 2026.0808.00 - 2026-08-08
 
