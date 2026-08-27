@@ -7,6 +7,33 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0827.02] - 2026-08-27
+
+### Added
+
+- Added Confluence schema v3 and its `selection = "subtree"` collection mode.
+  The `pages` table then lists subtree roots: each root is collected together
+  with every current descendant page, resolved at collection time rather than
+  frozen in the file. Roots whose subtrees overlap collect each page once, and
+  the table may be empty exactly like the `pages` selection.
+- Added `ConfluenceRestClient.enumerate_subtree`, which reads descendants
+  through the CQL `ancestor` search. The documented
+  `content/{id}/descendant/page` endpoint answers HTTP 500 on measured Kazan
+  deployments and is deliberately not used.
+- Added ancestry-aware `configured` reporting to `confluence resolve`. In a
+  subtree space a page counts as configured when it is a root or descends from
+  one; a root still answers without any extra request.
+
+### Changed
+
+- Changed the Companion mode switch from a two-state toggle to a three-state
+  cycle: whole space, then explicit pages, then subtree. Explicit identifiers
+  survive the pages-to-subtree step and become the roots whose descendants the
+  next collection adds. Every other step clears the list, and the typed
+  space-key confirmation names the target mode.
+- Changed Companion page removal so a subtree root can be removed the same way
+  an explicit page identifier already could.
+
 ## [2026.0827.01] - 2026-08-27
 
 ### Added
