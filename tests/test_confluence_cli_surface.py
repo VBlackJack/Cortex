@@ -124,7 +124,28 @@ def _page(
     }
 
 
-def _settings(*, pages: tuple[str, ...] | None = None) -> ConfluenceSettings:
+def _settings(
+    *,
+    pages: tuple[str, ...] | None = None,
+    subtree_roots: tuple[str, ...] | None = None,
+) -> ConfluenceSettings:
+    if subtree_roots is not None:
+        return ConfluenceSettings(
+            schema_version=3,
+            base_url="https://kazan.example.test",
+            credential_target="cortex-spike",
+            auth_expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+            console_path=Path("fixture-console.exe"),
+            spaces=(
+                SpaceMapping(
+                    space_key="DOC",
+                    target="knowledge/doc",
+                    classification="perso-non-sensible",
+                    selection="subtree",
+                    pages=tuple(PageSelection(page_id=root) for root in subtree_roots),
+                ),
+            ),
+        )
     selection = "whole_space" if pages is None else "pages"
     configured_pages = None
     if pages is not None:
@@ -262,6 +283,41 @@ def test_resolve_reports_page_configuration_in_pages_mode(
 
     assert confluence_cli.main(["resolve", "1001", "--json"]) == EXIT_OK
     assert json.loads(capsys.readouterr().out)["configured"] is expected
+
+
+@pytest.mark.parametrize(
+    ("ancestors", "expected"),
+    [
+        pytest.param([{"id": "1001"}], True, id="descendant-of-a-configured-root"),
+        pytest.param([{"id": "9999"}], False, id="outside-every-configured-root"),
+    ],
+)
+def test_resolve_reports_configuration_by_ancestry_in_subtree_mode(
+    ancestors: list[dict[str, str]],
+    expected: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    transport = QueueTransport([_page("1002"), {"ancestors": ancestors}])
+    _prepare_cli(monkeypatch, tmp_path, _settings(subtree_roots=("1001",)), transport)
+
+    assert confluence_cli.main(["resolve", "1002", "--json"]) == EXIT_OK
+    assert json.loads(capsys.readouterr().out)["configured"] is expected
+
+
+def test_resolve_reports_a_subtree_root_as_configured_without_asking_for_ancestors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    transport = QueueTransport([_page("1001")])
+    _prepare_cli(monkeypatch, tmp_path, _settings(subtree_roots=("1001",)), transport)
+
+    assert confluence_cli.main(["resolve", "1001", "--json"]) == EXIT_OK
+    assert json.loads(capsys.readouterr().out)["configured"] is True
+    assert len(transport.json_calls) == 1
+    assert all("expand=ancestors" not in call for call in transport.json_calls)
 
 
 @pytest.mark.parametrize(

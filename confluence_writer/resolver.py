@@ -19,7 +19,7 @@ import re
 from dataclasses import dataclass
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from confluence_writer.config import ConfluenceSettings
+from confluence_writer.config import ConfluenceSettings, SpaceMapping
 from confluence_writer.constants import CLI_CONTRACT_VERSION, SOURCE_SYSTEM
 from confluence_writer.frontmatter import parse_frontmatter
 from confluence_writer.models import (
@@ -142,9 +142,7 @@ def resolve_page(
     )
     if mapping is None:
         raise OutsideAllowlistError("Resolved page belongs to a space outside the allowlist.")
-    configured = (
-        mapping.effective_selection == "whole_space" or page.page_id in mapping.selected_page_ids
-    )
+    configured = _is_configured(page, mapping, client)
     return ResolvedPageContract(
         contract_version=CLI_CONTRACT_VERSION,
         page_id=page.page_id,
@@ -152,6 +150,23 @@ def resolve_page(
         space_key=page.space_key,
         configured=configured,
     )
+
+
+def _is_configured(
+    page: RemotePage,
+    mapping: SpaceMapping,
+    client: ConfluenceRestClient,
+) -> bool:
+    """Decide whether one resolved page is already collected by its space mapping."""
+    selection = mapping.effective_selection
+    if selection == "whole_space":
+        return True
+    if page.page_id in mapping.selected_page_ids:
+        return True
+    if selection != "subtree":
+        return False
+    roots = set(mapping.selected_page_ids)
+    return any(ancestor in roots for ancestor in client.ancestor_ids(page.page_id))
 
 
 def validate_page_reference(value: str, *, base_url: str) -> None:

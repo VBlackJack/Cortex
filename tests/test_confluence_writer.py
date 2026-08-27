@@ -50,12 +50,15 @@ class FakeRestClient:
         include_attachments: bool = True,
         xhtml: str | None = None,
         attachments: tuple[RemoteAttachment, ...] | None = None,
+        descendants: dict[str, tuple[str, ...]] | None = None,
     ) -> None:
         self.pages = pages
         self.include_attachments = include_attachments
         self.xhtml = xhtml
         self.attachments = attachments
+        self.descendants = descendants or {}
         self.enumeration_calls: list[str] = []
+        self.subtree_calls: list[tuple[str, str]] = []
         self.page_calls: list[tuple[str, str]] = []
         self.content_calls: list[str] = []
         self.download_calls: list[str] = []
@@ -63,6 +66,11 @@ class FakeRestClient:
     def enumerate_pages(self, space_key: str) -> tuple[RemotePage, ...]:
         self.enumeration_calls.append(space_key)
         return tuple(page for page in self.pages if page.space_key == space_key)
+
+    def enumerate_subtree(self, root_id: str, expected_space: str) -> tuple[RemotePage, ...]:
+        self.subtree_calls.append((root_id, expected_space))
+        wanted = self.descendants.get(root_id, ())
+        return tuple(page for page in self.pages if page.page_id in wanted)
 
     def get_page(self, page_id: str, expected_space: str) -> RemotePage:
         self.page_calls.append((page_id, expected_space))
@@ -238,6 +246,30 @@ def _page_settings(
     )
 
 
+def _subtree_settings(
+    tmp_path: Path,
+    root_ids: tuple[str, ...],
+    *,
+    threshold: float = 0.10,
+) -> ConfluenceSettings:
+    return ConfluenceSettings(
+        schema_version=3,
+        base_url="https://confluence.example.test",
+        auth_expires_at=_NOW + timedelta(days=90),
+        console_path=tmp_path / "fixture-console.exe",
+        failure_threshold=threshold,
+        spaces=(
+            SpaceMapping(
+                space_key="DOC",
+                target="knowledge/confluence",
+                classification="perso-non-sensible",
+                selection="subtree",
+                pages=tuple(PageSelection(page_id=root_id) for root_id in root_ids),
+            ),
+        ),
+    )
+
+
 def _run(
     storage: IngestionStorage,
     settings: ConfluenceSettings,
@@ -328,6 +360,51 @@ def test_page_selection_collects_only_configured_pages(tmp_path: Path) -> None:
     assert {item.source_uid for item in manifest.documents} == {
         "1001",
         "1002",
+        "zone:DOC",
+    }
+
+
+def test_subtree_selection_collects_each_root_with_its_descendants(tmp_path: Path) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
+    client = FakeRestClient(
+        [_page(page_id, _NOW) for page_id in ("1001", "1002", "1003", "1004")],
+        descendants={"1001": ("1002", "1003")},
+    )
+    console = FakeConsole()
+
+    result = _run(storage, _subtree_settings(tmp_path, ("1001",)), client, console, _NOW)
+
+    assert result.published  # type: ignore[attr-defined]
+    assert client.enumeration_calls == []
+    assert client.subtree_calls == [("1001", "DOC")]
+    manifest = storage.load_current_manifest()
+    assert manifest is not None
+    assert {item.source_uid for item in manifest.documents} == {
+        "1001",
+        "1002",
+        "1003",
+        "zone:DOC",
+    }
+
+
+def test_overlapping_subtree_roots_collect_each_page_exactly_once(tmp_path: Path) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
+    client = FakeRestClient(
+        [_page(page_id, _NOW) for page_id in ("1001", "1002", "1003")],
+        descendants={"1001": ("1002", "1003"), "1002": ("1003",)},
+    )
+    console = FakeConsole()
+
+    result = _run(storage, _subtree_settings(tmp_path, ("1001", "1002")), client, console, _NOW)
+
+    assert result.published  # type: ignore[attr-defined]
+    assert sorted(client.content_calls) == ["1001", "1002", "1003"]
+    manifest = storage.load_current_manifest()
+    assert manifest is not None
+    assert {item.source_uid for item in manifest.documents} == {
+        "1001",
+        "1002",
+        "1003",
         "zone:DOC",
     }
 

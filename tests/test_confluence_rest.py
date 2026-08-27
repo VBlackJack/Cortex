@@ -100,6 +100,58 @@ def test_space_enumeration_follows_multi_page_links_at_limit_250() -> None:
     assert transport.json_calls[1].endswith("start=250&limit=250")
 
 
+def test_subtree_enumeration_uses_the_cql_ancestor_search_and_follows_next_links() -> None:
+    transport = QueueTransport(
+        [
+            {
+                "results": [_page("1002", "2026-08-01T10:00:00Z")],
+                "_links": {"next": "/rest/api/content/search?cql=ancestor%3D1001&start=250"},
+            },
+            {
+                "results": [_page("1003", "2026-08-02T10:00:00Z")],
+                "_links": {},
+            },
+        ]
+    )
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=transport,
+    )
+
+    pages = client.enumerate_subtree("1001", "DOC")
+
+    assert [page.page_id for page in pages] == ["1002", "1003"]
+    assert len(transport.json_calls) == 2
+    assert "rest/api/content/search" in transport.json_calls[0]
+    assert "ancestor%3D1001" in transport.json_calls[0]
+    assert "descendant/page" not in transport.json_calls[0]
+    assert "limit=250" in transport.json_calls[0]
+
+
+def test_subtree_enumeration_fails_closed_on_a_page_from_another_space() -> None:
+    payload = _page("1002", "2026-08-01T10:00:00Z")
+    payload["space"] = {"key": "OTHER"}
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=QueueTransport([{"results": [payload], "_links": {}}]),
+    )
+
+    with pytest.raises(ConfluenceRestError, match="another space"):
+        client.enumerate_subtree("1001", "DOC")
+
+
+def test_ancestor_ids_returns_every_declared_ancestor_in_document_order() -> None:
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=QueueTransport([{"ancestors": [{"id": "1001"}, {"id": "1002"}]}]),
+    )
+
+    assert client.ancestor_ids("1003") == ("1001", "1002")
+
+
 def test_selected_page_fetches_full_metadata_and_validates_space() -> None:
     transport = QueueTransport([_page("1001", "2026-08-01T10:00:00Z")])
     client = ConfluenceRestClient(
