@@ -7,6 +7,31 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0827.00] - 2026-08-27
+
+### Added
+
+- Added the `/spaces/SPACE/pages/ID/Title` page URL to the references accepted
+  by `cortex confluence resolve`. The optional `/wiki` path prefix and a missing
+  title slug are both accepted. Numeric page IDs, `viewpage` URLs, `/display/`
+  URLs, and tiny links keep resolving unchanged. The space key carried by the
+  URL is ignored on purpose: the REST answer stays the only authority on which
+  space owns the page.
+
+### Changed
+
+- Changed the rejection message for a `/spaces/` URL that addresses no page,
+  such as a space overview. It now names the expected `/pages/<numeric id>`
+  shape instead of reporting a generic unsupported URL.
+- Changed the Companion refusal shown when a resolved page belongs to a space
+  absent from the configuration. It now states that Companion never creates a
+  space and that the space must first be declared in the TOML file.
+
+### Fixed
+
+- Fixed six user-facing Companion messages that were written directly in the
+  service code instead of the localization resources.
+
 ## [2026.0808.00] - 2026-08-08
 
 ### Added

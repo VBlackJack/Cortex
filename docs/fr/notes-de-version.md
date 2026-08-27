@@ -7,6 +7,20 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0827-00 -->
+## 2026.0827.00 - 2026-08-27
+
+- Ajouter une page Confluence accepte maintenant l'adresse que le navigateur
+  affiche sur les versions recentes de Confluence, de la forme
+  `/spaces/ESPACE/pages/ID/Titre`. Il n'est plus necessaire de retrouver l'ID
+  numerique a la main. Les autres formes deja reconnues continuent de
+  fonctionner.
+- Coller l'adresse d'un accueil d'espace, et non d'une page, indique desormais
+  ce qui est attendu au lieu d'un simple refus.
+- Quand la page appartient a un espace absent du fichier de configuration,
+  Companion explique que l'espace doit d'abord y etre declare, et qu'il ne le
+  cree pas lui-meme.
+
 <!-- release:2026-0808-00 -->
 ## 2026.0808.00 - 2026-08-08
 

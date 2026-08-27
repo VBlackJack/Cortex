@@ -157,8 +157,8 @@ humans. Manual edits are replaced by the next successful generation.
 
 ## Machine-readable CLI
 
-Resolve a numeric page ID, a `viewpage` URL, a `/display/SPACE/Title` URL, or a
-Kazan `/x/KEY` tiny link:
+Resolve a numeric page ID, a `viewpage` URL, a `/spaces/SPACE/pages/ID/Title`
+URL, a `/display/SPACE/Title` URL, or a Kazan `/x/KEY` tiny link:
 
 ```powershell
 cortex confluence resolve "https://kazan.example.test/display/DOC/Run+Book" --json

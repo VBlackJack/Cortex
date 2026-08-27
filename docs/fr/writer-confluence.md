@@ -160,7 +160,8 @@ generation reussie.
 ## CLI lisible par une machine
 
 Resoudre un page ID numerique, une URL `viewpage`, une URL
-`/display/SPACE/Titre` ou un tiny link Kazan `/x/CLE` :
+`/spaces/SPACE/pages/ID/Titre`, une URL `/display/SPACE/Titre` ou un tiny link
+Kazan `/x/CLE` :
 
 ```powershell
 cortex confluence resolve "https://kazan.example.test/display/DOC/Run+Book" --json
