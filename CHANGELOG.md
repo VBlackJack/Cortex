@@ -7,6 +7,16 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0827.03] - 2026-08-27
+
+### Fixed
+
+- Fixed `confluence pages --json` reporting a null page table for a subtree
+  space. The contract now lists the configured roots, as it already did for the
+  explicit page selection. Graphical clients validate a non-null table for both
+  modes, so the Pages screen rejected the whole document as invalid JSON as
+  soon as one space used the subtree mode shipped in 2026.0827.02.
+
 ## [2026.0827.02] - 2026-08-27
 
 ### Added

@@ -7,6 +7,13 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0827-03 -->
+## 2026.0827.03 - 2026-08-27
+
+- Fix: the Pages screen reported an invalid response as soon as a space used
+  the subtree mode, because its roots never reached the interface. Update
+  before using the subtree mode introduced in 2026.0827.02.
+
 <!-- release:2026-0827-02 -->
 ## 2026.0827.02 - 2026-08-27
 

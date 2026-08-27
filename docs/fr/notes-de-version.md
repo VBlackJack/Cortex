@@ -7,6 +7,14 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0827-03 -->
+## 2026.0827.03 - 2026-08-27
+
+- Correction : l'ecran Pages affichait une erreur de reponse invalide des qu'un
+  espace passait en mode sous-arbre. Ses racines n'etaient pas transmises a
+  l'interface. Mettez a jour avant d'utiliser le mode sous-arbre introduit en
+  2026.0827.02.
+
 <!-- release:2026-0827-02 -->
 ## 2026.0827.02 - 2026-08-27
 
