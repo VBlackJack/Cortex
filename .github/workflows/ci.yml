@@ -73,10 +73,27 @@ jobs:
       # trust_remote_code path is never reached). No fixed chromadb release
       # exists yet; remove this ignore once one ships and the pin is bumped.
       #
+      # CVE-2026-45833 is a second code injection reached through that same
+      # HTTP server API. CVE-2026-45830 lets an authenticated user read and
+      # write another tenant's collections, and CVE-2026-45831 leaves
+      # SimpleRBACAuthorizationProvider permissions unscoped. All three need the
+      # server, its tenants, or its authorization provider, none of which the
+      # embedded PersistentClient instantiates. Chromadb 1.5.9 carries the same
+      # advisories, so no upgrade closes them; remove these ignores once a fixed
+      # release ships and the pin is bumped.
+      #
       # Scan every fully-pinned, hash-locked environment used to build or ship
       # Cortex so the runtime, release toolchain, and model fetcher are covered.
       - name: Audit every locked dependency tree for known CVEs
         run: |
-          python -m pip_audit -r requirements.lock --ignore-vuln PYSEC-2026-311
-          python -m pip_audit -r requirements-dev.lock --ignore-vuln PYSEC-2026-311
+          python -m pip_audit -r requirements.lock \
+            --ignore-vuln PYSEC-2026-311 \
+            --ignore-vuln CVE-2026-45830 \
+            --ignore-vuln CVE-2026-45831 \
+            --ignore-vuln CVE-2026-45833
+          python -m pip_audit -r requirements-dev.lock \
+            --ignore-vuln PYSEC-2026-311 \
+            --ignore-vuln CVE-2026-45830 \
+            --ignore-vuln CVE-2026-45831 \
+            --ignore-vuln CVE-2026-45833
           python -m pip_audit -r requirements-model.lock

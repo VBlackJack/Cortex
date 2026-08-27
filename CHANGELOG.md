@@ -32,6 +32,15 @@ available in [French](docs/fr/notes-de-version.md) and
 - Fixed six user-facing Companion messages that were written directly in the
   service code instead of the localization resources.
 
+### Security
+
+- Accepted three further chromadb advisories in the dependency audit gate:
+  CVE-2026-45830, CVE-2026-45831, and CVE-2026-45833. They join the already
+  accepted PYSEC-2026-311. Every one of them requires the chromadb HTTP server,
+  its tenants, or its authorization provider, and Cortex embeds
+  `PersistentClient` only. Chromadb 1.5.9 carries the same advisories, so no
+  upgrade closes them. The ignores are removed once a fixed release ships.
+
 ## [2026.0808.00] - 2026-08-08
 
 ### Added

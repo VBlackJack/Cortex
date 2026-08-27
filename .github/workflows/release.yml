@@ -85,13 +85,24 @@ jobs:
           assert packages[0]["identifier"] == "cortex-local-rag"
           PY
 
+      # The four ignored chromadb advisories all need the HTTP server, its
+      # tenants, or its authorization provider. Cortex embeds PersistentClient
+      # only. The full justification lives next to the same gate in ci.yml.
       - name: Run release gates
         run: |
           python -m ruff check .
           python -m mypy
           python -m pytest tests/ -q
-          python -m pip_audit -r requirements.lock --ignore-vuln PYSEC-2026-311
-          python -m pip_audit -r requirements-dev.lock --ignore-vuln PYSEC-2026-311
+          python -m pip_audit -r requirements.lock \
+            --ignore-vuln PYSEC-2026-311 \
+            --ignore-vuln CVE-2026-45830 \
+            --ignore-vuln CVE-2026-45831 \
+            --ignore-vuln CVE-2026-45833
+          python -m pip_audit -r requirements-dev.lock \
+            --ignore-vuln PYSEC-2026-311 \
+            --ignore-vuln CVE-2026-45830 \
+            --ignore-vuln CVE-2026-45831 \
+            --ignore-vuln CVE-2026-45833
           python -m pip_audit -r requirements-model.lock
           bash -n scripts/build_installer.sh
 
