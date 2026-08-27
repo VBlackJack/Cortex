@@ -7,6 +7,19 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0827-02 -->
+## 2026.0827.02 - 2026-08-27
+
+- A third collection mode arrives: the subtree. Each listed page becomes a
+  root, and Cortex also collects every page below it. Useful when you want a
+  whole branch of a space without taking the complete space.
+- The tree is resolved at every collection rather than frozen in the file, so
+  pages added later under a root are picked up on their own.
+- In Companion, the mode button now cycles through all three modes: whole
+  space, then explicit pages, then subtree. Moving from pages to subtree turns
+  the pages you already listed into the roots.
+- A subtree root is removed the same way any explicit page already was.
+
 <!-- release:2026-0827-01 -->
 ## 2026.0827.01 - 2026-08-27
 
