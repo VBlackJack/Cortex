@@ -90,6 +90,14 @@ def _parse_reference(
             raise InvalidPageReferenceError("display URL must contain a space and title.")
         return _ParsedReference(kind="display", space_key=space_key, title=title)
 
+    spaces_marker = "/spaces/"
+    if spaces_marker in parsed.path:
+        remainder = parsed.path.split(spaces_marker, 1)[1]
+        segments = [segment for segment in remainder.split("/") if segment]
+        if len(segments) >= 3 and segments[1] == "pages" and _PAGE_ID.fullmatch(segments[2]):
+            return _ParsedReference(kind="id", page_id=segments[2])
+        raise InvalidPageReferenceError("spaces URL must point at /pages/<numeric id>.")
+
     tiny_marker = "/x/"
     if tiny_marker in parsed.path:
         key = parsed.path.split(tiny_marker, 1)[1]
