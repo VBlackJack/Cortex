@@ -201,7 +201,7 @@ def build_pages_contract(
     spaces: list[ConfiguredSpaceContract] = []
     for mapping in settings.spaces:
         pages = None
-        if mapping.effective_selection == "pages":
+        if mapping.effective_selection in {"pages", "subtree"}:
             pages = tuple(
                 ConfiguredPageContract(page_id=page_id, title=titles.get(page_id))
                 for page_id in mapping.selected_page_ids

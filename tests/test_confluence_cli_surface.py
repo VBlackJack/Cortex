@@ -523,6 +523,29 @@ def test_pages_json_golden_mixed_config_uses_only_local_manifest_and_health(
     assert captured.err == ""
 
 
+def test_pages_json_lists_subtree_roots_instead_of_a_null_page_table(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    ingestion_settings = _ingestion_settings(tmp_path / "ingestion")
+    IngestionStorage(ingestion_settings.data_root, SOURCE_KIND, 2)
+    _prepare_local_pages_cli(
+        monkeypatch,
+        _settings(subtree_roots=("1001", "1002")),
+        ingestion_settings,
+    )
+
+    assert confluence_cli.main(["pages", "--json"]) == EXIT_OK
+
+    space = json.loads(capsys.readouterr().out)["spaces"][0]
+    assert space["selection"] == "subtree"
+    assert space["pages"] == [
+        {"page_id": "1001", "title": None},
+        {"page_id": "1002", "title": None},
+    ]
+
+
 def test_pages_json_without_manifest_or_health_keeps_valid_null_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
