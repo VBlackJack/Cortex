@@ -7,6 +7,18 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0831-00 -->
+## 2026.0831.00 - 2026-08-31
+
+- Sur un ordinateur lent, `Réglages` permet maintenant de choisir combien de
+  temps Companion attend le demarrage de Cortex : 15, 30, 60 ou 120 secondes.
+  La valeur par defaut est 30 secondes.
+- La verification de version de Cortex ne charge plus les modeles hors ligne.
+  La connexion initiale est donc plus rapide, meme si un delai plus long reste
+  disponible pour les postes ou Cortex met davantage de temps a demarrer.
+- Si Cortex ne repond toujours pas avant la limite choisie, Companion reste en
+  lecture seule et l'ecran Pages ne lance pas Cortex une seconde fois.
+
 <!-- release:2026-0827-03 -->
 ## 2026.0827.03 - 2026-08-27
 
