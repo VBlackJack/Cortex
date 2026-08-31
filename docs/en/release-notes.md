@@ -7,6 +7,19 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0831-01 -->
+## 2026.0831.01 - 2026-08-31
+
+- `Settings > Confluence authentication` now provides a masked field for the
+  Personal Access Token (PAT). Configure Confluence first, then save the PAT
+  before the first collection or whenever the token is rotated.
+- Companion reads the configured `credential_target` and stores the PAT for
+  the current Windows account in Windows Credential Manager, protected by
+  DPAPI. The secret is never written to Companion settings, the Confluence
+  TOML file, or logs.
+- The terminal command `cortex confluence store-credential` remains available
+  for command-line administration and uses the same credential entry.
+
 <!-- release:2026-0831-00 -->
 ## 2026.0831.00 - 2026-08-31
 

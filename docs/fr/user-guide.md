@@ -94,7 +94,10 @@ disponible.
 Le CLI d'ingestion generique rapporte le dernier etat de sante atomique de la
 source et indique si un rattrapage est du. L'adaptateur Confluence stocke son
 PAT interactivement et passe par les memes moteur de verrou, reprise,
-expiration et generation :
+expiration et generation. Apres creation d'une configuration Confluence
+valide, le PAT peut etre enregistre sans terminal depuis
+`Reglages > Authentification Confluence` dans Companion ; le parcours en ligne
+de commande reste disponible :
 
 ```powershell
 cortex ingestion status doc

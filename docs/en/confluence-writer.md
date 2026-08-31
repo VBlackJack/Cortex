@@ -140,7 +140,18 @@ TOML so an inherited environment cannot silently broaden the source scope.
 
 ## Store the PAT
 
-Run the interactive command in a human-controlled terminal:
+Store the PAT after `CONFLUENCE.toml` contains a valid `credential_target` and
+before the first Confluence sync. Repeat the operation whenever the token is
+rotated.
+
+With Cortex Companion, open `Settings > Confluence authentication`, enter the
+PAT in the masked field, then select `Save PAT`. Companion reads the validated
+target from the Confluence configuration and writes the generic credential for
+the current Windows account directly to Windows Credential Manager. The value
+is protected by DPAPI and is never copied to Companion settings, TOML, or logs.
+
+For command-line administration, run the interactive command in a
+human-controlled terminal:
 
 ```powershell
 cortex confluence store-credential

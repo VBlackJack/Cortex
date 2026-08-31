@@ -7,6 +7,27 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0831.01] - 2026-08-31
+
+### Added
+
+- Added a masked Confluence PAT field to Companion Settings. Once a valid
+  Confluence configuration exists, users can store or rotate the credential
+  without opening a terminal.
+
+### Security
+
+- Stored the PAT directly in the DPAPI-protected Windows Credential Manager
+  entry named by the validated `credential_target`. The current Windows
+  account owns the generic credential; Companion never writes the secret to
+  its settings, the Confluence TOML file, or application logs.
+
+### Fixed
+
+- Made the Confluence force-collection test await the complete asynchronous
+  command before deleting its temporary configuration, removing an
+  intermittent locked-file failure from the Windows release gate.
+
 ## [2026.0831.00] - 2026-08-31
 
 ### Added

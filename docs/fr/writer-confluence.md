@@ -141,7 +141,19 @@ encore exposee.
 
 ## Stocker le PAT
 
-Dans un terminal controle par l'operateur :
+Stockez le PAT apres avoir defini un `credential_target` valide dans
+`CONFLUENCE.toml` et avant la premiere synchronisation Confluence. Repetez
+l'operation a chaque renouvellement du jeton.
+
+Avec Cortex Companion, ouvrez `Reglages > Authentification Confluence`,
+saisissez le PAT dans le champ masque, puis selectionnez `Enregistrer le PAT`.
+Companion lit la cible validee dans la configuration Confluence et ecrit
+directement l'identifiant generique du compte Windows courant dans le
+Gestionnaire d'identifiants Windows. La valeur est protegee par DPAPI et n'est
+jamais copiee dans les reglages Companion, le TOML ou les journaux.
+
+Pour une administration en ligne de commande, utilisez un terminal controle
+par l'operateur :
 
 ```powershell
 cortex confluence store-credential
