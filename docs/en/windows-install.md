@@ -48,6 +48,10 @@ For first use:
    needs correction, select
    `%LOCALAPPDATA%\Programs\Cortex\cortex.exe`, then
    `Enregistrer et connecter` (Save and connect).
+   On a slow computer, also select a 15, 30, 60, or 120 second startup timeout;
+   the default is 30 seconds. This timeout applies only to the startup
+   compatibility check. If it expires, Companion remains read-only rather than
+   running actions against an unconfirmed Cortex process.
 2. Verify the `Dossier de la base de connaissances` (Knowledge-base folder).
    To change it, choose an existing folder, then select `Enregistrer le dossier`
    (Save folder).

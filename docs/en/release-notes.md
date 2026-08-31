@@ -7,6 +7,18 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0831-00 -->
+## 2026.0831.00 - 2026-08-31
+
+- On a slow computer, `Réglages` (Settings) now lets you choose how long
+  Companion waits for Cortex to start: 15, 30, 60, or 120 seconds. The default
+  is 30 seconds.
+- Cortex version verification no longer loads the offline models. Initial
+  connection is therefore faster, while a longer timeout remains available for
+  computers where Cortex needs more time to start.
+- If Cortex still does not answer before the selected limit, Companion stays
+  read-only and the Pages screen does not launch Cortex a second time.
+
 <!-- release:2026-0827-03 -->
 ## 2026.0827.03 - 2026-08-27
 

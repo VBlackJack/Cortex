@@ -7,6 +7,27 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0831.00] - 2026-08-31
+
+### Added
+
+- Added a bounded Cortex startup timeout setting to Companion. Users can choose
+  15, 30, 60, or 120 seconds; 30 seconds is the default for both new and legacy
+  settings, and unsupported stored values fall back to that default.
+
+### Changed
+
+- Changed the packaged `cortex --version` path so it returns the public version
+  before truststore setup or offline-model verification. Companion no longer
+  pays the model bootstrap cost merely to verify that Cortex is compatible.
+- Separated the configurable startup handshake timeout from the five-second
+  timeout used by Companion's Confluence read operations.
+
+### Fixed
+
+- Prevented the Pages screen from launching Cortex a second time after a failed
+  startup handshake has already placed Companion in read-only mode.
+
 ## [2026.0827.03] - 2026-08-27
 
 ### Fixed
