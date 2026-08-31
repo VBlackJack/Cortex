@@ -170,6 +170,30 @@ def test_launcher_injects_truststore_before_importing_cli(
     assert calls == ["inject", "offline"]
 
 
+def test_launcher_version_fast_path_skips_runtime_bootstrap(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[str] = []
+    truststore_module = ModuleType("truststore")
+    truststore_module.inject_into_ssl = lambda: calls.append("inject")  # type: ignore[attr-defined]
+    offline_models_module = ModuleType("offline_models")
+    offline_models_module.activate_if_embedded = lambda: calls.append("offline")  # type: ignore[attr-defined]
+    cli_module = ModuleType("cli")
+    cli_module.main = lambda: calls.append("cli") or 0  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "truststore", truststore_module)
+    monkeypatch.setitem(sys.modules, "offline_models", offline_models_module)
+    monkeypatch.setitem(sys.modules, "cli", cli_module)
+    monkeypatch.setattr(sys, "argv", ["cortex.exe", "--version"])
+
+    with pytest.raises(SystemExit) as raised:
+        runpy.run_path(str(LAUNCHER), run_name="test_cortex_launcher")
+
+    assert raised.value.code == 0
+    assert capsys.readouterr().out == f"{__version__}\n"
+    assert calls == []
+
+
 def test_launcher_reports_truststore_injection_failure_without_crashing(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

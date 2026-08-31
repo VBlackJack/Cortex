@@ -15,16 +15,33 @@
 
 from __future__ import annotations
 
+import sys
+from collections.abc import Sequence
+
+from _version import __version__
+
+_VERSION_ARGUMENT = "--version"
+
+
+def _write_version_and_exit_if_requested(arguments: Sequence[str]) -> None:
+    """Return the public version without initializing packaged runtime services."""
+    if list(arguments) != [_VERSION_ARGUMENT]:
+        return
+
+    sys.stdout.write(f"{__version__}\n")
+    raise SystemExit(0)
+
+
+_write_version_and_exit_if_requested(sys.argv[1:])
+
 try:
     import truststore
 
     truststore.inject_into_ssl()
 except Exception as exc:  # noqa: BLE001 -- bootstrap failure must not prevent startup.
-    import sys
-
     print(f"[cortex] truststore injection failed: {exc}", file=sys.stderr)
 
-from offline_models import activate_if_embedded
+from offline_models import activate_if_embedded  # noqa: E402
 
 activate_if_embedded()
 
