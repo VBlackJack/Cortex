@@ -7,6 +7,26 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0901.02] - 2026-09-01
+
+### Changed
+
+- Applied Companion's selected 15, 30, 60, or 120 second CLI timeout to the
+  compatibility handshake, Cortex configuration operations, and Confluence
+  page reads and resolutions. Existing settings remain compatible with the
+  persisted property used by previous releases.
+- Added configured and elapsed durations to timeout logs without recording CLI
+  arguments, paths, or secrets.
+
+### Fixed
+
+- Removed the hidden five-second Confluence read limit and fifteen-second
+  Cortex configuration limit that could terminate the bundled CLI on slower
+  Windows computers even when the user had selected 120 seconds.
+- Replaced the misleading `Le CLI a refusé la lecture` timeout path with an
+  explicit message that directs the user to increase the shared limit in
+  Settings.
+
 ## [2026.0901.01] - 2026-09-01
 
 ### Added

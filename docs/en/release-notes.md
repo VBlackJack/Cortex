@@ -7,6 +7,20 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0901-02 -->
+## 2026.0901.02 - 2026-09-01
+
+- The timeout selected in `Réglages` (Settings) now applies to every short CLI
+  command launched by Companion: connection, Cortex configuration reads, and
+  Confluence page management.
+- On a slow computer, selecting 60 or 120 seconds and then `Enregistrer et
+  connecter` (Save and connect) prevents Companion from terminating
+  `cortex.exe` while it is still starting.
+- A real timeout now provides a clear explanation and recovery action instead
+  of the misleading `CLI refused the read` message.
+- Existing settings are reused automatically; the update does not require the
+  user to re-enter TOML configuration or the PAT.
+
 <!-- release:2026-0901-01 -->
 ## 2026.0901.01 - 2026-09-01
 

@@ -7,6 +7,20 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0901-02 -->
+## 2026.0901.02 - 2026-09-01
+
+- Le delai choisi dans `Réglages` s'applique maintenant a toutes les commandes
+  courtes lancees par Companion : connexion, lecture de la configuration Cortex
+  et gestion des pages Confluence.
+- Sur un poste lent, choisir 60 ou 120 secondes puis `Enregistrer et connecter`
+  empeche Companion d'interrompre `cortex.exe` pendant son demarrage.
+- Un vrai depassement de delai est maintenant annonce clairement avec l'action
+  a effectuer. Il n'est plus masque par le message trompeur `Le CLI a refuse la
+  lecture`.
+- Les reglages existants sont repris automatiquement ; aucun TOML ni PAT ne doit
+  etre ressaisi apres la mise a jour.
+
 <!-- release:2026-0901-01 -->
 ## 2026.0901.01 - 2026-09-01
 

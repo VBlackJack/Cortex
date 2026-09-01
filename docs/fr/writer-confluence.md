@@ -1,6 +1,6 @@
 ---
 verified: 2026-09-01
-tested_on: "CortexCompanion 2026.0901.01 / Windows / .NET 10"
+tested_on: "CortexCompanion 2026.0901.02 / Windows / .NET 10"
 ---
 
 <!--
@@ -62,6 +62,12 @@ Windows du compte courant.
 
 Le TOML manuel ci-dessous reste disponible pour les configurations avancees ou
 les environnements non Windows.
+
+Sur un poste lent, le delai choisi dans `Réglages > Délai maximal des commandes
+Cortex` s'applique aussi a la lecture de cette liste et a la resolution d'une
+page. Choisir 60 ou 120 secondes, puis `Enregistrer et connecter`, si Cortex
+met plusieurs secondes a demarrer. Un depassement de delai est indique comme
+tel ; il n'est plus presente comme un refus de lecture du CLI.
 
 ```toml
 schema_version = 2
