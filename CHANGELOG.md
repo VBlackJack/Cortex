@@ -7,6 +7,24 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0901.00] - 2026-09-01
+
+### Changed
+
+- Allowed Cortex Companion to save a Confluence PAT before `confluence.toml`
+  exists by using Cortex's canonical `cortex-spike` Windows credential target.
+- Kept page mutations disabled until `confluence.toml` exists, with an explicit
+  prerequisite instead of launching a child CLI process that cannot resolve a
+  page yet.
+
+### Fixed
+
+- Classified incomplete Confluence configuration as invalid input (exit code
+  6), so Companion no longer reports the generic "CLI refused the read" error
+  when `base_url` or `auth_expires_at` is missing.
+- Isolated section-policy tests from the operator's `index_whole_folder`
+  setting so the release suite is deterministic on configured workstations.
+
 ## [2026.0831.01] - 2026-08-31
 
 ### Added

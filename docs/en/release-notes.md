@@ -7,6 +7,20 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0901-00 -->
+## 2026.0901.00 - 2026-09-01
+
+- The Confluence PAT can now be saved on first use, before `confluence.toml` is
+  created. Companion then uses Cortex's matching default Windows target,
+  `cortex-spike`.
+- Until `confluence.toml` exists, page additions stay disabled and the screen
+  explains the prerequisite instead of launching a command that cannot
+  resolve a page. Refreshing the screen enables the action once the file is
+  created.
+- Incomplete configuration is now reported as invalid with useful detail such
+  as a missing `base_url` or `auth_expires_at`, instead of the generic "CLI
+  refused the read" message.
+
 <!-- release:2026-0831-01 -->
 ## 2026.0831.01 - 2026-08-31
 

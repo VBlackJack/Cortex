@@ -7,6 +7,19 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0901-00 -->
+## 2026.0901.00 - 2026-09-01
+
+- Le PAT Confluence peut maintenant etre enregistre des la premiere ouverture,
+  meme avant la creation de `confluence.toml`. Companion utilise alors la meme
+  cible Windows par defaut que Cortex : `cortex-spike`.
+- Tant que `confluence.toml` n'existe pas, l'ajout de pages reste desactive et
+  l'ecran indique le prerequis au lieu de lancer une commande vouee a echouer.
+  Une actualisation suffit a reactiver l'action apres creation du fichier.
+- Une configuration incomplete est maintenant signalee comme invalide avec le
+  detail utile (`base_url` ou `auth_expires_at` manquant), au lieu du message
+  generique `La CLI a refuse la lecture`.
+
 <!-- release:2026-0831-01 -->
 ## 2026.0831.01 - 2026-08-31
 
