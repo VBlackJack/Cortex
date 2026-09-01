@@ -17,14 +17,17 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
 from jsonschema import Draft202012Validator, FormatChecker
 
+import confluence_writer.converter as converter_module
 from confluence_writer.config import ConfluenceSettings, PageSelection, SpaceMapping
-from confluence_writer.converter import ConsoleConverter
+from confluence_writer.converter import ConsoleConverter, ConverterContractError
 from confluence_writer.frontmatter import parse_frontmatter
 from confluence_writer.models import RemoteAttachment, RemotePage, RemotePageContent
 from confluence_writer.rest import ConfluenceRestError
@@ -299,6 +302,46 @@ def _collect(
 
 def _bulk_pages(count: int) -> list[RemotePage]:
     return [_page(str(index), _NOW) for index in range(1, count + 1)]
+
+
+def test_failed_conversion_removes_its_owned_temporary_workspace(tmp_path: Path) -> None:
+    workspaces: list[Path] = []
+
+    def no_result(_console_path: Path, working_directory: Path) -> int:
+        workspaces.append(working_directory)
+        return 0
+
+    writer = ConfluenceWriter(
+        _page_settings(tmp_path, ("1001",)),
+        IngestionStorage(tmp_path / "state", "doc", retention_generations=2),
+        client_factory=lambda _secret: FakeRestClient([_page("1001", _NOW)]),
+        converter_runner=no_result,
+    )
+
+    with pytest.raises(ConverterContractError, match="result.json"):
+        writer.collect(SecretValue(_FAKE_SECRET), captured_at=_NOW)
+
+    assert workspaces
+    assert all(not workspace.exists() for workspace in workspaces)
+
+
+def test_console_converter_rejects_a_gui_without_the_capability_probe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+    monkeypatch.setattr(converter_module.subprocess, "run", fake_run)
+    gui_path = tmp_path / "ConfluenceRAGBuilder.exe"
+
+    with pytest.raises(ConverterContractError, match="not a compatible"):
+        ConsoleConverter(gui_path)
+
+    assert commands == [[str(gui_path), "--probe"]]
 
 
 def _large_job_page(page_id: str, attachments: list[dict[str, object]]) -> dict[str, object]:

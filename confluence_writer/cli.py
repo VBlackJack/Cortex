@@ -221,7 +221,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         GenerationContractError,
         IngestionStorageError,
     ) as exc:
-        _LOG.error("confluence_cli_refused error_type=%s", type(exc).__name__)
+        _LOG.error(
+            "confluence_cli_refused error_type=%s reason=%s",
+            type(exc).__name__,
+            str(exc),
+        )
         sys.stderr.write(f"Cortex Confluence error: {exc}\n")
         return EXIT_ERROR
     if result is None:

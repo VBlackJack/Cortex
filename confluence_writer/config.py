@@ -51,6 +51,8 @@ else:  # pragma: no cover - exercised on Python 3.10
 
 _SPACE_KEY = re.compile(r"^[A-Za-z0-9._-]+$")
 _PAGE_ID = re.compile(r"^[0-9]+$")
+_CONVERTER_DIRECTORY_NAME = "Converters"
+_CONVERTER_EXECUTABLE_NAME = "ConfluenceRAGBuilder.Console.exe"
 _SETTING_FIELDS = {
     "schema_version",
     "base_url",
@@ -334,12 +336,27 @@ def load_confluence_settings(
             raise ConfluenceConfigError(
                 f"Environment variable {environment_name} has an invalid value."
             ) from exc
+    if "console_path" not in merged:
+        default_console = _installed_console_path()
+        if default_console is not None:
+            merged["console_path"] = default_console
     try:
         return cast(ConfluenceSettings, ConfluenceSettings.model_validate(merged))
     except ValidationError as exc:
         raise ConfluenceConfigError(
             f"Invalid Confluence configuration at '{config_path}': {exc}"
         ) from exc
+
+
+def _installed_console_path() -> Path | None:
+    """Return the installer-owned converter path for a frozen Cortex executable."""
+    if not getattr(sys, "frozen", False):
+        return None
+    return (
+        Path(sys.executable).resolve().parent
+        / _CONVERTER_DIRECTORY_NAME
+        / _CONVERTER_EXECUTABLE_NAME
+    )
 
 
 def require_sync_settings(settings: ConfluenceSettings) -> None:

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -30,7 +31,11 @@ from typing import Final
 _REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
 _DEFAULT_PAYLOAD: Final[Path] = _REPO_ROOT / "dist" / "cortex.exe"
 _DEFAULT_COMPANION_PAYLOAD_DIR: Final[Path] = _REPO_ROOT / "dist-companion"
+_DEFAULT_CONVERTER_PAYLOAD_DIR: Final[Path] = _REPO_ROOT / "dist-converter"
 _COMPANION_EXECUTABLE_NAME: Final[str] = "CortexCompanion.exe"
+_CONVERTER_EXECUTABLE_NAME: Final[str] = "ConfluenceRAGBuilder.Console.exe"
+_CONVERTER_LICENSE_NAME: Final[str] = "LICENSE.txt"
+_CONVERTER_SCHEMA_VERSION: Final[int] = 1
 _INSTALLER_SCRIPT: Final[Path] = Path(__file__).with_name("cortex-installer.iss")
 _INSTALLER_OUTPUT: Final[Path] = _REPO_ROOT / "dist-installer" / "Cortex-Setup.exe"
 _VERSION_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\d{4}\.\d{4}\.\d{2}$")
@@ -38,6 +43,8 @@ _RESERVED_ISCC_DEFINES: Final[tuple[str, ...]] = (
     "/dappversion",
     "/dcompanionpayloaddir",
     "/dcompanionpayloadversionverified",
+    "/dconverterpayloaddir",
+    "/dconverterpayloadverified",
     "/dmodelpayloaddir",
     "/dpayloadversionverified",
 )
@@ -158,6 +165,51 @@ def validate_companion_payload_dir(
     return companion_payload_dir.resolve()
 
 
+def validate_converter_payload_dir(converter_payload_dir: Path) -> Path:
+    """Return a converter payload only after its exact capability probe succeeds."""
+    if not converter_payload_dir.is_dir():
+        raise InstallerBuildError(
+            f"Confluence converter payload directory is missing: {converter_payload_dir}."
+        )
+    executable = converter_payload_dir / _CONVERTER_EXECUTABLE_NAME
+    license_path = converter_payload_dir / _CONVERTER_LICENSE_NAME
+    if not executable.is_file() or not license_path.is_file():
+        raise InstallerBuildError(
+            "Confluence converter payload must contain its console executable and LICENSE.txt."
+        )
+    try:
+        completed = subprocess.run(  # noqa: S603
+            [str(executable), "--probe"],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise InstallerBuildError(
+            f"Confluence converter capability probe could not run: {exc}."
+        ) from exc
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise InstallerBuildError(
+            "Confluence converter capability probe did not return valid JSON."
+        ) from exc
+    if (
+        completed.returncode != 0
+        or not isinstance(payload, dict)
+        or set(payload) != {"tool_version", "schema_version"}
+        or not isinstance(payload.get("tool_version"), str)
+        or not payload["tool_version"].strip()
+        or payload.get("schema_version") != _CONVERTER_SCHEMA_VERSION
+    ):
+        raise InstallerBuildError(
+            "Confluence converter payload does not implement the supported probe contract."
+        )
+    return converter_payload_dir.resolve()
+
+
 def validate_model_payload_dir(model_payload_dir: Path) -> Path:
     """Return a non-empty model payload directory resolved for ISCC."""
     if not model_payload_dir.is_dir():
@@ -233,6 +285,7 @@ def build_installer(
     app_version: str,
     executable: Path,
     companion_payload_dir: Path,
+    converter_payload_dir: Path,
     model_payload_dir: Path,
     iscc: Path,
     additional_iscc_arguments: Sequence[str],
@@ -242,6 +295,9 @@ def build_installer(
     validated_companion_payload_dir = validate_companion_payload_dir(
         companion_payload_dir,
         app_version,
+    )
+    validated_converter_payload_dir = validate_converter_payload_dir(
+        converter_payload_dir,
     )
     validated_model_payload_dir = validate_model_payload_dir(model_payload_dir)
     _validate_additional_iscc_arguments(additional_iscc_arguments)
@@ -260,6 +316,8 @@ def build_installer(
         f"/DPayloadVersionVerified={app_version}",
         f"/DCompanionPayloadDir={validated_companion_payload_dir}",
         f"/DCompanionPayloadVersionVerified={app_version}",
+        f"/DConverterPayloadDir={validated_converter_payload_dir}",
+        "/DConverterPayloadVerified=1",
         f"/DModelPayloadDir={validated_model_payload_dir}",
         *additional_iscc_arguments,
         str(_INSTALLER_SCRIPT),
@@ -300,6 +358,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Self-contained CortexCompanion publish directory.",
     )
     parser.add_argument(
+        "--converter-payload-dir",
+        type=Path,
+        default=_DEFAULT_CONVERTER_PAYLOAD_DIR,
+        help="Self-contained Confluence console publish directory.",
+    )
+    parser.add_argument(
         "--model-payload-dir",
         type=Path,
         help="Existing non-empty verified model payload directory.",
@@ -334,6 +398,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.companion_payload_dir,
                 arguments.app_version,
             )
+            validate_converter_payload_dir(arguments.converter_payload_dir)
             print(f"[installer] Validated payload: {validated_output}")
             return 0
         if arguments.model_payload_dir is None:
@@ -344,6 +409,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             app_version=arguments.app_version,
             executable=arguments.payload,
             companion_payload_dir=arguments.companion_payload_dir,
+            converter_payload_dir=arguments.converter_payload_dir,
             model_payload_dir=arguments.model_payload_dir,
             iscc=arguments.iscc,
             additional_iscc_arguments=arguments.iscc_argument,

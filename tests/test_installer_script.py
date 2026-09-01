@@ -124,6 +124,7 @@ def test_release_builds_and_attaches_windows_installer() -> None:
     assert "packaging\\windows\\build_installer.py" in workflow
     assert "--app-version $version" in workflow
     assert "--model-payload-dir $env:CORTEX_MODEL_PAYLOAD_DIR" in workflow
+    assert "--converter-payload-dir dist-converter" in workflow
     assert "--iscc $iscc" in workflow
     assert "& $iscc" not in workflow
     assert "dist-installer\\Cortex-Setup.exe" in workflow
@@ -153,6 +154,15 @@ def test_installer_embeds_and_launches_the_version_checked_companion() -> None:
     assert "Flags: nowait postinstall skipifsilent" in script
     assert "Check: ShouldLaunchCompanion" in script
     assert "CloseApplicationsFilter=cortex.exe,CortexCompanion.exe" in script
+
+
+def test_installer_embeds_the_capability_checked_confluence_converter() -> None:
+    script = INSTALLER.read_text(encoding="utf-8")
+
+    assert "#ifndef ConverterPayloadDir" in script
+    assert "#ifndef ConverterPayloadVerified" in script
+    assert 'Source: "{#ConverterPayloadDir}\\*"' in script
+    assert 'DestDir: "{app}\\Converters"' in script
 
 
 def test_installer_embeds_apache_license_and_model_notices() -> None:

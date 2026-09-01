@@ -1,6 +1,6 @@
 ---
 verified: 2026-09-01
-tested_on: "CortexCompanion 2026.0901.02 / Windows / .NET 10"
+tested_on: "CortexCompanion 2026.0901.03 / Windows / .NET 10"
 ---
 
 <!--
@@ -48,10 +48,13 @@ Quand le fichier n'existe pas, ouvrir `Pages Confluence` dans Companion :
    courts ne la contiennent pas ; la saisir alors manuellement.
 3. Choisir la date d'expiration declaree du PAT et la classification. La valeur
    par defaut est `pro-confidentiel`.
-4. Selectionner facultativement `ConfluenceRAGBuilder.Console.exe`. Ce
-   convertisseur externe est requis pour la collecte, mais pas pour gerer la
-   liste de pages.
-5. Cliquer sur `Initialiser et ajouter la page`, puis confirmer la page resolue.
+4. Cliquer sur `Initialiser et ajouter la page`, puis confirmer la page resolue.
+
+Le convertisseur console est inclus dans l'installeur sous
+`%LOCALAPPDATA%\Programs\Cortex\Converters`. Companion le detecte, verifie son
+contrat `--probe` et ecrit le chemin automatiquement. Le choix manuel reste
+masque dans les options avancees pour les developpeurs. Une application WPF ou
+un binaire incompatible est refuse avant l'enregistrement.
 
 Companion conserve le contexte d'instance tel que `/wiki`, cree une selection
 `pages` vide sous `confluence/<CLE_ESPACE>`, puis ajoute l'ID confirme par le
@@ -74,7 +77,6 @@ schema_version = 2
 base_url = "https://confluence.example.test"
 credential_target = "cortex-spike"
 auth_expires_at = "2026-11-01T00:00:00+01:00"
-console_path = "C:/Tools/ConfluenceRAGBuilder.Console.exe"
 max_attachment_size_mb = 50
 failure_threshold = 0.10
 
@@ -96,6 +98,11 @@ page_id = "379465380"
 [[spaces.pages]]
 page_id = "379465381"
 ```
+
+Sur Windows installe, `console_path` est facultatif : Cortex utilise le binaire
+livre avec l'application. Un chemin TOML ou
+`CORTEX_CONFLUENCE_CONSOLE_PATH` remplace ce defaut uniquement pour un usage de
+developpement et doit repondre au probe console schema 1.
 
 `classification` accepte `perso-non-sensible` ou `pro-confidentiel`. Une cible
 `pro-confidentiel` reste strictement locale et ne doit jamais etre commitee ni

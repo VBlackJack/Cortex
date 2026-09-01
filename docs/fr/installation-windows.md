@@ -37,9 +37,10 @@ L'installation ne demande pas de droits administrateur. Cortex est installe
 dans `%LOCALAPPDATA%\Programs\Cortex`. Les nouveaux terminaux ouverts apres
 l'installation voient la commande `cortex` dans le PATH.
 
-L'installeur embarque Cortex Companion et les modeles FastEmbed/ONNX verifies
-par manifeste. La premiere synchronisation fonctionne donc hors ligne et ne
-telecharge aucun modele. Le corpus et l'index restent locaux.
+L'installeur embarque Cortex Companion, le convertisseur Confluence console et
+les modeles FastEmbed/ONNX verifies par manifeste. La premiere synchronisation
+fonctionne donc hors ligne et ne telecharge aucun modele. Le corpus et l'index
+restent locaux.
 
 ### Premiere configuration Confluence
 
@@ -49,13 +50,13 @@ Apres la connexion de Companion a Cortex :
 2. Dans `Pages Confluence`, coller l'URL complete d'une page.
 3. Choisir l'expiration du PAT et la classification, puis verifier la cle
    d'espace detectee.
-4. Selectionner facultativement le convertisseur externe si la collecte doit
-   etre lancee depuis ce poste.
-5. Cliquer sur `Initialiser et ajouter la page`, puis confirmer la page.
+4. Cliquer sur `Initialiser et ajouter la page`, puis confirmer la page.
 
 Companion cree et valide `%APPDATA%\Cortex\confluence.toml`. Aucune edition
 manuelle n'est necessaire. Le PAT reste dans le Gestionnaire d'identifiants
 Windows protege par DPAPI et n'est pas copie dans le TOML.
+Le convertisseur livre est selectionne et valide automatiquement. Les options
+avancees permettent uniquement aux developpeurs de tester un autre binaire.
 
 ## Utilisation sans terminal
 

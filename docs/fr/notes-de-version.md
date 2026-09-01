@@ -7,6 +7,20 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0901-03 -->
+## 2026.0901.03 - 2026-09-01
+
+- L'installeur fournit maintenant le vrai convertisseur Confluence console.
+  Une installation standard ne demande plus aucun chemin de convertisseur.
+- Companion verifie le convertisseur en moins de cinq secondes avant de
+  l'enregistrer. L'application graphique `ConfluenceRAGBuilder.exe` est refusee
+  immediatement au lieu d'ouvrir une fenetre puis d'attendre sans resultat.
+- Les fichiers `confluence.toml` schema v2 crees sans `console_path` sont
+  repares automatiquement et atomiquement au premier chargement.
+- Les echecs indiquent le chemin effectif du convertisseur dans les journaux,
+  et les dossiers temporaires `cortex-confluence-*` sont supprimes sur tous les
+  chemins de sortie.
+
 <!-- release:2026-0901-02 -->
 ## 2026.0901.02 - 2026-09-01
 

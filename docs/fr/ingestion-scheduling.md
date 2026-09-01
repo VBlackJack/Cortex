@@ -30,6 +30,9 @@ sortie `0` signifie que l'intervalle configure est ecoule et que la commande de
 source doit s'executer. Le code `3` signifie qu'aucun rattrapage n'est requis.
 Utiliser `cortex ingestion status SOURCE_KIND` pour lire le dernier snapshot de
 sante atomique. Une erreur de configuration ou de stockage renvoie le code `1`.
+Pour Confluence, le nom convivial `confluence` et le nom canonique `doc`
+consultent le meme snapshot ; toute autre valeur est refusee avant l'acces au
+stockage.
 
 Les adaptateurs de sources appellent `ingestion.cli.execute_scheduled_attempt`
 depuis leur point d'entree CLI. Les regles de reprise, rattrapage, verrouillage

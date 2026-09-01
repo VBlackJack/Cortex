@@ -17,8 +17,11 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 import tempfile
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import cast
@@ -72,6 +75,34 @@ ClientFactory = Callable[[SecretValue], ConfluenceRestClient]
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+@contextmanager
+def _temporary_workspace() -> Iterator[Path]:
+    """Yield one owned workspace and remove it deterministically on every exit path."""
+    root = Path(tempfile.mkdtemp(prefix="cortex-confluence-"))
+    try:
+        yield root
+    finally:
+        for attempt in range(3):
+            try:
+                shutil.rmtree(root, ignore_errors=False)
+            except FileNotFoundError:
+                break
+            except OSError as exc:
+                if attempt == 2:
+                    _LOG.error(
+                        "confluence_workspace_cleanup_failed path=%s error_type=%s",
+                        root,
+                        type(exc).__name__,
+                    )
+                    raise ConfluenceWriterError(
+                        f"Temporary Confluence workspace cleanup failed at '{root}'."
+                    ) from exc
+                time.sleep(0.1 * (attempt + 1))
+            else:
+                break
+        _LOG.info("confluence_workspace_cleanup_complete path=%s", root)
 
 
 def _rfc3339(value: datetime) -> str:
@@ -309,8 +340,7 @@ class ConfluenceWriter:
         maximum_bytes = self._settings.max_attachment_size_mb * 1024 * 1024
         failures: list[DocumentFailure] = []
         staged_pages: list[RemotePage] = []
-        with tempfile.TemporaryDirectory(prefix="cortex-confluence-") as temporary:
-            root = Path(temporary)
+        with _temporary_workspace() as root:
             staging_root = root / _STAGING_DIRECTORY_NAME
             job_pages: list[dict[str, object]] = []
             for page in pages:

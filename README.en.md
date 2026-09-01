@@ -17,8 +17,9 @@ the generated Markdown, vector index, and lexical index remain local.
 
 ### Windows, no Python (recommended)
 
-The simplest path: one installer for Cortex, Cortex Companion, and the offline
-models. No separate Python or .NET runtime is required.
+The simplest path: one installer for Cortex, Cortex Companion, the windowless
+Confluence converter, and the offline models. No separate Python or .NET
+runtime is required.
 
 1. Download `Cortex-Setup.exe` and `SHA256SUMS` from the
    [latest release](https://github.com/VBlackJack/Cortex/releases/latest).
@@ -138,7 +139,8 @@ The installed package exposes a single command:
 
 - [Table of contents](docs/en/index.md)
 - [Windows install](docs/en/windows-install.md): unified Cortex + Companion +
-  models installer, corpus choice, silent mode, reinstall.
+  Confluence converter + models installer, corpus choice, silent mode,
+  reinstall.
 - [Standalone distribution](docs/en/distribution.md): per-platform archives and reproducible builds.
 - [Install from source](docs/en/setup.md): prerequisites, MCP clients.
 - [User guide](docs/en/user-guide.md): sync, search, tools, doctor, logs.

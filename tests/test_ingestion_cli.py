@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+import argparse
+
 import pytest
 
 import cli
@@ -32,3 +34,14 @@ def test_root_cli_routes_ingestion_arguments(monkeypatch: pytest.MonkeyPatch) ->
 
     assert cli.main(["ingestion", "status", "fixture-source"]) == 7
     assert received == ["status", "fixture-source"]
+
+
+def test_confluence_source_alias_resolves_to_canonical_document_health() -> None:
+    assert ingestion_cli._canonical_source_kind("doc") == "doc"
+    assert ingestion_cli._canonical_source_kind("confluence") == "doc"
+    assert ingestion_cli._canonical_source_kind("CONFLUENCE") == "doc"
+
+
+def test_unknown_source_kind_is_rejected_before_storage_lookup() -> None:
+    with pytest.raises(argparse.ArgumentTypeError, match="unsupported source kind"):
+        ingestion_cli._canonical_source_kind("typo")

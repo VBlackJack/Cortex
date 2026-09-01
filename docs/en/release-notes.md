@@ -7,6 +7,19 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0901-03 -->
+## 2026.0901.03 - 2026-09-01
+
+- The installer now provides the actual windowless Confluence console
+  converter. A standard installation no longer asks for a converter path.
+- Companion verifies the converter in under five seconds before saving it. The
+  windowed `ConfluenceRAGBuilder.exe` is rejected immediately instead of
+  opening a window and waiting without a result.
+- Existing schema-v2 `confluence.toml` files that omit `console_path` are
+  repaired automatically and atomically on first load.
+- Failures record the effective converter path in diagnostics, and every
+  `cortex-confluence-*` temporary workspace is removed on exit.
+
 <!-- release:2026-0901-02 -->
 ## 2026.0901.02 - 2026-09-01
 

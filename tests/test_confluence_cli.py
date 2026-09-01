@@ -23,6 +23,7 @@ import pytest
 
 import cli
 import confluence_writer.cli as confluence_cli
+import confluence_writer.config as confluence_config
 from confluence_writer.config import ConfluenceConfigError, load_confluence_settings
 from ingestion.credentials import SecretValue
 
@@ -90,6 +91,22 @@ def test_config_uses_environment_over_toml_over_defaults(tmp_path: Path) -> None
             path=tmp_path / "absent.toml",
             environ={"CORTEX_CONFLUENCE_PAT": _FAKE_SECRET},
         )
+
+
+def test_frozen_install_defaults_to_the_embedded_console(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable = tmp_path / "cortex.exe"
+    executable.write_bytes(b"MZ")
+    monkeypatch.setattr(confluence_config.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(confluence_config.sys, "executable", str(executable))
+
+    settings = load_confluence_settings(path=tmp_path / "absent.toml", environ={})
+
+    assert settings.console_path == (
+        tmp_path / "Converters" / "ConfluenceRAGBuilder.Console.exe"
+    )
 
 
 def test_v1_config_loads_as_whole_space_without_rewriting(tmp_path: Path) -> None:

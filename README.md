@@ -17,9 +17,9 @@ locaux.
 
 ### Windows, sans Python (recommande)
 
-La voie la plus simple : un seul installeur pour Cortex, Cortex Companion et
-les modeles hors ligne. Aucun Python ni runtime .NET n'est a installer
-separement.
+La voie la plus simple : un seul installeur pour Cortex, Cortex Companion, le
+convertisseur Confluence console et les modeles hors ligne. Aucun Python ni
+runtime .NET n'est a installer separement.
 
 1. Telecharger `Cortex-Setup.exe` et `SHA256SUMS` depuis la
    [derniere release](https://github.com/VBlackJack/Cortex/releases/latest).
@@ -141,7 +141,8 @@ Le paquet installe expose une commande unique :
 
 - [Sommaire](docs/fr/index.md)
 - [Installation Windows](docs/fr/installation-windows.md) : installateur unique
-  Cortex + Companion + modeles, choix du corpus, mode silencieux, reinstallation.
+  Cortex + Companion + convertisseur Confluence + modeles, choix du corpus,
+  mode silencieux, reinstallation.
 - [Distribution autonome](docs/fr/distribution.md) : archives par plateforme et builds reproductibles.
 - [Installation depuis les sources](docs/fr/setup.md) : prerequis, clients MCP.
 - [Guide d'utilisation](docs/fr/user-guide.md) : sync, recherche, outils,

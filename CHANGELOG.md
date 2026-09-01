@@ -7,6 +7,34 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0901.03] - 2026-09-01
+
+### Added
+
+- Embedded the self-contained `ConfluenceRAGBuilder.Console.exe` 1.2.0 payload
+  and its license under the stable Windows installation path
+  `Converters\ConfluenceRAGBuilder.Console.exe`.
+- Added a five-second JSON capability probe used by Companion and Cortex before
+  any converter path is accepted or any conversion job is launched.
+
+### Changed
+
+- Made `console_path` optional for installed Windows builds. Cortex resolves the
+  embedded converter by default; the TOML and environment values remain
+  developer overrides.
+- Made Companion populate new configurations with the embedded path and
+  atomically repair existing schema-v2 configurations that omitted it.
+- Accepted `confluence` as a user-facing alias for the canonical `doc`
+  ingestion health source while rejecting unknown source names.
+
+### Fixed
+
+- Rejected the windowed `ConfluenceRAGBuilder.exe` before it can open and block
+  a collection without producing `result.json`.
+- Added the effective converter path and stable refusal reason to diagnostics,
+  and deterministically removes `cortex-confluence-*` workspaces on success or
+  failure.
+
 ## [2026.0901.02] - 2026-09-01
 
 ### Changed

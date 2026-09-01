@@ -1,6 +1,6 @@
 ---
 verified: 2026-09-01
-tested_on: "CortexCompanion 2026.0901.02 / Windows / .NET 10"
+tested_on: "CortexCompanion 2026.0901.03 / Windows / .NET 10"
 ---
 
 <!--
@@ -47,10 +47,14 @@ When the file does not exist, open `Pages Confluence` in Companion:
    contain it, so enter it manually for those forms.
 3. Choose the PAT's declared expiry date and the classification. The secure
    default is `pro-confidentiel`.
-4. Optionally select `ConfluenceRAGBuilder.Console.exe`. This external converter
-   is required for collection but not for managing the page list.
-5. Select `Initialiser et ajouter la page` (Initialize and add the page), then
+4. Select `Initialiser et ajouter la page` (Initialize and add the page), then
    confirm the resolved page.
+
+The Windows installer includes the console converter under
+`%LOCALAPPDATA%\Programs\Cortex\Converters`. Companion discovers it, verifies
+its `--probe` contract, and writes the path automatically. Manual selection is
+kept inside collapsed developer options. A WPF application or incompatible
+binary is rejected before the path is saved.
 
 Companion preserves an instance context such as `/wiki`, creates an empty
 `pages` selection under `confluence/<SPACE_KEY>`, and then adds the ID confirmed
@@ -74,7 +78,6 @@ schema_version = 2
 base_url = "https://confluence.example.test"
 credential_target = "cortex-spike"
 auth_expires_at = "2026-11-01T00:00:00+01:00"
-console_path = "C:/Tools/ConfluenceRAGBuilder.Console.exe"
 max_attachment_size_mb = 50
 failure_threshold = 0.10
 
@@ -96,6 +99,10 @@ page_id = "379465380"
 [[spaces.pages]]
 page_id = "379465381"
 ```
+
+On installed Windows builds, `console_path` is optional: Cortex uses its
+delivered converter. A TOML path or `CORTEX_CONFLUENCE_CONSOLE_PATH` overrides
+that default only for development and must implement console probe schema 1.
 
 `classification` accepts `perso-non-sensible` or `pro-confidentiel`. A
 `pro-confidentiel` target remains strictly local and must never be committed or

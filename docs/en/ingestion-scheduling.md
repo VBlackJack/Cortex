@@ -29,6 +29,8 @@ the configured interval has elapsed and the source command should run. Exit code
 `3` means no catch-up is required. Use `cortex ingestion status SOURCE_KIND` to
 read the latest atomic health snapshot. Configuration or storage errors return
 exit code `1`.
+For Confluence, the user-facing `confluence` name and canonical `doc` name read
+the same snapshot; every other value is rejected before storage access.
 
 Source adapters call `ingestion.cli.execute_scheduled_attempt` from their CLI
 entry point. This keeps retry, catch-up, locking, and credential lifetime policy

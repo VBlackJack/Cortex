@@ -38,6 +38,7 @@ env:
   MCP_CURL_MAX_TIME_SECONDS: "30"
   MCP_DOWNLOAD_MAX_TIME_SECONDS: "120"
   CPYTHON_LICENSE_URL: https://raw.githubusercontent.com/python/cpython/3bb231a6a5dc02b95658877318bf61501a7209e9/LICENSE
+  CONFLUENCE_CONVERTER_REF: v1.2.0
   CPYTHON_LICENSE_SHA256: 3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf
 
 jobs:
@@ -145,6 +146,14 @@ jobs:
           repository: VBlackJack/CortexCompanion
           ref: ${{ github.ref_type == 'tag' && github.ref_name || 'main' }}
           path: companion-source
+
+      - name: Checkout pinned Confluence converter source
+        if: runner.os == 'Windows'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+        with:
+          repository: VBlackJack/confluence-rag-builder
+          ref: ${{ env.CONFLUENCE_CONVERTER_REF }}
+          path: converter-source
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
@@ -299,6 +308,45 @@ jobs:
             throw "Cortex Companion version mismatch: expected '$version', got '$companionVersion'."
           }
 
+      - name: Verify and publish the pinned Confluence console converter
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & dotnet restore converter-source\ConfluenceRAGBuilder.slnx
+          if ($LASTEXITCODE -ne 0) {
+            throw "Confluence converter restore failed with exit code $LASTEXITCODE."
+          }
+          & dotnet format converter-source\ConfluenceRAGBuilder.slnx `
+            --no-restore --verify-no-changes
+          if ($LASTEXITCODE -ne 0) {
+            throw "Confluence converter format gate failed with exit code $LASTEXITCODE."
+          }
+          & dotnet test converter-source\ConfluenceRAGBuilder.slnx `
+            --configuration Release --no-restore
+          if ($LASTEXITCODE -ne 0) {
+            throw "Confluence converter tests failed with exit code $LASTEXITCODE."
+          }
+          & dotnet publish `
+            converter-source\src\ConfluenceRAGBuilder.Console\ConfluenceRAGBuilder.Console.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --no-restore `
+            --output dist-converter
+          if ($LASTEXITCODE -ne 0) {
+            throw "Confluence converter publish failed with exit code $LASTEXITCODE."
+          }
+          Copy-Item -LiteralPath converter-source\LICENSE `
+            -Destination dist-converter\LICENSE.txt
+          $probeText = & .\dist-converter\ConfluenceRAGBuilder.Console.exe --probe
+          if ($LASTEXITCODE -ne 0) {
+            throw "Confluence converter probe failed with exit code $LASTEXITCODE."
+          }
+          $probe = $probeText | ConvertFrom-Json
+          if ($probe.schema_version -ne 1 -or [string]::IsNullOrWhiteSpace($probe.tool_version)) {
+            throw "Confluence converter returned an incompatible probe contract."
+          }
+
       - name: Smoke-test CLI and server imports
         shell: bash
         env:
@@ -375,10 +423,15 @@ jobs:
           if ($null -eq $signTool) {
             throw "signtool.exe was not found on the Windows runner."
           }
-          & $signTool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com `
-            /td SHA256 /f $certificatePath /p $env:WINDOWS_CERT_PASSWORD dist\cortex.exe
-          if ($LASTEXITCODE -ne 0) {
-            throw "Signing cortex.exe failed with exit code $LASTEXITCODE."
+          foreach ($executable in @(
+            "dist\cortex.exe",
+            "dist-converter\ConfluenceRAGBuilder.Console.exe"
+          )) {
+            & $signTool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com `
+              /td SHA256 /f $certificatePath /p $env:WINDOWS_CERT_PASSWORD $executable
+            if ($LASTEXITCODE -ne 0) {
+              throw "Signing $executable failed with exit code $LASTEXITCODE."
+            }
           }
 
       - name: Install Inno Setup
@@ -434,6 +487,7 @@ jobs:
           & python packaging\windows\build_installer.py `
             --app-version $version `
             --companion-payload-dir dist-companion `
+            --converter-payload-dir dist-converter `
             --model-payload-dir $env:CORTEX_MODEL_PAYLOAD_DIR `
             --iscc $iscc
           if ($LASTEXITCODE -ne 0) {
@@ -511,11 +565,15 @@ jobs:
           $installedCompanion = Join-Path `
             $env:LOCALAPPDATA `
             "Programs\Cortex\Companion\CortexCompanion.exe"
+          $installedConverter = Join-Path `
+            $installedRoot `
+            "Converters\ConfluenceRAGBuilder.Console.exe"
           $installedLicenseRoot = Join-Path $installedRoot "licenses"
           $installedCompanionRoot = Join-Path $installedRoot "Companion"
           foreach ($required in @(
             $installed,
             $installedCompanion,
+            $installedConverter,
             (Join-Path $installedLicenseRoot "Cortex-LICENSE.txt"),
             (Join-Path $installedLicenseRoot "PYTHON_LICENSE.txt"),
             (Join-Path $installedLicenseRoot "THIRD_PARTY_LICENSES.json"),
@@ -526,6 +584,7 @@ jobs:
             (Join-Path $installedCompanionRoot "WPF-LICENSE.txt"),
             (Join-Path $installedCompanionRoot "WPF-ThirdPartyNotices.txt"),
             (Join-Path $installedCompanionRoot "Tomlyn-LICENSE.txt"),
+            (Join-Path $installedRoot "Converters\LICENSE.txt"),
             (Join-Path $modelRoot "manifest.json"),
             (Join-Path $modelRoot "licenses\Apache-2.0.txt"),
             (Join-Path $modelRoot "licenses\THIRD_PARTY_NOTICES.md")
@@ -574,6 +633,10 @@ jobs:
               "Installed payload version mismatch: CLI '$installedVersion', " +
               "Companion '$installedCompanionVersion'."
             )
+          }
+          $converterProbe = & $installedConverter --probe | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $converterProbe.schema_version -ne 1) {
+            throw "Installed Confluence converter capability probe failed."
           }
           $searchOutput = & $installed sync --search "offline installer smoke" 2>&1
           if ($LASTEXITCODE -ne 0) {

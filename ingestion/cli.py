@@ -247,6 +247,18 @@ def _storage(settings: IngestionSettings, source_kind: str) -> IngestionStorage:
     )
 
 
+def _canonical_source_kind(value: str) -> str:
+    """Map the user-facing Confluence alias to its canonical document source."""
+    aliases = {"doc": "doc", "confluence": "doc"}
+    try:
+        return aliases[value.casefold()]
+    except KeyError as exc:
+        supported = ", ".join(sorted(aliases))
+        raise argparse.ArgumentTypeError(
+            f"unsupported source kind '{value}'; choose one of: {supported}"
+        ) from exc
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Report generic ingestion health or whether startup catch-up is due."""
     parser = argparse.ArgumentParser(prog="cortex ingestion")
@@ -254,7 +266,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     for command in (_COMMAND_STATUS, _COMMAND_DUE):
         subparser = subparsers.add_parser(command)
-        subparser.add_argument("source_kind")
+        subparser.add_argument("source_kind", type=_canonical_source_kind)
     namespace = parser.parse_args(argv)
 
     from cortex_logging import configure_logging

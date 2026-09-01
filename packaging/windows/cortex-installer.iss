@@ -30,6 +30,12 @@
 #if !SameStr(AppVersion, CompanionPayloadVersionVerified)
   #error AppVersion does not match the validated CortexCompanion.exe version
 #endif
+#ifndef ConverterPayloadDir
+  #error ConverterPayloadDir must be provided by build_installer.py
+#endif
+#ifndef ConverterPayloadVerified
+  #error Compile through build_installer.py to validate the Confluence converter probe
+#endif
 
 ; Direct ISCC compilation is intentionally blocked above. The shared local and
 ; CI wrapper validates dist/cortex.exe --version before supplying the proof.
@@ -130,6 +136,7 @@ french.CompanionCleanupFailed=Cortex Companion n'a pas pu retirer de facon sure 
 Source: "..\..\dist\cortex.exe"; DestDir: "{app}"; DestName: "cortex.exe"; Flags: ignoreversion
 Source: "..\..\dist\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#CompanionPayloadDir}\*"; DestDir: "{app}\Companion"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#ConverterPayloadDir}\*"; DestDir: "{app}\Converters"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ModelPayloadDir}\*"; DestDir: "{localappdata}\Cortex\models"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\LICENSE"; DestDir: "{localappdata}\Cortex\models\licenses"; DestName: "Apache-2.0.txt"; Flags: ignoreversion
 Source: "..\..\THIRD_PARTY_NOTICES.md"; DestDir: "{localappdata}\Cortex\models\licenses"; Flags: ignoreversion

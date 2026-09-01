@@ -42,6 +42,10 @@ _VALIDATE_COMPANION_PAYLOAD_DIR = cast(
     "Callable[[Path, str], Path]",
     _SCRIPT_GLOBALS["validate_companion_payload_dir"],
 )
+_VALIDATE_CONVERTER_PAYLOAD_DIR = cast(
+    "Callable[[Path], Path]",
+    _SCRIPT_GLOBALS["validate_converter_payload_dir"],
+)
 _VALIDATE_ISCC_ARGUMENTS = cast(
     "Callable[[Sequence[str]], None]",
     _SCRIPT_GLOBALS["_validate_additional_iscc_arguments"],
@@ -67,6 +71,14 @@ def _companion_payload(tmp_path: Path) -> Path:
     payload_dir = tmp_path / "companion publish"
     payload_dir.mkdir()
     (payload_dir / "CortexCompanion.exe").write_bytes(b"placeholder")
+    return payload_dir
+
+
+def _converter_payload(tmp_path: Path) -> Path:
+    payload_dir = tmp_path / "converter publish"
+    payload_dir.mkdir()
+    (payload_dir / "ConfluenceRAGBuilder.Console.exe").write_bytes(b"placeholder")
+    (payload_dir / "LICENSE.txt").write_text("Apache License", encoding="utf-8")
     return payload_dir
 
 
@@ -158,6 +170,8 @@ def test_companion_payload_version_rejects_a_mismatch(
         "/DAppVersion=2026.0721.99",
         "/DCompanionPayloadDir=C:" + chr(92) + "untrusted",
         "/DCompanionPayloadVersionVerified=2026.0721.99",
+        "/DConverterPayloadDir=C:" + chr(92) + "untrusted",
+        "/DConverterPayloadVerified=0",
         "/DModelPayloadDir=C:" + chr(92) + "untrusted",
         "/DPayloadVersionVerified=2026.0721.99",
     ],
@@ -170,6 +184,21 @@ def test_reserved_version_defines_cannot_be_overridden(argument: str) -> None:
 def test_missing_model_payload_directory_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(_BUILD_ERROR, match="Model payload directory is missing"):
         _VALIDATE_MODEL_PAYLOAD_DIR(tmp_path / "missing")
+
+
+def test_converter_payload_requires_a_successful_machine_probe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload_dir = _converter_payload(tmp_path)
+
+    def fake_run(command: Sequence[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, "not-json", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(_BUILD_ERROR, match="did not return valid JSON"):
+        _VALIDATE_CONVERTER_PAYLOAD_DIR(payload_dir)
 
 
 def test_empty_model_payload_directory_is_rejected(tmp_path: Path) -> None:
@@ -191,6 +220,7 @@ def test_nominal_build_constructs_the_expected_iscc_command(
 ) -> None:
     executable = _payload(tmp_path)
     companion_payload_dir = _companion_payload(tmp_path)
+    converter_payload_dir = _converter_payload(tmp_path)
     compiler = tmp_path / "ISCC.exe"
     compiler.write_bytes(b"placeholder")
     model_payload_dir = tmp_path / "model payload"
@@ -219,6 +249,16 @@ def test_nominal_build_constructs_the_expected_iscc_command(
                 stdout="2026.0721.01\n",
                 stderr="",
             )
+        if command == [
+            str(converter_payload_dir / "ConfluenceRAGBuilder.Console.exe"),
+            "--probe",
+        ]:
+            return subprocess.CompletedProcess(
+                args=list(command),
+                returncode=0,
+                stdout='{"tool_version":"1.2.0","schema_version":1}\n',
+                stderr="",
+            )
         installer_output.write_bytes(b"installer")
         return subprocess.CompletedProcess(args=list(command), returncode=0)
 
@@ -228,6 +268,7 @@ def test_nominal_build_constructs_the_expected_iscc_command(
         app_version="2026.0721.01",
         executable=executable,
         companion_payload_dir=companion_payload_dir,
+        converter_payload_dir=converter_payload_dir,
         model_payload_dir=model_payload_dir,
         iscc=compiler,
         additional_iscc_arguments=["/Qp"],
@@ -235,12 +276,14 @@ def test_nominal_build_constructs_the_expected_iscc_command(
 
     assert result == installer_output
     assert installer_output.read_bytes() == b"installer"
-    assert commands[2] == [
+    assert commands[3] == [
         str(compiler.resolve()),
         "/DAppVersion=2026.0721.01",
         "/DPayloadVersionVerified=2026.0721.01",
         f"/DCompanionPayloadDir={companion_payload_dir.resolve()}",
         "/DCompanionPayloadVersionVerified=2026.0721.01",
+        f"/DConverterPayloadDir={converter_payload_dir.resolve()}",
+        "/DConverterPayloadVerified=1",
         f"/DModelPayloadDir={model_payload_dir.resolve()}",
         "/Qp",
         str(_INSTALLER_SCRIPT),
@@ -253,6 +296,7 @@ def test_successful_noop_compiler_cannot_reuse_a_stale_installer(
 ) -> None:
     executable = _payload(tmp_path)
     companion_payload_dir = _companion_payload(tmp_path)
+    converter_payload_dir = _converter_payload(tmp_path)
     compiler = tmp_path / "ISCC.exe"
     compiler.write_bytes(b"placeholder")
     model_payload_dir = tmp_path / "model payload"
@@ -276,6 +320,16 @@ def test_successful_noop_compiler_cannot_reuse_a_stale_installer(
                 stdout="2026.0721.01\n",
                 stderr="",
             )
+        if command == [
+            str(converter_payload_dir / "ConfluenceRAGBuilder.Console.exe"),
+            "--probe",
+        ]:
+            return subprocess.CompletedProcess(
+                args=list(command),
+                returncode=0,
+                stdout='{"tool_version":"1.2.0","schema_version":1}\n',
+                stderr="",
+            )
         return subprocess.CompletedProcess(args=list(command), returncode=0)
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -285,6 +339,7 @@ def test_successful_noop_compiler_cannot_reuse_a_stale_installer(
             app_version="2026.0721.01",
             executable=executable,
             companion_payload_dir=companion_payload_dir,
+            converter_payload_dir=converter_payload_dir,
             model_payload_dir=model_payload_dir,
             iscc=compiler,
             additional_iscc_arguments=[],
@@ -333,6 +388,8 @@ def test_ci_and_iss_require_the_shared_version_guard() -> None:
     assert "#ifndef PayloadVersionVerified" in installer
     assert "#if !SameStr(AppVersion, PayloadVersionVerified)" in installer
     assert "#if !SameStr(AppVersion, CompanionPayloadVersionVerified)" in installer
+    assert "#ifndef ConverterPayloadVerified" in installer
+    assert 'DestDir: "{app}\\Converters"' in installer
     assert "CloseApplications=force" in installer
     assert "CloseApplicationsFilter=cortex.exe,CortexCompanion.exe" in installer
     assert 'DestDir: "{app}\\Companion"' in installer

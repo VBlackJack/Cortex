@@ -31,6 +31,9 @@ from confluence_writer.constants import JOB_SCHEMA_SHA256, RESULT_SCHEMA_SHA256
 
 _LOG = logging.getLogger("cortex.confluence_writer.converter")
 _ACCEPTED_EXIT_CODES = {0, 2}
+_PROBE_ARGUMENT = "--probe"
+_PROBE_TIMEOUT_SECONDS = 5
+_SUPPORTED_SCHEMA_VERSION = 1
 _RESOURCES = Path(__file__).parent / "resources"
 
 
@@ -143,6 +146,11 @@ def _contained_file(root: Path, relative_path: str) -> Path:
 
 
 def _default_runner(console_path: Path, working_directory: Path) -> int:
+    _LOG.info(
+        "confluence_converter_start path=%s workspace=%s",
+        console_path,
+        working_directory,
+    )
     try:
         completed = subprocess.run(
             [str(console_path), str(working_directory)],
@@ -151,10 +159,84 @@ def _default_runner(console_path: Path, working_directory: Path) -> int:
             text=False,
             timeout=1800,
         )
+    except subprocess.TimeoutExpired as exc:
+        _LOG.error(
+            "confluence_converter_timeout path=%s timeout_seconds=%d",
+            console_path,
+            1800,
+        )
+        raise ConverterContractError(
+            f"Confluence conversion console timed out at '{console_path}'."
+        ) from exc
     except (OSError, subprocess.SubprocessError) as exc:
-        raise ConverterContractError("Confluence conversion console could not run.") from exc
-    _LOG.info("confluence_converter_finished exit_code=%d", completed.returncode)
+        _LOG.error(
+            "confluence_converter_launch_failed path=%s error_type=%s",
+            console_path,
+            type(exc).__name__,
+        )
+        raise ConverterContractError(
+            f"Confluence conversion console could not run at '{console_path}'."
+        ) from exc
+    _LOG.info(
+        "confluence_converter_finished path=%s exit_code=%d",
+        console_path,
+        completed.returncode,
+    )
     return completed.returncode
+
+
+def _probe_console(console_path: Path) -> None:
+    _LOG.info(
+        "confluence_converter_selected reason=effective_configuration path=%s",
+        console_path,
+    )
+    try:
+        completed = subprocess.run(
+            [str(console_path), _PROBE_ARGUMENT],
+            check=False,
+            capture_output=True,
+            text=False,
+            timeout=_PROBE_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ConverterContractError(
+            f"Confluence converter capability probe timed out at '{console_path}'."
+        ) from exc
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ConverterContractError(
+            f"Confluence converter is unavailable at '{console_path}'."
+        ) from exc
+    try:
+        payload = json.loads(completed.stdout.decode("utf-8", errors="strict"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        payload = None
+        parsing_error: Exception | None = exc
+    else:
+        parsing_error = None
+    valid = (
+        completed.returncode == 0
+        and isinstance(payload, dict)
+        and set(payload) == {"tool_version", "schema_version"}
+        and isinstance(payload.get("tool_version"), str)
+        and bool(payload["tool_version"].strip())
+        and payload.get("schema_version") == _SUPPORTED_SCHEMA_VERSION
+    )
+    if not valid:
+        _LOG.error(
+            "confluence_converter_probe_refused path=%s exit_code=%d parse_error=%s",
+            console_path,
+            completed.returncode,
+            "none" if parsing_error is None else type(parsing_error).__name__,
+        )
+        raise ConverterContractError(
+            f"The executable at '{console_path}' is not a compatible Confluence console converter."
+        )
+    _LOG.info(
+        "confluence_converter_probe_ok path=%s tool_version=%s schema_version=%d",
+        console_path,
+        payload["tool_version"],
+        payload["schema_version"],
+    )
 
 
 class ConsoleConverter:
@@ -164,6 +246,8 @@ class ConsoleConverter:
         """Bind a configurable executable path and optional test runner."""
         self._console_path = Path(console_path)
         self._runner = _default_runner if runner is None else runner
+        if runner is None:
+            _probe_console(self._console_path)
         self._job_limits = _job_limits(_load_schema("job.schema.json", JOB_SCHEMA_SHA256))
 
     @property
@@ -228,8 +312,13 @@ class ConsoleConverter:
         try:
             result = json.loads(result_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            _LOG.error(
+                "confluence_converter_result_unavailable path=%s error_type=%s",
+                result_path,
+                type(exc).__name__,
+            )
             raise ConverterContractError(
-                "Conversion result.json is unavailable or invalid."
+                f"Conversion result.json is unavailable or invalid at '{result_path}'."
             ) from exc
         _validate(
             result,
