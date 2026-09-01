@@ -7,6 +7,21 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0901-01 -->
+## 2026.0901.01 - 2026-09-01
+
+- Initial Confluence setup now happens directly in `Pages Confluence`. Paste a
+  page URL, choose the PAT expiry date and classification, then select
+  `Initialiser et ajouter la page` (Initialize and add the page).
+- Companion detects the instance address and space key from URLs that expose
+  them. Legacy `viewpage.action` URLs and short links remain accepted; enter the
+  Confluence space key when those links do not contain it.
+- `confluence.toml` is created through the locked, validated, atomic writer. The
+  PAT remains only in the DPAPI-protected Windows Credential Manager and is
+  never written to that file.
+- The external converter can be selected on the same screen. It is optional for
+  managing pages but still required to collect them.
+
 <!-- release:2026-0901-00 -->
 ## 2026.0901.00 - 2026-09-01
 

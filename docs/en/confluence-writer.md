@@ -1,3 +1,8 @@
+---
+verified: 2026-09-01
+tested_on: "CortexCompanion 2026.0901.01 / Windows / .NET 10"
+---
+
 <!--
 Copyright 2026 Julien Bombled
 
@@ -32,6 +37,30 @@ tombstones, retention, and health state.
 The optional writer file is `%APPDATA%\Cortex\confluence.toml`. Environment
 variables prefixed with `CORTEX_CONFLUENCE_` override TOML, and TOML overrides
 safe defaults. No space is enabled by default.
+
+### Guided initialization with Companion
+
+When the file does not exist, open `Pages Confluence` in Companion:
+
+1. Paste the full URL of the first Confluence page.
+2. Verify the inferred space key. `viewpage.action` URLs and short links do not
+   contain it, so enter it manually for those forms.
+3. Choose the PAT's declared expiry date and the classification. The secure
+   default is `pro-confidentiel`.
+4. Optionally select `ConfluenceRAGBuilder.Console.exe`. This external converter
+   is required for collection but not for managing the page list.
+5. Select `Initialiser et ajouter la page` (Initialize and add the page), then
+   confirm the resolved page.
+
+Companion preserves an instance context such as `/wiki`, creates an empty
+`pages` selection under `confluence/<SPACE_KEY>`, and then adds the ID confirmed
+through the Cortex contract. Creation takes the mutation lock, verifies that the
+file is still absent, validates the rendered result, and replaces it atomically.
+The PAT never enters this file; it remains in Windows Credential Manager for the
+current account.
+
+The manual TOML below remains available for advanced configurations and
+non-Windows environments.
 
 ```toml
 schema_version = 2

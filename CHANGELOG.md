@@ -7,6 +7,32 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0901.01] - 2026-09-01
+
+### Added
+
+- Added a guided Confluence first-run card to Cortex Companion. A user can paste
+  one supported page URL, declare the PAT expiry and classification, optionally
+  select the external converter, and initialize the space allowlist without
+  editing TOML.
+- Added local inference for every page URL form already accepted by Cortex,
+  including modern `/spaces/.../pages/...`, `/display/...`, legacy
+  `viewpage.action`, and short `/x/...` links while preserving a `/wiki` context
+  path.
+
+### Security
+
+- Kept the PAT exclusively in the DPAPI-protected Windows Credential Manager.
+  The generated configuration contains only non-secret metadata and starts from
+  the fail-closed `pro-confidentiel` classification.
+- Reused the existing mutation lock, validation round-trip, exact absence check,
+  and atomic replacement for first-file creation.
+
+### Fixed
+
+- Removed the first-run dead end where Companion told non-technical users to
+  initialize `confluence.toml` manually before the Pages screen could work.
+
 ## [2026.0901.00] - 2026-09-01
 
 ### Changed

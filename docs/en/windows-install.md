@@ -38,6 +38,22 @@ The installer bundles Cortex Companion and FastEmbed/ONNX models verified
 against its manifest. The first synchronization therefore works offline and
 downloads no model. The corpus and generated index remain local.
 
+### First Confluence configuration
+
+After Companion connects to Cortex:
+
+1. Save the masked Confluence PAT under `Settings`.
+2. Open `Pages Confluence` and paste a full page URL.
+3. Choose the PAT expiry and classification, then verify the inferred space key.
+4. Optionally select the external converter when this computer must run
+   collection.
+5. Select `Initialiser et ajouter la page` (Initialize and add the page), then
+   confirm the page.
+
+Companion creates and validates `%APPDATA%\Cortex\confluence.toml`; manual
+editing is not required. The PAT stays in the DPAPI-protected Windows
+Credential Manager and is never copied into TOML.
+
 ## Terminal-free use
 
 Cortex Companion is added to the Start menu and opens after a guided install.
