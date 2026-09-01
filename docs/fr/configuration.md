@@ -38,7 +38,10 @@ en mode ferme et aucun de ces fichiers n'accepte de secret :
 
 Les variables d'environnement priment sur les valeurs TOML correspondantes. Le
 PAT est stocke interactivement dans Windows Credential Manager, jamais dans un
-fichier TOML ni une variable d'environnement.
+fichier TOML ni une variable d'environnement. En l'absence de
+`confluence.toml`, le stockage interactif utilise la cible Windows par defaut
+`cortex-spike`, mais l'ajout de pages et la collecte restent desactives jusqu'a
+la creation du fichier.
 
 `confluence.toml` accepte les schemas v1 et v2. Les fichiers v1 existants
 restent des listes blanches d'espaces entiers et ne sont jamais reecrits au
@@ -64,7 +67,9 @@ cortex confluence resolve 379465380 --json
 `pages --json` lit uniquement `confluence.toml`, la generation locale `doc`
 courante et son etat de sante. Cette commande ne lit aucun credential et ne
 contacte pas Confluence. `resolve` exige `base_url`, `auth_expires_at`, le
-credential Windows nomme et une requete REST Confluence authentifiee. Voir le
+credential Windows nomme et une requete REST Confluence authentifiee. Une
+configuration incomplete est classee comme entree invalide (code 6), pas comme
+erreur generale. Voir le
 [writer Confluence](writer-confluence.md#cli-lisible-par-une-machine) pour les
 contrats JSON et les exit codes.
 

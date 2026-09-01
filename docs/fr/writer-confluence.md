@@ -141,16 +141,21 @@ encore exposee.
 
 ## Stocker le PAT
 
-Stockez le PAT apres avoir defini un `credential_target` valide dans
-`CONFLUENCE.toml` et avant la premiere synchronisation Confluence. Repetez
-l'operation a chaque renouvellement du jeton.
+Stockez le PAT avant la premiere synchronisation Confluence et repetez
+l'operation a chaque renouvellement du jeton. Si `CONFLUENCE.toml` n'existe
+pas encore, Cortex et Companion utilisent la meme cible Windows par defaut,
+`cortex-spike`. Le fichier reste toutefois obligatoire avant d'ajouter des
+pages ou de lancer une collecte, car il porte notamment `base_url`,
+`auth_expires_at` et la liste blanche des espaces.
 
 Avec Cortex Companion, ouvrez `Reglages > Authentification Confluence`,
 saisissez le PAT dans le champ masque, puis selectionnez `Enregistrer le PAT`.
-Companion lit la cible validee dans la configuration Confluence et ecrit
-directement l'identifiant generique du compte Windows courant dans le
-Gestionnaire d'identifiants Windows. La valeur est protegee par DPAPI et n'est
-jamais copiee dans les reglages Companion, le TOML ou les journaux.
+Companion lit la cible validee dans la configuration Confluence, ou reprend la
+cible par defaut si le fichier est absent, puis ecrit directement l'identifiant
+generique du compte Windows courant dans le Gestionnaire d'identifiants
+Windows. La valeur est protegee par DPAPI et n'est jamais copiee dans les
+reglages Companion, le TOML ou les journaux. Si la configuration choisit plus
+tard une autre cible, enregistrez de nouveau le PAT pour la cible affichee.
 
 Pour une administration en ligne de commande, utilisez un terminal controle
 par l'operateur :

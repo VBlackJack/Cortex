@@ -140,15 +140,19 @@ TOML so an inherited environment cannot silently broaden the source scope.
 
 ## Store the PAT
 
-Store the PAT after `CONFLUENCE.toml` contains a valid `credential_target` and
-before the first Confluence sync. Repeat the operation whenever the token is
-rotated.
+Store the PAT before the first Confluence sync and repeat the operation whenever
+the token is rotated. When `CONFLUENCE.toml` does not exist yet, Cortex and
+Companion use the same default Windows target, `cortex-spike`. The file is still
+required before adding pages or starting a collection because it supplies
+`base_url`, `auth_expires_at`, and the space allowlist.
 
 With Cortex Companion, open `Settings > Confluence authentication`, enter the
 PAT in the masked field, then select `Save PAT`. Companion reads the validated
-target from the Confluence configuration and writes the generic credential for
-the current Windows account directly to Windows Credential Manager. The value
-is protected by DPAPI and is never copied to Companion settings, TOML, or logs.
+target from the Confluence configuration, or uses the default while the file is
+absent, and writes the generic credential for the current Windows account
+directly to Windows Credential Manager. The value is protected by DPAPI and is
+never copied to Companion settings, TOML, or logs. If a later configuration
+selects another target, save the PAT again for the target Companion displays.
 
 For command-line administration, run the interactive command in a
 human-controlled terminal:
