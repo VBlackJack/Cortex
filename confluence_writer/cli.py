@@ -211,12 +211,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         _LOG.error("confluence_remote_failed error_type=%s", type(exc).__name__)
         sys.stderr.write(f"Cortex Confluence error: {exc}\n")
         return EXIT_REMOTE
+    except (ConfluenceConfigError, IngestionConfigError) as exc:
+        _LOG.error("confluence_invalid_configuration error_type=%s", type(exc).__name__)
+        sys.stderr.write(f"Cortex Confluence error: {exc}\n")
+        return EXIT_INVALID_INPUT
     except (
-        ConfluenceConfigError,
         ConfluenceWriterError,
         ConverterContractError,
         GenerationContractError,
-        IngestionConfigError,
         IngestionStorageError,
     ) as exc:
         _LOG.error("confluence_cli_refused error_type=%s", type(exc).__name__)

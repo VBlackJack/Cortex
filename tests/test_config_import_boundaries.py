@@ -177,3 +177,18 @@ def test_absent_user_config_keeps_confluence_pages_json_valid(tmp_path: Path) ->
     assert completed.returncode == EXIT_OK
     assert completed.stderr == ""
     assert json.loads(completed.stdout)["contract_version"] == 1
+
+
+def test_absent_confluence_config_classifies_resolve_as_invalid_input(
+    tmp_path: Path,
+) -> None:
+    completed = _run_cli(
+        tmp_path,
+        ("confluence", "resolve", "123", "--json"),
+        config_body=None,
+    )
+
+    assert completed.returncode == EXIT_INVALID_INPUT
+    assert completed.stdout == ""
+    assert "Confluence resolve requires: base_url, auth_expires_at" in completed.stderr
+    assert "Traceback" not in completed.stderr
