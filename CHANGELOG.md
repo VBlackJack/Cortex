@@ -7,6 +7,18 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0901.04] - 2026-09-01
+
+### Changed
+
+- Made the Windows release independent of private cross-repository checkout
+  permissions by pinning the minimal Confluence console 1.2.0 source archive
+  in-tree with its SHA-256 and Apache-2.0 license.
+- The release workflow now verifies that archive, rebuilds and tests its Core
+  and Console projects, and probes the published executable before embedding
+  it. This is the publishable replacement for the failed `2026.0901.03`
+  pipeline and contains all of that version's user-facing fixes.
+
 ## [2026.0901.03] - 2026-09-01
 
 ### Added

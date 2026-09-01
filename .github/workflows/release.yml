@@ -38,7 +38,8 @@ env:
   MCP_CURL_MAX_TIME_SECONDS: "30"
   MCP_DOWNLOAD_MAX_TIME_SECONDS: "120"
   CPYTHON_LICENSE_URL: https://raw.githubusercontent.com/python/cpython/3bb231a6a5dc02b95658877318bf61501a7209e9/LICENSE
-  CONFLUENCE_CONVERTER_REF: v1.2.0
+  CONFLUENCE_CONVERTER_ARCHIVE: packaging/dependencies/confluence-console-source-v1.2.0.zip
+  CONFLUENCE_CONVERTER_ARCHIVE_SHA256: 8ea2b538b44022fd32bd2f06add6f3c21c15a9cd29b9e1a60c6e234c8421e86d
   CPYTHON_LICENSE_SHA256: 3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf
 
 jobs:
@@ -147,14 +148,6 @@ jobs:
           ref: ${{ github.ref_type == 'tag' && github.ref_name || 'main' }}
           path: companion-source
 
-      - name: Checkout pinned Confluence converter source
-        if: runner.os == 'Windows'
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
-        with:
-          repository: VBlackJack/confluence-rag-builder
-          ref: ${{ env.CONFLUENCE_CONVERTER_REF }}
-          path: converter-source
-
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
@@ -223,6 +216,27 @@ jobs:
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1  # v5
         with:
           dotnet-version: "10.0.x"
+
+      - name: Verify and extract the pinned Confluence converter source
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            $env:CONFLUENCE_CONVERTER_ARCHIVE
+          if (-not (Test-Path -LiteralPath $archive -PathType Leaf)) {
+            throw "Pinned Confluence converter source archive is missing."
+          }
+          $actualHash = (
+            Get-FileHash -LiteralPath $archive -Algorithm SHA256
+          ).Hash.ToLowerInvariant()
+          if ($actualHash -cne $env:CONFLUENCE_CONVERTER_ARCHIVE_SHA256) {
+            throw (
+              "Confluence converter source SHA-256 mismatch: expected " +
+              "$env:CONFLUENCE_CONVERTER_ARCHIVE_SHA256, got $actualHash."
+            )
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath converter-source
 
       - name: Verify matching Cortex Companion source
         if: runner.os == 'Windows'
@@ -312,16 +326,31 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          & dotnet restore converter-source\ConfluenceRAGBuilder.slnx
+          & dotnet new sln `
+            --name ConsoleRelease `
+            --format slnx `
+            --output converter-source
+          if ($LASTEXITCODE -ne 0) {
+            throw "Confluence converter solution creation failed with exit code $LASTEXITCODE."
+          }
+          & dotnet sln converter-source\ConsoleRelease.slnx add `
+            converter-source\src\ConfluenceRAGBuilder.Core\ConfluenceRAGBuilder.Core.csproj `
+            converter-source\src\ConfluenceRAGBuilder.Console\ConfluenceRAGBuilder.Console.csproj `
+            converter-source\tests\ConfluenceRAGBuilder.Core.Tests\ConfluenceRAGBuilder.Core.Tests.csproj `
+            converter-source\tests\ConfluenceRAGBuilder.Console.Tests\ConfluenceRAGBuilder.Console.Tests.csproj
+          if ($LASTEXITCODE -ne 0) {
+            throw "Confluence converter solution population failed with exit code $LASTEXITCODE."
+          }
+          & dotnet restore converter-source\ConsoleRelease.slnx
           if ($LASTEXITCODE -ne 0) {
             throw "Confluence converter restore failed with exit code $LASTEXITCODE."
           }
-          & dotnet format converter-source\ConfluenceRAGBuilder.slnx `
+          & dotnet format converter-source\ConsoleRelease.slnx `
             --no-restore --verify-no-changes
           if ($LASTEXITCODE -ne 0) {
             throw "Confluence converter format gate failed with exit code $LASTEXITCODE."
           }
-          & dotnet test converter-source\ConfluenceRAGBuilder.slnx `
+          & dotnet test converter-source\ConsoleRelease.slnx `
             --configuration Release --no-restore
           if ($LASTEXITCODE -ne 0) {
             throw "Confluence converter tests failed with exit code $LASTEXITCODE."

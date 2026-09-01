@@ -1,6 +1,6 @@
 ---
 verified: 2026-09-01
-tested_on: "CortexCompanion 2026.0901.03 / Windows / .NET 10"
+tested_on: "CortexCompanion 2026.0901.04 / Windows / .NET 10"
 ---
 
 <!--

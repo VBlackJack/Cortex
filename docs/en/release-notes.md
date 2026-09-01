@@ -7,6 +7,16 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0901-04 -->
+## 2026.0901.04 - 2026-09-01
+
+- This replacement build publishes the Confluence fixes from `2026.0901.03`,
+  whose build was blocked before publication.
+- The installer supplies the console converter automatically, and Companion
+  repairs existing configurations without asking users for a path.
+- The release now verifies the converter source, tests, and `--probe`
+  capability locally before adding it to the installer.
+
 <!-- release:2026-0901-03 -->
 ## 2026.0901.03 - 2026-09-01
 

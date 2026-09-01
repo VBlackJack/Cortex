@@ -7,6 +7,16 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0901-04 -->
+## 2026.0901.04 - 2026-09-01
+
+- Cette version de remplacement publie les correctifs Confluence de
+  `2026.0901.03`, dont la construction avait ete bloquee avant publication.
+- L'installeur fournit automatiquement le convertisseur console et Companion
+  repare les configurations existantes sans demander de chemin a l'utilisateur.
+- La fabrication verifie maintenant localement la source, les tests et la
+  capacite `--probe` du convertisseur avant de l'inclure dans l'installeur.
+
 <!-- release:2026-0901-03 -->
 ## 2026.0901.03 - 2026-09-01
 

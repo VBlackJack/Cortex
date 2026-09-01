@@ -15,11 +15,22 @@
 
 from __future__ import annotations
 
+import hashlib
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "packaging" / "windows" / "cortex-installer.iss"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
+CONVERTER_SOURCE_ARCHIVE = (
+    ROOT
+    / "packaging"
+    / "dependencies"
+    / "confluence-console-source-v1.2.0.zip"
+)
+CONVERTER_SOURCE_SHA256 = (
+    "8ea2b538b44022fd32bd2f06add6f3c21c15a9cd29b9e1a60c6e234c8421e86d"
+)
 
 
 def test_inno_script_declares_safe_per_user_install_contract() -> None:
@@ -130,6 +141,33 @@ def test_release_builds_and_attaches_windows_installer() -> None:
     assert "dist-installer\\Cortex-Setup.exe" in workflow
     assert "out/Cortex-Setup.exe" in workflow
     assert "WINDOWS_CERT_PFX_BASE64" in workflow
+
+
+def test_release_uses_the_verified_pinned_converter_source_archive() -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "CONFLUENCE_CONVERTER_ARCHIVE" in workflow
+    assert CONVERTER_SOURCE_SHA256 in workflow
+    assert "Get-FileHash" in workflow
+    assert ".Hash.ToLowerInvariant()" in workflow
+    assert "Expand-Archive" in workflow
+    assert "repository: VBlackJack/confluence-rag-builder" not in workflow
+
+    digest = hashlib.sha256(CONVERTER_SOURCE_ARCHIVE.read_bytes()).hexdigest()
+    assert digest == CONVERTER_SOURCE_SHA256
+    with zipfile.ZipFile(CONVERTER_SOURCE_ARCHIVE) as archive:
+        entries = set(archive.namelist())
+    for required in (
+        "Directory.Build.props",
+        "LICENSE",
+        "src/ConfluenceRAGBuilder.Core/ConfluenceRAGBuilder.Core.csproj",
+        "src/ConfluenceRAGBuilder.Console/ConfluenceRAGBuilder.Console.csproj",
+        "src/ConfluenceRAGBuilder.Console/ConversionApplication.cs",
+        "tests/ConfluenceRAGBuilder.Core.Tests/ConfluenceRAGBuilder.Core.Tests.csproj",
+        "tests/ConfluenceRAGBuilder.Console.Tests/ConfluenceRAGBuilder.Console.Tests.csproj",
+        "tests/ConfluenceRAGBuilder.Console.Tests/Fixtures/nominal/job.json",
+    ):
+        assert required in entries
 
 
 def test_installer_embeds_models_in_the_stable_per_user_cache() -> None:
