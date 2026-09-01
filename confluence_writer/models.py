@@ -81,6 +81,28 @@ class ResolvedPageContract(CliContractModel):
     configured: bool
 
 
+class ScopeChoiceContract(CliContractModel):
+    """Count and approximate storage cost for one collection choice."""
+
+    page_count: int
+    estimated_bytes: int
+
+
+class ScopePreviewContract(CliContractModel):
+    """Versioned network preview presented before persisting one page root."""
+
+    contract_version: Literal[1]
+    page_id: str
+    title: str
+    space_key: str
+    recommended_selection: Literal["pages", "subtree"]
+    page_only: ScopeChoiceContract
+    subtree: ScopeChoiceContract
+    whole_space: ScopeChoiceContract
+    storage_root: str
+    retention_generations: int
+
+
 class ConfiguredPageContract(CliContractModel):
     """One explicitly configured page and its latest known local title."""
 
@@ -104,11 +126,22 @@ class LastSyncContract(CliContractModel):
     last_success_at: datetime | None
     status: Literal["ok", "degraded", "error"] | None
     error_code: str | None
+    scope_summaries: tuple[ScopeSummaryContract, ...] = ()
+
+
+class ScopeSummaryContract(CliContractModel):
+    """Observed last-run scope used by GUI anomaly reporting."""
+
+    space_key: str
+    selection: Literal["whole_space", "pages", "subtree"]
+    selected_page_count: int
+    available_page_count: int | None
+    excluded_descendant_count: int | None
 
 
 class PagesContract(CliContractModel):
     """Versioned local-only configuration and health snapshot."""
 
-    contract_version: Literal[1]
+    contract_version: Literal[2]
     spaces: tuple[ConfiguredSpaceContract, ...]
     last_sync: LastSyncContract

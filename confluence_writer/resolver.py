@@ -20,7 +20,11 @@ from dataclasses import dataclass
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from confluence_writer.config import ConfluenceSettings, SpaceMapping
-from confluence_writer.constants import CLI_CONTRACT_VERSION, SOURCE_SYSTEM
+from confluence_writer.constants import (
+    CLI_CONTRACT_VERSION,
+    PAGES_CONTRACT_VERSION,
+    SOURCE_SYSTEM,
+)
 from confluence_writer.frontmatter import parse_frontmatter
 from confluence_writer.models import (
     ConfiguredPageContract,
@@ -29,11 +33,15 @@ from confluence_writer.models import (
     PagesContract,
     RemotePage,
     ResolvedPageContract,
+    ScopeChoiceContract,
+    ScopePreviewContract,
+    ScopeSummaryContract,
 )
 from confluence_writer.rest import ConfluenceRestClient
 from ingestion.storage import IngestionStorage
 
 _PAGE_ID = re.compile(r"^[0-9]+$")
+_ESTIMATED_BYTES_PER_PAGE = 384 * 1024
 
 
 class InvalidPageReferenceError(ValueError):
@@ -152,6 +160,41 @@ def resolve_page(
     )
 
 
+def preview_scope(
+    value: str,
+    *,
+    settings: ConfluenceSettings,
+    client: ConfluenceRestClient,
+    storage_root: str,
+    retention_generations: int,
+) -> ScopePreviewContract:
+    """Resolve a root and measure all three choices before configuration mutation."""
+    resolved = resolve_page(value, settings=settings, client=client)
+    descendants = client.enumerate_subtree(resolved.page_id, resolved.space_key)
+    subtree_ids = {resolved.page_id, *(page.page_id for page in descendants)}
+    whole_space_ids = {page.page_id for page in client.enumerate_pages(resolved.space_key)}
+    whole_space_ids.add(resolved.page_id)
+
+    def choice(page_count: int) -> ScopeChoiceContract:
+        return ScopeChoiceContract(
+            page_count=page_count,
+            estimated_bytes=page_count * _ESTIMATED_BYTES_PER_PAGE,
+        )
+
+    return ScopePreviewContract(
+        contract_version=1,
+        page_id=resolved.page_id,
+        title=resolved.title,
+        space_key=resolved.space_key,
+        recommended_selection="subtree" if len(subtree_ids) > 1 else "pages",
+        page_only=choice(1),
+        subtree=choice(len(subtree_ids)),
+        whole_space=choice(len(whole_space_ids)),
+        storage_root=storage_root,
+        retention_generations=retention_generations,
+    )
+
+
 def _is_configured(
     page: RemotePage,
     mapping: SpaceMapping,
@@ -218,12 +261,26 @@ def build_pages_contract(
 
     health = storage.load_health()
     return PagesContract(
-        contract_version=CLI_CONTRACT_VERSION,
+        contract_version=PAGES_CONTRACT_VERSION,
         spaces=tuple(spaces),
         last_sync=LastSyncContract(
             last_success_at=None if health is None else health.last_success_at,
             status=None if health is None else health.status.value,
             error_code=None if health is None else health.error_code,
+            scope_summaries=(
+                ()
+                if health is None
+                else tuple(
+                    ScopeSummaryContract(
+                        space_key=summary.space_key,
+                        selection=summary.selection,
+                        selected_page_count=summary.selected_page_count,
+                        available_page_count=summary.available_page_count,
+                        excluded_descendant_count=summary.excluded_descendant_count,
+                    )
+                    for summary in health.scope_summaries
+                )
+            ),
         ),
     )
 
@@ -232,6 +289,7 @@ __all__ = [
     "InvalidPageReferenceError",
     "OutsideAllowlistError",
     "build_pages_contract",
+    "preview_scope",
     "resolve_page",
     "validate_page_reference",
 ]

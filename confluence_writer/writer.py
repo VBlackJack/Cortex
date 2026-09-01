@@ -30,6 +30,7 @@ from confluence_writer.config import ConfluenceSettings, SpaceMapping, require_s
 from confluence_writer.converter import ConsoleConverter, Runner
 from confluence_writer.frontmatter import previous_updated_at, render_document
 from confluence_writer.models import RemotePage, RemotePageContent
+from confluence_writer.progress import emit_progress
 from confluence_writer.rest import (
     ConfluenceRestClient,
     ConfluenceRestError,
@@ -41,6 +42,7 @@ from ingestion.models import (
     CollectedDocument,
     DocumentFailure,
     GenerationAttempt,
+    ScopeSummary,
 )
 from ingestion.storage import IngestionStorage
 
@@ -64,6 +66,8 @@ _WINDOWS_RESERVED_FILE_NAMES = frozenset(
 )
 _STAGED_FILE_NAME_FALLBACK = "file"
 _PAGE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_WORKSPACE_PREFIX = "cortex-confluence-"
+_ORPHAN_MINIMUM_AGE_SECONDS = 24 * 60 * 60
 
 
 class ConfluenceWriterError(RuntimeError):
@@ -80,7 +84,7 @@ def _utc_now() -> datetime:
 @contextmanager
 def _temporary_workspace() -> Iterator[Path]:
     """Yield one owned workspace and remove it deterministically on every exit path."""
-    root = Path(tempfile.mkdtemp(prefix="cortex-confluence-"))
+    root = Path(tempfile.mkdtemp(prefix=_WORKSPACE_PREFIX))
     try:
         yield root
     finally:
@@ -103,6 +107,33 @@ def _temporary_workspace() -> Iterator[Path]:
             else:
                 break
         _LOG.info("confluence_workspace_cleanup_complete path=%s", root)
+
+
+def _sweep_orphaned_workspaces(*, now: float | None = None) -> tuple[Path, ...]:
+    """Remove only old, direct, non-link workspaces owned by this writer prefix."""
+    temporary_root = Path(tempfile.gettempdir()).resolve()
+    observed_at = time.time() if now is None else now
+    removed: list[Path] = []
+    for candidate in temporary_root.glob(f"{_WORKSPACE_PREFIX}*"):
+        try:
+            if candidate.is_symlink() or not candidate.is_dir():
+                continue
+            resolved = candidate.resolve()
+            if resolved.parent != temporary_root:
+                continue
+            age_seconds = observed_at - candidate.stat().st_mtime
+            if age_seconds < _ORPHAN_MINIMUM_AGE_SECONDS:
+                continue
+            shutil.rmtree(candidate, ignore_errors=False)
+            removed.append(candidate)
+            _LOG.info("confluence_orphan_workspace_removed path=%s", candidate)
+        except (FileNotFoundError, OSError) as exc:
+            _LOG.warning(
+                "confluence_orphan_workspace_cleanup_failed path=%s error_type=%s",
+                candidate,
+                type(exc).__name__,
+            )
+    return tuple(removed)
 
 
 def _rfc3339(value: datetime) -> str:
@@ -190,15 +221,28 @@ class ConfluenceWriter:
         if observed_at.tzinfo is None or observed_at.utcoffset() is None:
             raise ValueError("captured_at must include a UTC offset")
         client = self._client_factory(secret)
+        _sweep_orphaned_workspaces()
         mappings = {item.space_key: item for item in self._settings.spaces}
         pages: list[RemotePage] = []
         failures: list[DocumentFailure] = []
+        scope_summaries: list[ScopeSummary] = []
         requested_pages = 0
-        for mapping in self._settings.spaces:
+        emit_progress("enumeration", 0, len(self._settings.spaces))
+        for mapping_index, mapping in enumerate(self._settings.spaces, start=1):
             if mapping.effective_selection == "whole_space":
                 enumerated = client.enumerate_pages(mapping.space_key)
                 pages.extend(enumerated)
                 requested_pages += len(enumerated)
+                scope_summaries.append(
+                    ScopeSummary(
+                        space_key=mapping.space_key,
+                        selection="whole_space",
+                        selected_page_count=len(enumerated),
+                        available_page_count=len(enumerated),
+                        excluded_descendant_count=0,
+                    )
+                )
+                emit_progress("enumeration", mapping_index, len(self._settings.spaces))
                 continue
             if mapping.effective_selection == "subtree":
                 subtree: dict[str, RemotePage] = {}
@@ -224,11 +268,27 @@ class ConfluenceWriter:
                         subtree[descendant.page_id] = descendant
                 pages.extend(subtree.values())
                 requested_pages += len(subtree)
+                scope_summaries.append(
+                    ScopeSummary(
+                        space_key=mapping.space_key,
+                        selection="subtree",
+                        selected_page_count=len(subtree),
+                        available_page_count=len(subtree),
+                        excluded_descendant_count=0,
+                    )
+                )
+                emit_progress("enumeration", mapping_index, len(self._settings.spaces))
                 continue
+            selected_ids: set[str] = set()
+            available_ids: set[str] = set()
+            scope_known = True
             for page_id in mapping.selected_page_ids:
                 requested_pages += 1
                 try:
-                    pages.append(client.get_page(page_id, mapping.space_key))
+                    page = client.get_page(page_id, mapping.space_key)
+                    pages.append(page)
+                    selected_ids.add(page.page_id)
+                    available_ids.add(page.page_id)
                 except ConfluenceRestError as exc:
                     failures.append(
                         DocumentFailure(source_uid=page_id, error_code="source_page_failed")
@@ -239,6 +299,33 @@ class ConfluenceWriter:
                         mapping.space_key,
                         type(exc).__name__,
                     )
+                    continue
+                try:
+                    available_ids.update(
+                        descendant.page_id
+                        for descendant in client.enumerate_subtree(page_id, mapping.space_key)
+                    )
+                except ConfluenceRestError as exc:
+                    scope_known = False
+                    _LOG.warning(
+                        "confluence_scope_measurement_failed page_id=%s space_key=%s "
+                        "error_type=%s",
+                        page_id,
+                        mapping.space_key,
+                        type(exc).__name__,
+                    )
+            scope_summaries.append(
+                ScopeSummary(
+                    space_key=mapping.space_key,
+                    selection="pages",
+                    selected_page_count=len(selected_ids),
+                    available_page_count=len(available_ids) if scope_known else None,
+                    excluded_descendant_count=(
+                        len(available_ids - selected_ids) if scope_known else None
+                    ),
+                )
+            )
+            emit_progress("enumeration", mapping_index, len(self._settings.spaces))
         by_id = {page.page_id: page for page in pages}
         if len(by_id) != len(pages):
             raise ConfluenceWriterError("Confluence enumeration returned duplicate page IDs.")
@@ -302,6 +389,10 @@ class ConfluenceWriter:
             remote_cursor=remote_cursor,
             auth_expires_at=self._settings.auth_expires_at,
             failure_threshold_exceeded=failure_rate > self._settings.failure_threshold,
+            failure_threshold=self._settings.failure_threshold,
+            requested_page_count=requested_pages,
+            selection_fingerprint=self._settings.selection_fingerprint(),
+            scope_summaries=tuple(scope_summaries),
         )
 
     def _previous_state(self) -> tuple[dict[str, str | None], set[str]]:
@@ -343,7 +434,8 @@ class ConfluenceWriter:
         with _temporary_workspace() as root:
             staging_root = root / _STAGING_DIRECTORY_NAME
             job_pages: list[dict[str, object]] = []
-            for page in pages:
+            emit_progress("staging", 0, len(pages))
+            for page_index, page in enumerate(pages, start=1):
                 try:
                     content = client.page_content(page.page_id)
                     job_pages.append(
@@ -364,6 +456,7 @@ class ConfluenceWriter:
                         page.page_id,
                         type(exc).__name__,
                     )
+                emit_progress("staging", page_index, len(pages))
             if not staged_pages:
                 return [], failures
             converter = ConsoleConverter(console_path, runner=self._converter_runner)
@@ -377,6 +470,9 @@ class ConfluenceWriter:
             )
             pages_by_id = {page.page_id: page for page in staged_pages}
             documents: list[CollectedDocument] = []
+            convertible_page_count = sum(len(batch) for batch in plan.batches)
+            converted_page_count = 0
+            emit_progress("conversion", 0, convertible_page_count)
             for batch_index, job_batch in enumerate(plan.batches, start=1):
                 batch_root = root / f"{_BATCH_DIRECTORY_PREFIX}{batch_index:04d}"
                 self._move_batch_inputs(staging_root, batch_root, job_batch)
@@ -415,6 +511,12 @@ class ConfluenceWriter:
                 failures.extend(
                     DocumentFailure(source_uid=failed.page_id, error_code=failed.error_code)
                     for failed in batch.failed
+                )
+                converted_page_count += len(job_batch)
+                emit_progress(
+                    "conversion",
+                    converted_page_count,
+                    convertible_page_count,
                 )
             return documents, failures
 
@@ -522,4 +624,9 @@ class ConfluenceWriter:
         )
 
 
-__all__ = ["ClientFactory", "ConfluenceWriter", "ConfluenceWriterError"]
+__all__ = [
+    "ClientFactory",
+    "ConfluenceWriter",
+    "ConfluenceWriterError",
+    "_sweep_orphaned_workspaces",
+]

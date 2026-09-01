@@ -7,6 +7,25 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0901-05 -->
+## 2026.0901.05 - 2026-09-01
+
+- Quand vous collez une URL de page, Companion compte maintenant la page seule,
+  son arborescence et l'espace entier avant d'enregistrer le choix. Si la page a
+  des descendants, l'arborescence est selectionnee et recommandee par defaut.
+- Chaque choix affiche le nombre de pages, une estimation du stockage, son
+  emplacement physique et la retention configuree. Le champ `target` est
+  clairement presente comme un prefixe logique, avec un bouton pour ouvrir la
+  generation courante.
+- Une collecte manuelle demarre toujours immediatement. Une modification du
+  perimetre invalide aussi la cadence des executions automatisees.
+- Pendant une collecte longue, Companion affiche la phase et la progression
+  chiffree. Apres la collecte, un perimetre trop etroit signale les descendants
+  exclus et propose de passer a l'arborescence en un clic.
+- Un rejet par `failure_threshold` explique maintenant le nombre et le taux
+  d'echecs, le seuil applique et les actions possibles. Les anciens dossiers
+  temporaires Confluence orphelins sont nettoyes prudemment au demarrage.
+
 <!-- release:2026-0901-04 -->
 ## 2026.0901.04 - 2026-09-01
 

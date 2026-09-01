@@ -37,7 +37,7 @@ _NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
 
 
 def _prepare_stale_source(root: Path) -> IngestionStorage:
-    storage = IngestionStorage(root, "fixture-source", retention_generations=2)
+    storage = IngestionStorage(root, "doc", retention_generations=2)
     engine = GenerationEngine(storage)
     engine.run(
         GenerationAttempt(
@@ -56,9 +56,7 @@ def _prepare_stale_source(root: Path) -> IngestionStorage:
     )
     engine.run(
         GenerationAttempt(
-            failures=(
-                DocumentFailure(source_uid="document-1", error_code="conversion_failed"),
-            ),
+            failures=(DocumentFailure(source_uid="document-1", error_code="conversion_failed"),),
             remote_seen_source_uids=frozenset({"document-1"}),
             enumeration_complete=True,
             enumeration_succeeded=True,
@@ -79,6 +77,11 @@ def test_mcp_exposes_worst_stage_dates_and_carry_forward(
     monkeypatch.setattr(server, "get_collection", object)
     monkeypatch.setattr(
         server,
+        "cortex_ingestion_index_freshness_report",
+        lambda *_args, **_kwargs: {"status": "unavailable"},
+    )
+    monkeypatch.setattr(
+        server,
         "cortex_freshness_report",
         lambda *_args, **_kwargs: {"summary": {"fresh": 1}},
     )
@@ -95,7 +98,7 @@ def test_mcp_exposes_worst_stage_dates_and_carry_forward(
     assert combined["carry_forward"]["count"] == 1
     assert combined["carry_forward"]["documents"] == [
         {
-            "source_kind": "fixture-source",
+            "source_kind": "doc",
             "source_uid": "document-1",
             "path": "published/document-1.md",
             "status": "stale",
@@ -113,7 +116,7 @@ def test_mcp_selects_source_error_over_degraded_hash_stage(
     storage.write_health(
         SourceHealth(
             schema_version=1,
-            source_kind="fixture-source",
+            source_kind="doc",
             last_attempt_at=_NOW + timedelta(hours=2),
             last_success_at=_NOW + timedelta(hours=1),
             remote_cursor=None,
@@ -130,6 +133,11 @@ def test_mcp_selects_source_error_over_degraded_hash_stage(
         lambda: IngestionSettings(data_root=root),
     )
     monkeypatch.setattr(server, "get_collection", object)
+    monkeypatch.setattr(
+        server,
+        "cortex_ingestion_index_freshness_report",
+        lambda *_args, **_kwargs: {"status": "unavailable"},
+    )
     monkeypatch.setattr(
         server,
         "cortex_freshness_report",

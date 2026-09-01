@@ -28,6 +28,7 @@ DEFAULT_ATTACHMENT_SIZE_MB = 50
 DEFAULT_FAILURE_THRESHOLD = 0.10
 PAGE_LIMIT = 250
 CLI_CONTRACT_VERSION = 1
+PAGES_CONTRACT_VERSION = 2
 
 # Stable process exit contract. Existing values 0, 1, and 3 retain their
 # historical meanings; the unused values distinguish machine-actionable cases.

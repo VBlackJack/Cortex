@@ -43,10 +43,12 @@ from confluence_writer.constants import (
     SOURCE_KIND,
 )
 from confluence_writer.converter import ConverterContractError
+from confluence_writer.progress import emit_progress
 from confluence_writer.resolver import (
     InvalidPageReferenceError,
     OutsideAllowlistError,
     build_pages_contract,
+    preview_scope,
     resolve_page,
     validate_page_reference,
 )
@@ -68,7 +70,7 @@ from ingestion.credentials import (
     WindowsCredentialWriter,
 )
 from ingestion.engine import GenerationContractError
-from ingestion.models import AttemptResult
+from ingestion.models import AttemptResult, GenerationAttempt
 from ingestion.scheduling import TransientIngestionError
 from ingestion.storage import IngestionStorage, IngestionStorageError
 from user_config import CortexConfigError
@@ -124,6 +126,15 @@ def _sync_result_exit_code(result: AttemptResult) -> int:
     return EXIT_ERROR
 
 
+def _collect_with_progress(
+    writer: ConfluenceWriter,
+    secret: SecretValue | None,
+) -> GenerationAttempt:
+    attempt = writer.collect(_required_secret(secret))
+    emit_progress("publication", 0, 1)
+    return attempt
+
+
 def _write_json(model: BaseModel) -> None:
     payload = model.model_dump_json(indent=2)
     sys.stdout.write(payload + "\n")
@@ -143,6 +154,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     resolve_parser.add_argument("--json", action="store_true", required=True)
     pages_parser = subparsers.add_parser("pages")
     pages_parser.add_argument("--json", action="store_true", required=True)
+    preview_parser = subparsers.add_parser("preview")
+    preview_parser.add_argument("reference")
+    preview_parser.add_argument("--json", action="store_true", required=True)
     namespace = parser.parse_args(argv)
 
     try:
@@ -152,7 +166,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         settings = load_confluence_settings(path=namespace.config)
         if namespace.command == "store-credential":
             return _store_credential(settings.credential_target)
-        if namespace.command == "resolve":
+        if namespace.command in {"resolve", "preview"}:
             if settings.base_url is None or settings.auth_expires_at is None:
                 raise ConfluenceConfigError(
                     "Confluence resolve requires: base_url, auth_expires_at"
@@ -163,7 +177,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return EXIT_AUTH
             secret = WindowsCredentialReader().read(settings.credential_target)
             client = ConfluenceRestClient(settings.base_url, secret)
-            _write_json(resolve_page(namespace.reference, settings=settings, client=client))
+            if namespace.command == "resolve":
+                _write_json(resolve_page(namespace.reference, settings=settings, client=client))
+                return EXIT_OK
+            ingestion_settings = load_ingestion_settings(path=namespace.ingestion_config)
+            _write_json(
+                preview_scope(
+                    namespace.reference,
+                    settings=settings,
+                    client=client,
+                    storage_root=str(ingestion_settings.data_root.resolve()),
+                    retention_generations=ingestion_settings.retention_generations,
+                )
+            )
             return EXIT_OK
         ingestion_settings = load_ingestion_settings(path=namespace.ingestion_config)
         storage = _storage(ingestion_settings)
@@ -181,11 +207,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = execute_scheduled_attempt(
             storage,
             ingestion_settings,
-            lambda secret: writer.collect(_required_secret(secret)),
+            lambda secret: _collect_with_progress(writer, secret),
             force=namespace.force,
             credential_reader=WindowsCredentialReader(),
             credential_target=settings.credential_target,
             auth_expires_at=settings.auth_expires_at,
+            selection_fingerprint=settings.selection_fingerprint(),
         )
     except CortexConfigError as exc:
         _LOG.error("confluence_invalid_user_configuration")
@@ -231,6 +258,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if result is None:
         sys.stdout.write("Confluence sync is not due.\n")
         return EXIT_NOT_DUE
+    if result.published:
+        emit_progress("publication", 1, 1)
     sys.stdout.write(result.model_dump_json(indent=2) + "\n")
     return _sync_result_exit_code(result)
 

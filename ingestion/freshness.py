@@ -46,9 +46,7 @@ def _source_directories(root: Path) -> list[Path]:
     if not root.is_dir():
         return []
     return sorted(
-        path
-        for path in root.iterdir()
-        if path.is_dir() and (path / HEALTH_FILE_NAME).is_file()
+        path for path in root.iterdir() if path.is_dir() and (path / HEALTH_FILE_NAME).is_file()
     )
 
 
@@ -71,8 +69,12 @@ def augment_freshness_report(
     carry_forward_documents: list[dict[str, str]] = []
     source_status = HealthStatus.OK
     for directory in directories:
-        storage = IngestionStorage(ingestion_root, directory.name, retention_generations=1)
         try:
+            storage = IngestionStorage(
+                ingestion_root,
+                directory.name,
+                retention_generations=1,
+            )
             health = storage.load_health()
             manifest = storage.load_current_manifest()
         except IngestionStorageError:
@@ -97,14 +99,10 @@ def augment_freshness_report(
                 "status": health.status.value,
                 "last_attempt_at": health.last_attempt_at.isoformat(),
                 "last_success_at": (
-                    None
-                    if health.last_success_at is None
-                    else health.last_success_at.isoformat()
+                    None if health.last_success_at is None else health.last_success_at.isoformat()
                 ),
                 "auth_expires_at": (
-                    None
-                    if health.auth_expires_at is None
-                    else health.auth_expires_at.isoformat()
+                    None if health.auth_expires_at is None else health.auth_expires_at.isoformat()
                 ),
                 "error_code": health.error_code,
                 "carry_forward": health.counts.carry_forward,

@@ -155,7 +155,7 @@ def test_ingestion_config_uses_environment_over_toml_over_defaults(
 def test_ingestion_config_rejects_secret_fields(tmp_path: Path) -> None:
     config_path = tmp_path / "ingestion.toml"
     config_path.write_text(
-        "schema_version = 1\nsecret = \"not-accepted\"\n",
+        'schema_version = 1\nsecret = "not-accepted"\n',
         encoding="utf-8",
     )
     with pytest.raises(IngestionConfigError, match="Unknown ingestion configuration key"):
@@ -194,7 +194,7 @@ def test_mocked_credential_expiry_degrades_then_errors_without_secret_leak(
     assert _FAKE_SECRET not in repr(expired)
 
     settings = _settings(tmp_path)
-    storage = IngestionStorage(settings.data_root, "fixture-source", 2)
+    storage = IngestionStorage(settings.data_root, "doc", 2)
     first = execute_scheduled_attempt(
         storage,
         settings,
@@ -242,7 +242,7 @@ def test_mocked_credential_expiry_degrades_then_errors_without_secret_leak(
 
 def test_exhausted_transient_retries_write_error_health(tmp_path: Path) -> None:
     settings = _settings(tmp_path, retry_attempts=2)
-    storage = IngestionStorage(settings.data_root, "fixture-source", 2)
+    storage = IngestionStorage(settings.data_root, "doc", 2)
     calls = 0
 
     def fail(_secret: SecretValue | None) -> GenerationAttempt:
@@ -269,7 +269,7 @@ def test_exhausted_transient_retries_write_error_health(tmp_path: Path) -> None:
 
 def test_double_launch_allows_only_one_sync_body(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
-    storage = IngestionStorage(settings.data_root, "fixture-source", 2)
+    storage = IngestionStorage(settings.data_root, "doc", 2)
     entered = threading.Event()
     release = threading.Event()
     calls: list[str] = []
@@ -309,6 +309,66 @@ def test_double_launch_allows_only_one_sync_body(tmp_path: Path) -> None:
     assert second is not None
     assert not second.published
     assert len(results) == 1
+
+
+def test_selection_fingerprint_change_bypasses_cadence(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, schedule_interval_seconds=86_400.0)
+    storage = IngestionStorage(settings.data_root, "doc", 2)
+    first_fingerprint = "a" * 64
+    second_fingerprint = "b" * 64
+    first = _attempt().model_copy(update={"selection_fingerprint": first_fingerprint})
+    second = _attempt(body=b"expanded scope\n").model_copy(
+        update={"selection_fingerprint": second_fingerprint}
+    )
+
+    first_result = execute_scheduled_attempt(
+        storage,
+        settings,
+        lambda _secret: first,
+        now=_NOW,
+        force=True,
+        selection_fingerprint=first_fingerprint,
+    )
+    second_result = execute_scheduled_attempt(
+        storage,
+        settings,
+        lambda _secret: second,
+        now=_NOW + timedelta(minutes=1),
+        selection_fingerprint=second_fingerprint,
+    )
+
+    assert first_result is not None and first_result.published
+    assert second_result is not None and second_result.published
+    assert second_result.health.selection_fingerprint == second_fingerprint
+
+
+def test_unchanged_selection_still_respects_cadence(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, schedule_interval_seconds=86_400.0)
+    storage = IngestionStorage(settings.data_root, "doc", 2)
+    fingerprint = "c" * 64
+    attempt = _attempt().model_copy(update={"selection_fingerprint": fingerprint})
+    assert (
+        execute_scheduled_attempt(
+            storage,
+            settings,
+            lambda _secret: attempt,
+            now=_NOW,
+            force=True,
+            selection_fingerprint=fingerprint,
+        )
+        is not None
+    )
+
+    assert (
+        execute_scheduled_attempt(
+            storage,
+            settings,
+            lambda _secret: attempt,
+            now=_NOW + timedelta(minutes=1),
+            selection_fingerprint=fingerprint,
+        )
+        is None
+    )
 
 
 def test_transient_backoff_is_exponential_with_jitter() -> None:

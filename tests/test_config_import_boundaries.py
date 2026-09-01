@@ -176,7 +176,7 @@ def test_absent_user_config_keeps_confluence_pages_json_valid(tmp_path: Path) ->
 
     assert completed.returncode == EXIT_OK
     assert completed.stderr == ""
-    assert json.loads(completed.stdout)["contract_version"] == 1
+    assert json.loads(completed.stdout)["contract_version"] == 2
 
 
 def test_absent_confluence_config_classifies_resolve_as_invalid_input(

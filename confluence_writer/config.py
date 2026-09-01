@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import sys
@@ -238,10 +240,29 @@ class ConfluenceSettings(BaseModel):  # type: ignore[misc]
             mapping.selection == "subtree" for mapping in self.spaces
         ):
             raise ValueError(
-                f"selection='subtree' requires schema_version="
-                f"{SUBTREE_CONFIG_SCHEMA_VERSION}"
+                f"selection='subtree' requires schema_version={SUBTREE_CONFIG_SCHEMA_VERSION}"
             )
         return self
+
+    def selection_fingerprint(self) -> str:
+        """Hash the canonical effective selection without secret or transient values."""
+        payload = [
+            {
+                "space_key": mapping.space_key,
+                "target": mapping.target,
+                "classification": mapping.classification,
+                "selection": mapping.effective_selection,
+                "page_ids": sorted(mapping.selected_page_ids),
+            }
+            for mapping in sorted(self.spaces, key=lambda item: item.space_key.casefold())
+        ]
+        encoded = json.dumps(
+            payload,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
 
 
 def confluence_config_path(environ: Mapping[str, str] | None = None) -> Path:

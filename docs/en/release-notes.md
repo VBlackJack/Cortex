@@ -7,6 +7,24 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0901-05 -->
+## 2026.0901.05 - 2026-09-01
+
+- When a page URL is pasted, Companion now counts the page-only, subtree, and
+  whole-space scopes before saving the choice. When descendants exist, subtree
+  collection is selected and recommended by default.
+- Every choice shows its page count, estimated storage, physical location, and
+  configured retention. The `target` field is identified as a logical prefix,
+  with an action to open the current generation directory.
+- A manual collection always starts immediately. Changing the effective scope
+  also invalidates cadence for automated invocations.
+- During long collections, Companion displays the current phase and numeric
+  progress. After collection, an overly narrow scope reports excluded
+  descendants and offers a one-click subtree correction.
+- A `failure_threshold` rejection now explains the failed count and rate, the
+  configured threshold, and recovery choices. Old orphaned Confluence temporary
+  directories are swept conservatively at startup.
+
 <!-- release:2026-0901-04 -->
 ## 2026.0901.04 - 2026-09-01
 

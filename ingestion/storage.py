@@ -38,7 +38,12 @@ from ingestion.constants import (
     SCHEMA_VERSION,
     TEMPORARY_FILE_SUFFIX,
 )
-from ingestion.models import CurrentGenerationPointer, GenerationManifest, SourceHealth
+from ingestion.models import (
+    CurrentGenerationPointer,
+    GenerationManifest,
+    IngestionSourceKind,
+    SourceHealth,
+)
 
 _LOG = logging.getLogger("cortex.ingestion.storage")
 _SAFE_COMPONENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -90,12 +95,21 @@ def _read_model(path: Path, model_type: type[ModelT]) -> ModelT:
 class IngestionStorage:
     """Own one source kind's generation pointer, health, and retention."""
 
-    def __init__(self, root: Path, source_kind: str, retention_generations: int) -> None:
+    def __init__(
+        self,
+        root: Path,
+        source_kind: str | IngestionSourceKind,
+        retention_generations: int,
+    ) -> None:
         """Initialize storage without creating or mutating persisted state."""
         if retention_generations < 1:
             raise ValueError("retention_generations must be at least one")
         self.root = Path(root)
-        self.source_kind = _validate_component(source_kind, "source_kind")
+        try:
+            canonical_source_kind = IngestionSourceKind(source_kind)
+        except ValueError as exc:
+            raise IngestionStorageError(f"unsupported source_kind '{source_kind}'") from exc
+        self.source_kind = _validate_component(canonical_source_kind.value, "source_kind")
         self.retention_generations = retention_generations
 
     @property

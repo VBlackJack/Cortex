@@ -47,6 +47,12 @@ class HealthStatus(str, Enum):
     ERROR = "error"
 
 
+class IngestionSourceKind(str, Enum):
+    """Closed set of generation-backed ingestion sources."""
+
+    DOCUMENT = "doc"
+
+
 class StrictModel(BaseModel):  # type: ignore[misc]
     """Base contract that rejects unknown fields and mutation."""
 
@@ -136,11 +142,21 @@ class HealthCounts(StrictModel):
     tombstones: Annotated[int, Field(ge=0)] = 0
 
 
+class ScopeSummary(StrictModel):
+    """Observed collection scope for one configured Confluence space."""
+
+    space_key: Annotated[str, Field(min_length=1)]
+    selection: Literal["whole_space", "pages", "subtree"]
+    selected_page_count: Annotated[int, Field(ge=0)]
+    available_page_count: Annotated[int, Field(ge=0)] | None = None
+    excluded_descendant_count: Annotated[int, Field(ge=0)] | None = None
+
+
 class SourceHealth(StrictModel):
     """Atomic health snapshot for the most recent source attempt."""
 
     schema_version: Literal[1]
-    source_kind: Annotated[str, Field(min_length=1)]
+    source_kind: IngestionSourceKind
     last_attempt_at: datetime
     last_success_at: datetime | None
     remote_cursor: str | None
@@ -149,6 +165,8 @@ class SourceHealth(StrictModel):
     error_code: str | None
     action_required: str | None
     counts: HealthCounts
+    selection_fingerprint: Annotated[str, Field(pattern=_SHA256_PATTERN)] | None = None
+    scope_summaries: tuple[ScopeSummary, ...] = ()
 
     @field_validator(  # type: ignore[untyped-decorator]
         "last_attempt_at", "last_success_at", "auth_expires_at"
@@ -229,6 +247,10 @@ class GenerationAttempt(StrictModel):
     auth_expires_at: datetime | None = None
     global_error_code: str | None = None
     failure_threshold_exceeded: bool = False
+    failure_threshold: Annotated[float, Field(ge=0.0, le=1.0)] | None = None
+    requested_page_count: Annotated[int, Field(ge=0)] = 0
+    selection_fingerprint: Annotated[str, Field(pattern=_SHA256_PATTERN)] | None = None
+    scope_summaries: tuple[ScopeSummary, ...] = ()
     source_disabled: bool = False
 
     @field_validator("auth_expires_at")  # type: ignore[untyped-decorator]
@@ -261,6 +283,8 @@ __all__ = [
     "GenerationManifest",
     "HealthCounts",
     "HealthStatus",
+    "IngestionSourceKind",
+    "ScopeSummary",
     "SourceHealth",
     "TombstoneKind",
     "TombstoneRecord",

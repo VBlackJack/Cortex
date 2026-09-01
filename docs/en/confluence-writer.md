@@ -1,6 +1,6 @@
 ---
 verified: 2026-09-01
-tested_on: "CortexCompanion 2026.0901.04 / Windows / .NET 10"
+tested_on: "CortexCompanion 2026.0901.05 / Windows / .NET 10"
 ---
 
 <!--
@@ -47,8 +47,10 @@ When the file does not exist, open `Pages Confluence` in Companion:
    contain it, so enter it manually for those forms.
 3. Choose the PAT's declared expiry date and the classification. The secure
    default is `pro-confidentiel`.
-4. Select `Initialiser et ajouter la page` (Initialize and add the page), then
-   confirm the resolved page.
+4. Select `Initialiser et ajouter la page` (Initialize and add the page).
+   Companion measures page-only, subtree, and whole-space scope before asking
+   for confirmation. When descendants exist, subtree is the recommended and
+   preselected choice.
 
 The Windows installer includes the console converter under
 `%LOCALAPPDATA%\Programs\Cortex\Converters`. Companion discovers it, verifies
@@ -57,11 +59,12 @@ kept inside collapsed developer options. A WPF application or incompatible
 binary is rejected before the path is saved.
 
 Companion preserves an instance context such as `/wiki`, creates an empty
-`pages` selection under `confluence/<SPACE_KEY>`, and then adds the ID confirmed
-through the Cortex contract. Creation takes the mutation lock, verifies that the
-file is still absent, validates the rendered result, and replaces it atomically.
-The PAT never enters this file; it remains in Windows Credential Manager for the
-current account.
+selection under `confluence/<SPACE_KEY>`, and then saves the scope confirmed
+through the Cortex contract. All three choices display their page count and an
+estimated storage cost before any write. Creation takes the mutation lock,
+verifies that the file is still absent, validates the rendered result, and
+replaces it atomically. The PAT never enters this file; it remains in Windows
+Credential Manager for the current account.
 
 The manual TOML below remains available for advanced configurations and
 non-Windows environments.
@@ -154,6 +157,21 @@ Descendants are read through the CQL `ancestor` search rather than the
 `content/{id}/descendant/page` endpoint, which answers HTTP 500 on measured
 Kazan deployments.
 
+### Scope, storage, and retention
+
+`cortex confluence preview <reference> --json` resolves the root and measures
+all three choices before a mutation: one page, its subtree, and the whole space.
+The estimate deliberately uses 384 KiB per page; attachments and actual content
+may produce a different volume.
+
+The `target` field, such as `confluence/CCSP`, is a logical prefix inside the
+generation and index. It is not a directory created in the user's Vault.
+Published documents live under the ingestion root at
+`doc/generations/<generation_id>/documents`. Companion displays that root and
+`retention_generations`, and can open the current generation directory. After a
+successful publication the atomic publisher keeps at most that many
+generations; the default is `2`.
+
 Schema v1 remains supported without migration. A v1 space entry has no
 `selection` or `pages` field, continues to mean `whole_space`, and the file is
 not rewritten while loading.
@@ -222,9 +240,17 @@ After that prerequisite is deployed, Task Scheduler may run:
 cortex confluence sync
 ```
 
-Use `--force` only for an operator-requested run. Normal invocations use the
-common missed-window catch-up decision. The task account needs access to its
-Credential Manager entry and to the configured ingestion data root.
+Use `--force` only for an operator-requested run. Companion's manual collect
+button always uses it, so cadence never blocks an explicit action. Scheduled
+invocations keep the common missed-window catch-up decision. A canonical hash
+of the effective selection also makes a run due as soon as its scope changes.
+The task account needs access to its Credential Manager entry and to the
+configured ingestion data root.
+
+During collection, stderr emits JSON lines prefixed with `CORTEX_PROGRESS ` for
+the `enumeration`, `staging`, `conversion`, and `publication` phases. Companion
+renders the phase and `current/total`. The separate local `cortex sync` action
+shows its indexing phase.
 
 Declared credential expiry is checked before the writer runs. An expired or
 unavailable credential records an error and leaves the previous generation
@@ -261,6 +287,16 @@ share stdout with this contract:
 `pages` mapping, it is true only when that page ID is already listed. A page
 resolved in a non-allowlisted space is refused.
 
+Measure scope before changing configuration:
+
+```powershell
+cortex confluence preview "https://kazan.example.test/display/DOC/Run+Book" --json
+```
+
+Preview contract v1 supplies `page_only`, `subtree`, and `whole_space`, each
+with `page_count` and `estimated_bytes`, together with
+`recommended_selection`, `storage_root`, and `retention_generations`.
+
 List the configured spaces, explicitly selected pages, locally known titles,
 and global sync state without network or credential access:
 
@@ -270,7 +306,7 @@ cortex confluence pages --json
 
 ```json
 {
-  "contract_version": 1,
+  "contract_version": 2,
   "spaces": [
     {
       "space_key": "RUN",
@@ -286,14 +322,25 @@ cortex confluence pages --json
   "last_sync": {
     "last_success_at": "2026-08-05T10:00:00Z",
     "status": "ok",
-    "error_code": null
+    "error_code": null,
+    "scope_summaries": [
+      {
+        "space_key": "RUN",
+        "selection": "pages",
+        "selected_page_count": 2,
+        "available_page_count": 14,
+        "excluded_descendant_count": 12
+      }
+    ]
   }
 }
 ```
 
 For `whole_space`, `pages` is `null`. Without a current generation, configured
-page titles are `null`; without source health, all three `last_sync` fields are
-`null`.
+page titles are `null`; without source health, the primary `last_sync` fields
+are `null` and `scope_summaries` is empty. A `pages` selection that excludes
+known descendants produces the summary used by Companion's one-click subtree
+correction.
 
 The process exit contract is stable and does not require parsing human text:
 
@@ -325,6 +372,16 @@ directories, invokes the console sequentially, and applies the failure
 threshold across the whole generation. A single page whose serialized record
 cannot fit the schema byte limit fails with `job_payload_too_large`; other pages
 continue.
+
+When the failure rate exceeds `failure_threshold`, no new generation is
+published and the previous one remains active. Health state then reports the
+failed and requested page counts, measured rate, configured threshold, and two
+recovery choices: fix and retry, or deliberately raise the threshold to permit
+partial publication.
+
+At the start of each collection, Cortex sweeps only direct, non-link directories
+named `%TEMP%\cortex-confluence-*` that are at least 24 hours old. Newer
+workspaces may belong to an active collection and are preserved.
 
 An explicitly present empty `body.storage.value` is a valid page body. A
 missing, null, or non-string field still fails closed. Attachment bytes are

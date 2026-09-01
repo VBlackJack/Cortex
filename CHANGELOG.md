@@ -7,6 +7,45 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0901.05] - 2026-09-01
+
+### Added
+
+- Added `cortex confluence preview <reference> --json`, which resolves the root,
+  counts the page-only, subtree, and whole-space choices, estimates their local
+  storage, and reports the physical ingestion root and generation retention.
+- Added versioned stderr progress records for enumeration, staging, conversion,
+  and publication. Companion displays the phase and `current/total`, and shows a
+  separate indeterminate indexing phase for local document synchronization.
+- Added per-space scope summaries to `confluence pages --json` contract v2 so
+  Companion can expose excluded descendants and offer a one-click subtree fix.
+- Added a validated Companion action that opens the current immutable generation
+  documents directory and explains that `target` is a logical index prefix.
+
+### Changed
+
+- Made subtree the default measured choice when a pasted root has descendants;
+  page-only and whole-space collection remain explicit choices with page and
+  storage estimates before the configuration write.
+- Made every manual Companion collection force an immediate run. Scheduled runs
+  still honor cadence, while a changed canonical selection fingerprint also
+  makes Cortex due without waiting for the previous interval.
+- Exposed the configured generation retention and physical storage root in
+  Companion. The existing atomic publisher continues to prune older generations
+  to the configured bound.
+- Constrained ingestion source kinds to the `doc` enum and made unknown on-disk
+  source directories produce an invalid freshness entry instead of a false empty
+  report.
+
+### Fixed
+
+- Made a successful narrow `pages` collection report how many descendants were
+  excluded instead of presenting the page count without its measured scope.
+- Made failure-threshold rejection state the failed and requested counts, actual
+  rate, configured threshold, preserved previous generation, and recovery choices.
+- Added a conservative startup sweep for direct, non-link
+  `%TEMP%\cortex-confluence-*` workspaces left orphaned for at least 24 hours.
+
 ## [2026.0901.04] - 2026-09-01
 
 ### Changed

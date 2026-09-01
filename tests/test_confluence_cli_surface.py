@@ -494,7 +494,7 @@ def test_pages_json_golden_mixed_config_uses_only_local_manifest_and_health(
     captured = capsys.readouterr()
 
     assert json.loads(captured.out) == {
-        "contract_version": 1,
+        "contract_version": 2,
         "spaces": [
             {
                 "space_key": "DOC",
@@ -518,6 +518,7 @@ def test_pages_json_golden_mixed_config_uses_only_local_manifest_and_health(
             "last_success_at": "2026-08-05T10:00:00Z",
             "status": "degraded",
             "error_code": "partial_failure",
+            "scope_summaries": [],
         },
     }
     assert captured.err == ""
@@ -557,7 +558,7 @@ def test_pages_json_without_manifest_or_health_keeps_valid_null_state(
     assert confluence_cli.main(["pages", "--json"]) == EXIT_OK
     payload = json.loads(capsys.readouterr().out)
 
-    assert payload["contract_version"] == 1
+    assert payload["contract_version"] == 2
     assert payload["spaces"][1]["pages"] == [
         {"page_id": "2001", "title": None},
         {"page_id": "2002", "title": None},
@@ -566,6 +567,7 @@ def test_pages_json_without_manifest_or_health_keeps_valid_null_state(
         "last_success_at": None,
         "status": None,
         "error_code": None,
+        "scope_summaries": [],
     }
 
 

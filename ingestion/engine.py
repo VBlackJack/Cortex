@@ -93,6 +93,9 @@ class GenerationEngine:
             raise ValueError("now must include a UTC offset")
         previous_health = self.storage.load_health()
         previous_success = previous_health.last_success_at if previous_health is not None else None
+        previous_fingerprint = (
+            previous_health.selection_fingerprint if previous_health is not None else None
+        )
         initial_counts = HealthCounts(
             seen=len(attempt.remote_seen_source_uids),
             converted=len(attempt.documents),
@@ -109,6 +112,8 @@ class GenerationEngine:
             error_code=ERROR_ATTEMPT_IN_PROGRESS,
             action_required=ACTION_ATTEMPT_IN_PROGRESS,
             counts=initial_counts,
+            selection_fingerprint=previous_fingerprint,
+            scope_summaries=attempt.scope_summaries,
         )
         self.storage.write_health(in_progress)
 
@@ -118,7 +123,7 @@ class GenerationEngine:
                 update={
                     "status": HealthStatus.ERROR,
                     "error_code": failure_code,
-                    "action_required": None,
+                    "action_required": self._failure_action(attempt, failure_code),
                 }
             )
             self.storage.write_health(health)
@@ -173,6 +178,8 @@ class GenerationEngine:
             error_code=ERROR_PARTIAL_FAILURE if degraded else None,
             action_required=None,
             counts=counts,
+            selection_fingerprint=attempt.selection_fingerprint,
+            scope_summaries=attempt.scope_summaries,
         )
         self.storage.write_health(health)
         return AttemptResult(
@@ -192,6 +199,21 @@ class GenerationEngine:
         if attempt.enumeration_complete and not attempt.enumeration_succeeded:
             return ERROR_RUN_FAILED
         return None
+
+    @staticmethod
+    def _failure_action(attempt: GenerationAttempt, failure_code: str) -> str | None:
+        if failure_code != ERROR_THRESHOLD_EXCEEDED:
+            return None
+        threshold = 0.0 if attempt.failure_threshold is None else attempt.failure_threshold
+        failed = len(attempt.failures)
+        requested = attempt.requested_page_count
+        failure_rate = failed / requested if requested else 0.0
+        return (
+            f"Generation rejected: {failed}/{requested} page(s) failed "
+            f"({failure_rate:.1%}), above failure_threshold={threshold:.1%}. "
+            "Any previous generation remains active. Fix the failed pages and retry, "
+            "or deliberately increase failure_threshold to allow partial publication."
+        )
 
     def _assemble(
         self,

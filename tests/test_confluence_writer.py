@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -26,6 +27,7 @@ import pytest
 from jsonschema import Draft202012Validator, FormatChecker
 
 import confluence_writer.converter as converter_module
+import confluence_writer.writer as writer_module
 from confluence_writer.config import ConfluenceSettings, PageSelection, SpaceMapping
 from confluence_writer.converter import ConsoleConverter, ConverterContractError
 from confluence_writer.frontmatter import parse_frontmatter
@@ -41,6 +43,28 @@ from ingestion.storage import IngestionStorage
 _NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
 _FAKE_SECRET = "fixture-only-fake-secret-confluence-writer-f37c"
 _RESOURCES = Path(__file__).parents[1] / "confluence_writer" / "resources"
+
+
+def test_startup_sweep_removes_old_orphan_and_preserves_recent_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    old = tmp_path / "cortex-confluence-old"
+    recent = tmp_path / "cortex-confluence-recent"
+    unrelated = tmp_path / "other-workspace"
+    for directory in (old, recent, unrelated):
+        directory.mkdir()
+    now = 2_000_000_000.0
+    os.utime(old, (now - 90_000, now - 90_000))
+    os.utime(recent, (now - 60, now - 60))
+    monkeypatch.setattr(writer_module.tempfile, "gettempdir", lambda: str(tmp_path))
+
+    removed = writer_module._sweep_orphaned_workspaces(now=now)
+
+    assert removed == (old,)
+    assert not old.exists()
+    assert recent.is_dir()
+    assert unrelated.is_dir()
 
 
 class FakeRestClient:
@@ -382,7 +406,10 @@ def test_empty_page_selection_publishes_without_space_enumeration(tmp_path: Path
 
 def test_page_selection_collects_only_configured_pages(tmp_path: Path) -> None:
     storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
-    client = FakeRestClient([_page("1001", _NOW), _page("1002", _NOW), _page("1003", _NOW)])
+    client = FakeRestClient(
+        [_page("1001", _NOW), _page("1002", _NOW), _page("1003", _NOW)],
+        descendants={"1001": ("1003",)},
+    )
     console = FakeConsole()
 
     result = _run(
@@ -396,6 +423,7 @@ def test_page_selection_collects_only_configured_pages(tmp_path: Path) -> None:
     assert result.published  # type: ignore[attr-defined]
     assert client.enumeration_calls == []
     assert client.page_calls == [("1002", "DOC"), ("1001", "DOC")]
+    assert client.subtree_calls == [("1002", "DOC"), ("1001", "DOC")]
     assert client.content_calls == ["1002", "1001"]
     assert console.jobs == [["1002", "1001"]]
     manifest = storage.load_current_manifest()
@@ -405,6 +433,9 @@ def test_page_selection_collects_only_configured_pages(tmp_path: Path) -> None:
         "1002",
         "zone:DOC",
     }
+    assert result.health.scope_summaries[0].selected_page_count == 2  # type: ignore[attr-defined]
+    assert result.health.scope_summaries[0].available_page_count == 3  # type: ignore[attr-defined]
+    assert result.health.scope_summaries[0].excluded_descendant_count == 1  # type: ignore[attr-defined]
 
 
 def test_subtree_selection_collects_each_root_with_its_descendants(tmp_path: Path) -> None:
@@ -673,6 +704,10 @@ def test_failure_threshold_is_global_across_console_jobs(tmp_path: Path) -> None
     assert below.published
     assert above_attempt.failure_threshold_exceeded
     assert not above.published
+    assert above.health.action_required is not None
+    assert "3/1001" in above.health.action_required
+    assert "previous generation remains active" in above.health.action_required.casefold()
+    assert "increase failure_threshold" in above.health.action_required
 
 
 def test_empty_page_body_traverses_valid_job_and_is_published(tmp_path: Path) -> None:

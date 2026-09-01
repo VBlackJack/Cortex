@@ -1,6 +1,6 @@
 ---
 verified: 2026-09-01
-tested_on: "CortexCompanion 2026.0901.04 / Windows / .NET 10"
+tested_on: "CortexCompanion 2026.0901.05 / Windows / .NET 10"
 ---
 
 <!--
@@ -48,7 +48,10 @@ Quand le fichier n'existe pas, ouvrir `Pages Confluence` dans Companion :
    courts ne la contiennent pas ; la saisir alors manuellement.
 3. Choisir la date d'expiration declaree du PAT et la classification. La valeur
    par defaut est `pro-confidentiel`.
-4. Cliquer sur `Initialiser et ajouter la page`, puis confirmer la page resolue.
+4. Cliquer sur `Initialiser et ajouter la page`. Companion mesure alors la page
+   seule, son sous-arbre et l'espace complet avant de demander le perimetre.
+   Quand la racine a des descendants, `Cette page et son arborescence` est le
+   choix recommande et selectionne par defaut.
 
 Le convertisseur console est inclus dans l'installeur sous
 `%LOCALAPPDATA%\Programs\Cortex\Converters`. Companion le detecte, verifie son
@@ -57,11 +60,12 @@ masque dans les options avancees pour les developpeurs. Une application WPF ou
 un binaire incompatible est refuse avant l'enregistrement.
 
 Companion conserve le contexte d'instance tel que `/wiki`, cree une selection
-`pages` vide sous `confluence/<CLE_ESPACE>`, puis ajoute l'ID confirme par le
-contrat Cortex. La creation utilise le verrou de mutation, verifie que le fichier
-est toujours absent, valide le rendu et le remplace atomiquement. Le PAT ne
-transite jamais par ce fichier : il reste dans le Gestionnaire d'identifiants
-Windows du compte courant.
+vide sous `confluence/<CLE_ESPACE>`, puis enregistre le perimetre confirme par le
+contrat Cortex. Les trois choix affichent leur nombre de pages et une estimation
+de stockage avant toute ecriture. La creation utilise le verrou de mutation,
+verifie que le fichier est toujours absent, valide le rendu et le remplace
+atomiquement. Le PAT ne transite jamais par ce fichier : il reste dans le
+Gestionnaire d'identifiants Windows du compte courant.
 
 Le TOML manuel ci-dessous reste disponible pour les configurations avancees ou
 les environnements non Windows.
@@ -156,6 +160,21 @@ Les descendants sont lus par la recherche CQL `ancestor` et non par l'endpoint
 `content/{id}/descendant/page`, qui repond HTTP 500 sur les deploiements Kazan
 mesures.
 
+### Perimetre, stockage et retention
+
+`cortex confluence preview <reference> --json` resout la racine puis mesure les
+trois choix avant une mutation : une page, son sous-arbre et l'espace entier.
+L'estimation est volontairement approximative et utilise 384 Kio par page ; les
+pieces jointes et le contenu reel peuvent produire un volume different.
+
+Le champ `target`, par exemple `confluence/CCSP`, est un prefixe logique dans la
+generation et l'index. Ce n'est pas un dossier cree dans le Vault utilisateur.
+Les documents publies sont sous la racine d'ingestion, dans
+`doc/generations/<generation_id>/documents`. Companion affiche cette racine,
+`retention_generations` et propose d'ouvrir le dossier de la generation courante.
+Le publisher atomique conserve au plus ce nombre de generations apres une
+publication reussie ; la valeur par defaut est `2`.
+
 Le schema v1 reste accepte sans migration. Une entree v1 ne porte ni
 `selection` ni `pages`, signifie toujours `whole_space` et le fichier n'est pas
 reecrit au chargement.
@@ -224,9 +243,19 @@ Une fois ce prerequis livre, le Planificateur de taches peut lancer :
 cortex confluence sync
 ```
 
-`--force` est reserve a une execution demandee par un operateur. Sinon, le
-rattrapage et la cadence de l'infrastructure commune s'appliquent. Le compte de
-tache doit acceder a son Credential Manager et a la racine d'ingestion.
+`--force` est reserve a une execution demandee par un operateur. Le bouton
+`Collecter Confluence` de Companion l'utilise systematiquement : une action
+manuelle n'est jamais bloquee par la cadence. Les executions planifiees gardent
+le rattrapage et la cadence de l'infrastructure commune. Un hash canonique de la
+selection effective rend aussi une execution due des que le perimetre change.
+Le compte de tache doit acceder a son Credential Manager et a la racine
+d'ingestion.
+
+Pendant une collecte, stderr emet des lignes JSON prefixees par
+`CORTEX_PROGRESS ` pour les phases `enumeration`, `staging`, `conversion` et
+`publication`. Companion les affiche sous la forme phase et `n/total`. La
+synchronisation locale `cortex sync` reste une action distincte et affiche sa
+phase d'indexation.
 
 L'expiration declaree du credential est controlee avant le lancement du writer.
 Un credential expire ou indisponible enregistre une erreur et laisse la
@@ -266,6 +295,16 @@ les logs ne partagent jamais stdout avec ce contrat :
 un mapping `pages`, il vaut true uniquement si le page ID est deja liste. Une
 page resolue dans un espace hors allowlist est refusee.
 
+Mesurer le perimetre avant de modifier la configuration :
+
+```powershell
+cortex confluence preview "https://kazan.example.test/display/DOC/Run+Book" --json
+```
+
+Le contrat `preview` v1 fournit `page_only`, `subtree` et `whole_space`, chacun
+avec `page_count` et `estimated_bytes`, ainsi que `recommended_selection`,
+`storage_root` et `retention_generations`.
+
 Lister les espaces configures, les pages explicitement selectionnees, les
 titres connus localement et l'etat global du sync sans reseau ni credential :
 
@@ -275,7 +314,7 @@ cortex confluence pages --json
 
 ```json
 {
-  "contract_version": 1,
+  "contract_version": 2,
   "spaces": [
     {
       "space_key": "RUN",
@@ -291,14 +330,25 @@ cortex confluence pages --json
   "last_sync": {
     "last_success_at": "2026-08-05T10:00:00Z",
     "status": "ok",
-    "error_code": null
+    "error_code": null,
+    "scope_summaries": [
+      {
+        "space_key": "RUN",
+        "selection": "pages",
+        "selected_page_count": 2,
+        "available_page_count": 14,
+        "excluded_descendant_count": 12
+      }
+    ]
   }
 }
 ```
 
 Pour `whole_space`, `pages` vaut `null`. Sans generation courante, les titres
-des pages configurees valent `null` ; sans etat de sante, les trois champs de
-`last_sync` valent `null`.
+des pages configurees valent `null` ; sans etat de sante, les champs principaux
+de `last_sync` valent `null` et `scope_summaries` est vide. Une selection
+`pages` qui exclut des descendants connus produit une synthese exploitable par
+l'action Companion `Elargir a l'arborescence`.
 
 Le contrat d'exit codes est stable et ne demande aucun parsing de texte humain :
 
@@ -331,6 +381,17 @@ suivants, lance la console sequentiellement et applique le seuil d'echec a toute
 la generation. Une page dont l'enregistrement serialise ne tient pas sous la
 limite d'octets du schema echoue avec `job_payload_too_large` ; les autres pages
 continuent.
+
+Si le taux d'echec depasse `failure_threshold`, aucune nouvelle generation
+n'est publiee et la precedente reste active. L'etat de sante indique alors le
+nombre de pages en echec sur le total demande, le taux mesure, le seuil applique
+et les deux actions possibles : corriger puis relancer, ou augmenter le seuil de
+facon deliberee pour autoriser une publication partielle.
+
+Au debut de chaque collecte, Cortex balaie uniquement les repertoires directs,
+non symboliques, nommes `%TEMP%\cortex-confluence-*` et ages d'au moins 24 heures.
+Les workspaces plus recents peuvent appartenir a une collecte encore active et
+sont conserves.
 
 Un `body.storage.value` explicitement present et vide est un corps de page
 valide. Un champ absent, null ou non chaine echoue toujours en mode ferme. Les

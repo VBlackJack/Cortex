@@ -101,6 +101,8 @@ def _failed_health(
         error_code=error_code,
         action_required=action_required,
         counts=HealthCounts(),
+        selection_fingerprint=(None if previous is None else previous.selection_fingerprint),
+        scope_summaries=() if previous is None else previous.scope_summaries,
     )
     storage.write_health(health)
     return health
@@ -116,6 +118,7 @@ def execute_scheduled_attempt(
     credential_reader: CredentialReader | None = None,
     credential_target: str | None = None,
     auth_expires_at: datetime | None = None,
+    selection_fingerprint: str | None = None,
     sleep: Callable[[float], None] | None = None,
     random_unit: Callable[[], float] | None = None,
 ) -> AttemptResult | None:
@@ -123,10 +126,17 @@ def execute_scheduled_attempt(
     observed_at = _now_utc() if now is None else now
     previous = storage.load_health()
     last_success = None if previous is None else previous.last_success_at
-    if not force and not catch_up_due(
-        last_success_at=last_success,
-        now=observed_at,
-        interval_seconds=settings.schedule_interval_seconds,
+    selection_changed = selection_fingerprint is not None and (
+        previous is None or previous.selection_fingerprint != selection_fingerprint
+    )
+    if (
+        not force
+        and not selection_changed
+        and not catch_up_due(
+            last_success_at=last_success,
+            now=observed_at,
+            interval_seconds=settings.schedule_interval_seconds,
+        )
     ):
         _LOG.info("ingestion_not_due source_kind=%s", storage.source_kind)
         return None
@@ -183,6 +193,13 @@ def execute_scheduled_attempt(
                     sleep=time.sleep if sleep is None else sleep,
                     random_unit=random.random if random_unit is None else random_unit,
                 )
+                if (
+                    selection_fingerprint is not None
+                    and attempt.selection_fingerprint != selection_fingerprint
+                ):
+                    raise ValueError(
+                        "attempt selection_fingerprint does not match the due decision"
+                    )
             except TransientIngestionError:
                 health = _failed_health(
                     storage,

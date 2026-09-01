@@ -38,14 +38,19 @@ from ingestion.models import (
     SourceHealth,
     TombstoneKind,
 )
-from ingestion.storage import IngestionStorage
+from ingestion.storage import IngestionStorage, IngestionStorageError
 
 _NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
 _WORKER = Path(__file__).parent / "fixtures" / "ingestion_publish_worker.py"
 
 
 def _storage(tmp_path: Path, retention: int = 2) -> IngestionStorage:
-    return IngestionStorage(tmp_path / "state", "fixture-source", retention)
+    return IngestionStorage(tmp_path / "state", "doc", retention)
+
+
+def test_storage_rejects_free_form_source_kind() -> None:
+    with pytest.raises(IngestionStorageError, match="unsupported source_kind"):
+        IngestionStorage(Path("state"), "typo", retention_generations=2)
 
 
 def _document(source_uid: str, body: bytes | None = None) -> CollectedDocument:
@@ -136,9 +141,7 @@ def test_existing_failure_is_carried_forward_stale_and_new_failure_is_absent(
                 DocumentFailure(source_uid="document-1", error_code="conversion_failed"),
                 DocumentFailure(source_uid="document-new", error_code="conversion_failed"),
             ),
-            remote_seen_source_uids=frozenset(
-                {"document-1", "document-2", "document-new"}
-            ),
+            remote_seen_source_uids=frozenset({"document-1", "document-2", "document-new"}),
             enumeration_complete=True,
             enumeration_succeeded=True,
         ),
@@ -318,7 +321,7 @@ def test_health_is_independent_from_immutable_manifest(tmp_path: Path) -> None:
     storage.write_health(
         SourceHealth(
             schema_version=1,
-            source_kind="fixture-source",
+            source_kind="doc",
             last_attempt_at=_NOW + timedelta(days=1),
             last_success_at=_NOW,
             remote_cursor=None,

@@ -31,7 +31,7 @@ def main() -> int:
     """Run until the parent terminates this process at the publication barrier."""
     root = Path(sys.argv[1])
     ready = Path(sys.argv[2])
-    storage = IngestionStorage(root, "fixture-source", retention_generations=2)
+    storage = IngestionStorage(root, "doc", retention_generations=2)
     engine = GenerationEngine(storage)
 
     def block_before_pointer() -> None:
