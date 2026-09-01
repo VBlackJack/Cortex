@@ -170,6 +170,7 @@ def test_whole_vault_scan_restricted_to_included_sections(
     (unknown / "mystery.md").write_bytes(b"# Mystery\nUnclassified content.\n")
 
     monkeypatch.setattr(freshness, "KB_PATH", str(root))
+    monkeypatch.setattr(freshness, "INDEX_WHOLE_FOLDER", False)
 
     report = freshness.cortex_freshness_report(FakeCollection([]), section=None)
 

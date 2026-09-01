@@ -73,6 +73,7 @@ def test_discover_sections_returns_only_included_and_warns_on_missing(
     missing = sorted(INCLUDED_SECTIONS)[-1]
 
     monkeypatch.setattr(indexer, "KB_PATH", str(root))
+    monkeypatch.setattr(indexer, "INDEX_WHOLE_FOLDER", False)
 
     with caplog.at_level(logging.WARNING, logger="cortex"):
         sections = indexer.discover_sections()
@@ -113,6 +114,7 @@ def test_sync_excludes_datacron_via_is_excluded_path(
     monkeypatch.setattr(indexer, "KB_PATH", str(root))
     monkeypatch.setattr(indexer, "CHROMA_PATH", str(chroma_path))
     monkeypatch.setattr(indexer, "LEGACY_CHROMA_PATH", str(chroma_path))
+    monkeypatch.setattr(indexer, "INDEX_WHOLE_FOLDER", False)
 
     class EmptyCollection:
         def count(self) -> int:
