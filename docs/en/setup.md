@@ -82,7 +82,8 @@ reported as a warning without interrupting the rest.
 
 `cortex setup` configures the user-selected document folder and MCP clients. It
 does not create a Confluence allowlist, store a PAT, or register a Windows Task
-Scheduler task. Configure those explicit operator-owned surfaces separately:
+Scheduler task. On Windows, Companion guides allowlist creation from
+`Pages Confluence`. Configure those explicit operator-owned surfaces separately:
 
 - [Ingestion scheduling](ingestion-scheduling.md) for cadence, retries, health,
   and the ingestion data root.

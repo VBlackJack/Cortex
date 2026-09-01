@@ -7,6 +7,21 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0901-01 -->
+## 2026.0901.01 - 2026-09-01
+
+- La premiere configuration Confluence se fait maintenant directement dans
+  `Pages Confluence`. Collez l'URL d'une page, choisissez la date d'expiration
+  du PAT et la classification, puis cliquez sur `Initialiser et ajouter la page`.
+- Companion detecte l'adresse de l'instance et la cle d'espace dans les URL qui
+  les exposent. Les anciennes URL `viewpage.action` et les liens courts restent
+  acceptes ; il suffit alors de saisir la cle d'espace affichee dans Confluence.
+- Le fichier `confluence.toml` est cree de facon verrouillee, validee et atomique.
+  Le PAT reste uniquement dans le Gestionnaire d'identifiants Windows protege
+  par DPAPI ; il n'est jamais ecrit dans ce fichier.
+- Le convertisseur externe peut etre selectionne dans le meme ecran. Il est
+  facultatif pour gerer les pages, mais reste requis pour lancer leur collecte.
+
 <!-- release:2026-0901-00 -->
 ## 2026.0901.00 - 2026-09-01
 

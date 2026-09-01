@@ -96,9 +96,10 @@ source et indique si un rattrapage est du. L'adaptateur Confluence stocke son
 PAT interactivement et passe par les memes moteur de verrou, reprise,
 expiration et generation. Le PAT peut etre enregistre sans terminal depuis
 `Reglages > Authentification Confluence` dans Companion, meme avant la creation
-du fichier grace a la cible `cortex-spike` par defaut. La configuration
-Confluence reste requise avant l'ajout de pages et la collecte ; le parcours en
-ligne de commande reste disponible :
+du fichier grace a la cible `cortex-spike` par defaut. Ouvrir ensuite
+`Pages Confluence` : l'assistant cree la configuration a partir d'une URL de
+page, de l'expiration du PAT, de l'espace et de la classification. Le parcours
+en ligne de commande reste disponible :
 
 ```powershell
 cortex ingestion status doc

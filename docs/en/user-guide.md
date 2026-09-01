@@ -92,8 +92,9 @@ missed-window catch-up is due. The Confluence adapter stores its PAT
 interactively and runs through the same locking, retry, expiry, and generation
 engine. The PAT can be saved without a terminal from `Settings > Confluence
 authentication` in Companion, even before the file exists by using the default
-`cortex-spike` target. Confluence configuration is still required before adding
-pages or collecting them; the command-line path remains available:
+`cortex-spike` target. Then open `Pages Confluence`: the guided card creates the
+configuration from a page URL, the PAT expiry, the space, and the classification.
+The command-line path remains available:
 
 ```powershell
 cortex ingestion status doc
