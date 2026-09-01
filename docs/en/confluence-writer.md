@@ -1,6 +1,6 @@
 ---
 verified: 2026-09-01
-tested_on: "CortexCompanion 2026.0901.01 / Windows / .NET 10"
+tested_on: "CortexCompanion 2026.0901.02 / Windows / .NET 10"
 ---
 
 <!--
@@ -61,6 +61,13 @@ current account.
 
 The manual TOML below remains available for advanced configurations and
 non-Windows environments.
+
+On a slow computer, the value selected under `Réglages > Délai maximal des
+commandes Cortex` (Settings > Maximum Cortex command timeout) also applies to
+reading this page list and resolving a page. Select 60 or 120 seconds, then
+`Enregistrer et connecter` (Save and connect), when Cortex needs several
+seconds to start. Companion now reports an expired timeout explicitly instead
+of describing it as a CLI read refusal.
 
 ```toml
 schema_version = 2

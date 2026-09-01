@@ -66,11 +66,12 @@ guidee. Pour le premier usage :
    dans le dossier parent de la meme installation Cortex. Si le chemin doit
    etre corrige, choisir
    `%LOCALAPPDATA%\Programs\Cortex\cortex.exe`, puis `Enregistrer et connecter`.
-   Sur un poste lent, choisir aussi un delai de demarrage de 15, 30, 60 ou
-   120 secondes ; le defaut est 30 secondes. Ce delai concerne uniquement la
-   verification de compatibilite au demarrage. S'il est depasse, Companion
-   reste en lecture seule afin de ne pas lancer d'actions avec un Cortex non
-   confirme.
+   Sur un poste lent, choisir aussi un delai maximal des commandes Cortex de
+   15, 30, 60 ou 120 secondes ; le defaut est 30 secondes. Depuis
+   `2026.0901.02`, cette valeur s'applique a la verification de compatibilite,
+   a la lecture des reglages Cortex et aux commandes `Pages Confluence`. Si le
+   delai est depasse, Companion garde les mutations desactivees et indique de
+   revenir dans `Réglages` pour augmenter la valeur.
 2. Verifier le `Dossier de la base de connaissances`. Pour le changer, choisir
    un dossier existant, puis `Enregistrer le dossier`.
 3. Ajouter les documents dans ce dossier.
