@@ -117,7 +117,7 @@ Le paquet installe expose une commande unique :
 
 | Sous-commande | Role |
 |---|---|
-| `cortex setup` | Config + index + enregistrement des clients en une fois (`--yes`, `--no-index`, `--reset`). |
+| `cortex setup` | Config + index + enregistrement des clients en une fois (`--kb-path`, `--yes`, `--no-index`, `--reset`). |
 | `cortex serve` | Lance le serveur MCP (utilise par les clients). |
 | `cortex sync` | Synchronisation incrementale de l'index. |
 | `cortex ingestion` | Affiche la sante d'une source et indique si un rattrapage est du. |
@@ -126,7 +126,15 @@ Le paquet installe expose une commande unique :
 | `cortex bundle` | Decrit ou verifie une archive portable chiffree. |
 | `cortex doctor` | Diagnostic de l'installation (lecture seule). |
 | `cortex register` / `cortex unregister` | Ajoute ou retire Cortex des clients MCP. |
+| `cortex init` | Cree la seule configuration par utilisateur. |
 | `cortex check` | Verifie l'installation. |
+
+`cortex --help` decrit chaque sous-commande et `cortex <commande> --help` decrit
+ses options. Une installation sans invite se scripte ainsi :
+
+```powershell
+cortex setup --yes --kb-path "D:\Documents\Connaissances"
+```
 
 ## Outils MCP exposes
 

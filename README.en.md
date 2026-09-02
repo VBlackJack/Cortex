@@ -115,7 +115,7 @@ The installed package exposes a single command:
 
 | Subcommand | Purpose |
 |---|---|
-| `cortex setup` | Config + index + client registration in one go (`--yes`, `--no-index`, `--reset`). |
+| `cortex setup` | Config + index + client registration in one go (`--kb-path`, `--yes`, `--no-index`, `--reset`). |
 | `cortex serve` | Runs the MCP server (used by clients). |
 | `cortex sync` | Incremental index synchronization. |
 | `cortex ingestion` | Shows source health and whether catch-up is due. |
@@ -124,7 +124,15 @@ The installed package exposes a single command:
 | `cortex bundle` | Describes or verifies an encrypted portable archive. |
 | `cortex doctor` | Installation diagnostics (read-only). |
 | `cortex register` / `cortex unregister` | Adds or removes Cortex from MCP clients. |
+| `cortex init` | Creates the single per-user configuration. |
 | `cortex check` | Verifies the installation. |
+
+`cortex --help` describes every subcommand and `cortex <command> --help` describes
+its options. A prompt-free installation scripts as:
+
+```powershell
+cortex setup --yes --kb-path "D:\Documents\Knowledge"
+```
 
 ## Exposed MCP tools
 

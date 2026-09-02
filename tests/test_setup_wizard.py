@@ -37,7 +37,7 @@ def _fail(client: str = "codex") -> setup_config.ClientResult:
 def test_run_setup_runs_init_register_index_in_order() -> None:
     calls: list[str] = []
 
-    def init_fn(*, assume_yes: bool) -> bool:
+    def init_fn(*, environ: dict[str, str] | None = None, assume_yes: bool) -> bool:
         calls.append("init")
         return True
 
@@ -69,7 +69,7 @@ def test_run_setup_resets_before_init_when_explicitly_requested() -> None:
             calls.append("reset")
             or setup_config.ResetResult(config_removed=True, data_home_removed=True)
         ),
-        init_fn=lambda *, assume_yes: calls.append("init") or True,
+        init_fn=lambda *, assume_yes, environ=None: calls.append("init") or True,
         index_fn=lambda: {},
         register_fn=lambda python_exe, *, clients: calls.append("register") or [_ok()],
     )
@@ -87,7 +87,7 @@ def test_run_setup_skips_index_when_build_index_false() -> None:
 
     result = run_setup(
         SetupPlan(build_index=False),
-        init_fn=lambda *, assume_yes: False,
+        init_fn=lambda *, assume_yes, environ=None: False,
         index_fn=index_fn,
         register_fn=lambda python_exe, *, clients: [_ok()],
     )
@@ -107,7 +107,7 @@ def test_run_setup_defers_index_failure_after_registering_clients() -> None:
 
     result = run_setup(
         SetupPlan(),
-        init_fn=lambda *, assume_yes: calls.append("init") or True,
+        init_fn=lambda *, assume_yes, environ=None: calls.append("init") or True,
         index_fn=index_fn,
         register_fn=lambda python_exe, *, clients: calls.append("register") or [_ok()],
     )
@@ -122,7 +122,7 @@ def test_run_setup_defers_index_failure_after_registering_clients() -> None:
 def test_run_setup_threads_assume_yes_and_clients() -> None:
     seen: dict[str, object] = {}
 
-    def init_fn(*, assume_yes: bool) -> bool:
+    def init_fn(*, environ: dict[str, str] | None = None, assume_yes: bool) -> bool:
         seen["assume_yes"] = assume_yes
         return True
 
@@ -143,7 +143,7 @@ def test_run_setup_threads_assume_yes_and_clients() -> None:
 def test_run_setup_client_failure_becomes_warning_not_abort() -> None:
     result = run_setup(
         SetupPlan(build_index=False),
-        init_fn=lambda *, assume_yes: True,
+        init_fn=lambda *, assume_yes, environ=None: True,
         index_fn=lambda: {},
         register_fn=lambda python_exe, *, clients: [_ok(), _fail()],
     )
@@ -157,8 +157,9 @@ def test_cli_routes_setup_to_wizard(monkeypatch: pytest.MonkeyPatch) -> None:
     received: list[str] = []
     module = ModuleType("setup_wizard")
 
-    def fake_main(argv: list[str]) -> int:
+    def fake_main(argv: list[str], *, prog: str) -> int:
         received.extend(argv)
+        assert prog == "cortex setup"
         return 0
 
     module.main = fake_main  # type: ignore[attr-defined]
@@ -257,3 +258,42 @@ def test_setup_yes_keeps_defaults_without_guidance_or_prompts(
     ) == 0
     assert plans == [SetupPlan(clients="all", build_index=True, assume_yes=True)]
     assert guidance == []
+
+
+def test_run_setup_records_the_explicit_kb_path_without_an_environment_variable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`cortex setup --kb-path` must make the wizard scriptable on its own."""
+    monkeypatch.delenv("CORTEX_KB_PATH", raising=False)
+    seen: list[dict[str, str] | None] = []
+
+    def init_fn(*, environ: dict[str, str] | None = None, assume_yes: bool) -> bool:
+        seen.append(environ)
+        return True
+
+    run_setup(
+        SetupPlan(kb_path="D:/knowledge", build_index=False, clients="none"),
+        init_fn=init_fn,
+        index_fn=lambda: {},
+        register_fn=lambda _python, clients=None: [],
+    )
+
+    assert seen and seen[0] is not None
+    assert seen[0]["CORTEX_KB_PATH"] == "D:/knowledge"
+
+
+def test_run_setup_leaves_the_environment_untouched_without_kb_path() -> None:
+    seen: list[dict[str, str] | None] = []
+
+    def init_fn(*, environ: dict[str, str] | None = None, assume_yes: bool) -> bool:
+        seen.append(environ)
+        return True
+
+    run_setup(
+        SetupPlan(build_index=False, clients="none"),
+        init_fn=init_fn,
+        index_fn=lambda: {},
+        register_fn=lambda _python, clients=None: [],
+    )
+
+    assert seen == [None]

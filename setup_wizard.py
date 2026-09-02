@@ -24,6 +24,7 @@ plan and renders the result.
 from __future__ import annotations
 
 import argparse
+import os
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
@@ -56,6 +57,8 @@ class SetupPlan:
         reset: Delete the existing user config and generated data before init.
         python_exe: Interpreter recorded in client configs; None uses the current
             interpreter.
+        kb_path: Knowledge-base folder recorded at init; None falls back to
+            CORTEX_KB_PATH or, in interactive mode, to a prompt.
     """
 
     clients: str | None = "all"
@@ -63,6 +66,7 @@ class SetupPlan:
     assume_yes: bool = False
     reset: bool = False
     python_exe: str | None = None
+    kb_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -185,7 +189,10 @@ def run_setup(
     """
     if plan.reset:
         reset_fn()
-    config_created = init_fn(assume_yes=plan.assume_yes)
+    environ = (
+        None if plan.kb_path is None else {**os.environ, "CORTEX_KB_PATH": plan.kb_path}
+    )
+    config_created = init_fn(environ=environ, assume_yes=plan.assume_yes)
 
     python_exe = plan.python_exe or detect_python()
     client_results = register_fn(python_exe, clients=plan.clients)
@@ -244,9 +251,10 @@ def main(
     *,
     input_fn: InputFn = input,
     output_fn: OutputFn = print,
+    prog: str = "cortex setup",
 ) -> int:
     """Parse flags, run the guided setup, and return a process exit code."""
-    parser = argparse.ArgumentParser(description="Cortex guided setup")
+    parser = argparse.ArgumentParser(prog=prog, description="Cortex guided setup")
     parser.add_argument(
         "--clients",
         default=None,
@@ -258,9 +266,14 @@ def main(
         help="Skip building the search index",
     )
     parser.add_argument(
+        "--kb-path",
+        default=None,
+        help="Knowledge-base folder to record (default: CORTEX_KB_PATH, else prompt)",
+    )
+    parser.add_argument(
         "--yes",
         action="store_true",
-        help="Non-interactive: no prompts; requires CORTEX_KB_PATH to create config",
+        help="Non-interactive: no prompts; needs --kb-path or CORTEX_KB_PATH",
     )
     parser.add_argument(
         "--reset",
@@ -298,6 +311,7 @@ def main(
         assume_yes=args.yes,
         reset=reset,
         python_exe=args.python,
+        kb_path=args.kb_path,
     )
     try:
         result = run_setup(plan)

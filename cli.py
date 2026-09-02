@@ -27,27 +27,29 @@ from sync_contract import SyncError, build_sync_failure_report
 if TYPE_CHECKING:
     from user_config import CortexConfigError
 
-_COMMANDS = (
-    "serve",
-    "sync",
-    "ingestion",
-    "confluence",
-    "bundle",
-    "config",
-    "doctor",
-    "setup",
-    "init",
-    "register",
-    "unregister",
-    "check",
+# One line per public subcommand, rendered by `cortex --help`. Keep this table
+# and the command table in both READMEs describing the same surface.
+_COMMANDS: tuple[tuple[str, str], ...] = (
+    ("serve", "Run the MCP server over stdio (started by MCP clients)."),
+    ("sync", "Incrementally index the knowledge base and the current generation."),
+    ("ingestion", "Report ingestion source health and whether a catch-up is due."),
+    ("confluence", "Store the Confluence PAT or run the allowlisted writer."),
+    ("bundle", "Describe or verify an encrypted portable archive."),
+    ("config", "Read or change the configuration through the atomic JSON contract."),
+    ("doctor", "Diagnose the installation without writing anything."),
+    ("setup", "Initialize the config, register MCP clients, and build the index."),
+    ("init", "Create the per-user configuration only."),
+    ("register", "Add Cortex to the detected MCP clients."),
+    ("unregister", "Remove Cortex from the detected MCP clients."),
+    ("check", "Verify that the installation is usable."),
 )
 
 
-def _run_setup(arguments: list[str]) -> int:
+def _run_setup(arguments: list[str], *, prog: str) -> int:
     from setup_config import main as setup_main
 
     try:
-        setup_main(arguments)
+        setup_main(arguments, prog=prog)
     except SystemExit as exc:
         return int(exc.code or 0)
     return 0
@@ -82,11 +84,19 @@ def _handle_sync_configuration_error(
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Dispatch a Cortex subcommand without duplicating domain logic."""
-    parser = argparse.ArgumentParser(prog="cortex")
+    parser = argparse.ArgumentParser(
+        prog="cortex",
+        description="Local multi-client RAG server over the Model Context Protocol.",
+        epilog="Run `cortex <command> --help` for the options of one command.",
+    )
     parser.add_argument("--version", action="version", version=__version__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    for name in _COMMANDS:
-        subparsers.add_parser(name, add_help=False)
+    subparsers = parser.add_subparsers(
+        dest="command",
+        required=True,
+        metavar="<command>",
+    )
+    for name, summary in _COMMANDS:
+        subparsers.add_parser(name, add_help=False, help=summary)
     namespace, arguments = parser.parse_known_args(argv)
 
     if namespace.command == "bundle":
@@ -111,7 +121,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         except CortexConfigError as exc:
             return _handle_sync_configuration_error(arguments, exc)
 
-        return sync_main(arguments)
+        return sync_main(arguments, prog="cortex sync")
     if namespace.command == "ingestion":
         from ingestion.cli import main as ingestion_main
 
@@ -131,14 +141,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if namespace.command == "setup":
         from setup_wizard import main as setup_wizard_main
 
-        return setup_wizard_main(arguments)
+        return setup_wizard_main(arguments, prog="cortex setup")
     setup_flags = {
         "init": ["--init"],
         "register": [],
         "unregister": ["--unregister"],
         "check": ["--check"],
     }
-    return _run_setup([*setup_flags[namespace.command], *arguments])
+    return _run_setup(
+        [*setup_flags[namespace.command], *arguments],
+        prog=f"cortex {namespace.command}",
+    )
 
 
 if __name__ == "__main__":

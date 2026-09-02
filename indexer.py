@@ -685,7 +685,11 @@ def search(
     updated_at_from: str | None = None,
     updated_at_to: str | None = None,
 ) -> SearchResults:
-    """Return hybrid results, explicitly degrading to vector-only when needed."""
+    """Return hybrid results, explicitly degrading to vector-only when needed.
+
+    `top_k` is clamped to SEARCH_TOP_K_MIN..SEARCH_TOP_K_MAX rather than
+    rejected, so an over-eager caller still gets the bounded result set.
+    """
     collection = get_collection()
     where, lexical_filters = build_chroma_where(
         section=section,
@@ -830,13 +834,9 @@ def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
     return report, _sync_report_exit_code(report)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int:
     """Run sync or search from the clone-compatible command line."""
-    from cortex_logging import configure_logging
-
-    configure_logging()
-
-    parser = argparse.ArgumentParser(description="Cortex indexer")
+    parser = argparse.ArgumentParser(prog=prog, description="Cortex indexer")
     parser.add_argument(
         "section", nargs="?", default=None, help="Section to sync (default: all)"
     )
@@ -849,6 +849,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
+
+    # Configure logging only once the arguments are known to be actionable:
+    # --help and a usage error exit inside parse_args, and neither should
+    # install a process-wide handler on the way out.
+    from cortex_logging import configure_logging
+
+    configure_logging()
 
     if args.json:
         if args.search is not None:

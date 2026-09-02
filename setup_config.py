@@ -1175,8 +1175,9 @@ def main(
     *,
     input_fn: Callable[[str], str] = input,
     output_fn: OutputFn = print,
+    prog: str = "cortex setup",
 ) -> None:
-    parser = argparse.ArgumentParser(description="Cortex MCP setup helper")
+    parser = argparse.ArgumentParser(prog=prog, description="Cortex MCP setup helper")
     parser.add_argument(
         "--python", default=None, help="Python executable (default: current interpreter)"
     )
