@@ -9,9 +9,12 @@ name: ci
 
 on:
   push:
-    branches: [main, "claude-code/**", "codex/**"]
+    branches: [main, "claude/**", "claude-code/**", "codex/**"]
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
