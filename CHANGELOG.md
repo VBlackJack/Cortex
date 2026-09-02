@@ -7,6 +7,76 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0902.00] - 2026-09-02
+
+### Security
+
+- Stopped the Confluence bearer credential from ever reaching an origin the
+  operator did not choose. The default urllib opener follows a redirect to any
+  host and replays every request header, `Authorization` included, so the
+  transport now resolves redirects itself, compares each hop against the origin
+  of the initial request, refuses a hop that changes origin, and bounds the hop
+  count.
+- Required `https` for `base_url` outside loopback, in the Cortex configuration
+  model, in the Companion TOML parser, and at the moment a page URL is pasted
+  into Companion. The PAT rides every request as a bearer header, so a cleartext
+  remote origin published it on the network.
+- Declared a read-only default `GITHUB_TOKEN` scope on the Cortex `ci` and
+  `release` workflows, so a job that omits its own block cannot write.
+- Added a `dotnet list package --vulnerable --include-transitive` gate to the
+  Cortex Companion workflow, matching the pip-audit gate on the Cortex side.
+
+### Added
+
+- Added a Companion action that stops a running collection. It confirms first,
+  states the exact consequence, then terminates the detached worker and the
+  Cortex process it owns. Termination reaches only the worker whose recorded
+  process identity still matches, so a reused process identifier is never
+  killed, and the run is recorded as stopped rather than failed.
+- Added a confirmation before the Companion window closes during a run, because
+  the detached worker outlives the window and only the progress display is lost.
+- Added `F5` on every Companion screen and `Ctrl+S` on Settings, with the
+  shortcut shown in the button tooltip.
+- Added a per-subcommand description to `cortex --help` and made every
+  subcommand parser carry its own program name, so `cortex sync --help` prints
+  `usage: cortex sync` instead of a usage line the user cannot type.
+- Added `cortex setup --kb-path`, so a prompt-free installation no longer
+  requires setting `CORTEX_KB_PATH` in the environment first.
+- Added `README.fr.md` to Cortex Companion, mirroring the English README.
+- Added guards for the invariants this release established: a dependency policy
+  test binding the suppressed advisories to the audited chromadb pin, a function
+  length ratchet, a design-token test refusing raw layout values in views, a
+  localization test refusing a string that silently renders its own key, and a
+  non-text contrast test for borders and focus rings.
+
+### Changed
+
+- Moved the Companion Confluence collection action onto the main card of the
+  local knowledge base screen, next to local synchronization. It previously sat
+  inside a collapsed advanced drawer while the documentation presented it as a
+  main step.
+- Rendered every Companion label and value as a single formatted string instead
+  of separate text blocks glued with punctuation, so a narrow window can no
+  longer separate a value from its label and screen readers stop announcing the
+  separators.
+- Moved the last raw layout values in the Companion views into named theme
+  tokens, and made the card style use the border token rather than a spacing
+  token, which had been giving every card a four-pixel frame.
+- Moved the Confluence transport timeout and response size bound into
+  `confluence_writer/constants.py`.
+- Extracted the search hit renderer out of the `cortex_search` MCP tool.
+
+### Fixed
+
+- Fixed a Companion border that sat at 2.51:1 against highlighted rows, below
+  the WCAG 1.4.11 non-text floor of 3:1. The border color now clears 3:1 against
+  every surface a bordered container uses.
+- Stated in the Companion diagnostics panel that the raw stream is the Cortex
+  command line output and is in English, inside an otherwise French interface.
+- Configured Cortex logging only once `cortex sync` arguments have parsed, so
+  rendering help or reporting a usage error no longer installs a process-wide
+  log handler on the way out.
+
 ## [2026.0901.05] - 2026-09-01
 
 ### Added

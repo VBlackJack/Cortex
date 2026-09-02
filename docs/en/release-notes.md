@@ -7,6 +7,31 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0902-00 -->
+## 2026.0902.00 - 2026-09-02
+
+- The Confluence token can no longer leave the instance you chose. An HTTP
+  redirect to another host is now refused instead of being followed with the
+  authentication header attached.
+- The Confluence address must now use `https`, except for a local test instance.
+  A cleartext address exposed the token on the network. Companion says so as
+  soon as you paste the first page URL.
+- Companion can finally stop a running collection. The `Interrompre` button asks
+  for confirmation, states what will happen, then stops the operation. The
+  already published generation stays intact.
+- Closing Companion during a run now asks for confirmation and reminds you that
+  the operation keeps running in the background.
+- `Collecter Confluence` moved up onto the main card of `Base locale`, next to
+  local synchronization, instead of hiding under the advanced options.
+- `F5` reloads the current screen and `Ctrl+S` saves from Settings. The shortcut
+  appears in the button tooltip.
+- Companion borders are easier to see: their contrast fell below the
+  accessibility floor on highlighted rows.
+- `cortex --help` now describes every subcommand, and `cortex sync --help` prints
+  a usage line you can copy as it stands.
+- `cortex setup --kb-path` makes a prompt-free installation possible without
+  setting an environment variable first.
+
 <!-- release:2026-0901-05 -->
 ## 2026.0901.05 - 2026-09-01
 

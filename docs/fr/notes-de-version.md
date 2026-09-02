@@ -7,6 +7,32 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0902-00 -->
+## 2026.0902.00 - 2026-09-02
+
+- Le jeton Confluence ne peut plus quitter l'instance que vous avez choisie. Une
+  redirection HTTP vers un autre hote est desormais refusee au lieu d'etre suivie
+  avec l'en-tete d'authentification.
+- L'adresse Confluence doit maintenant etre en `https`, sauf pour une instance
+  locale de test. Une adresse en clair exposait le jeton sur le reseau. Companion
+  le signale des que vous collez l'URL de la premiere page.
+- Companion permet enfin d'interrompre une collecte en cours. Le bouton
+  `Interrompre` demande confirmation, annonce ce qui va se passer, puis arrete
+  l'operation. La generation deja publiee reste intacte.
+- Fermer Companion pendant une operation demande maintenant confirmation, et
+  rappelle que l'operation continue en arriere-plan.
+- `Collecter Confluence` est remonte sur la carte principale de `Base locale`,
+  a cote de la synchronisation locale, au lieu d'etre cache sous les options
+  avancees.
+- `F5` recharge l'ecran courant et `Ctrl+S` enregistre depuis les Reglages. Le
+  raccourci est rappele dans l'infobulle du bouton.
+- Les bordures de Companion sont plus lisibles : leur contraste passait sous le
+  seuil d'accessibilite sur les lignes mises en avant.
+- `cortex --help` decrit maintenant chaque sous-commande, et `cortex sync --help`
+  affiche une ligne d'usage que vous pouvez recopier telle quelle.
+- `cortex setup --kb-path` permet une installation sans invite sans avoir a
+  definir une variable d'environnement au prealable.
+
 <!-- release:2026-0901-05 -->
 ## 2026.0901.05 - 2026-09-01
 
