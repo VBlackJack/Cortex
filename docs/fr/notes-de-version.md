@@ -7,6 +7,17 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0902-01 -->
+## 2026.0902.01 - 2026-09-02
+
+- Cortex Companion s'ouvre de nouveau normalement. La version `2026.0902.00`
+  pouvait s'arreter avant d'afficher sa fenetre a cause d'une liaison invalide
+  sur la barre de progression.
+- En cas d'echec de demarrage inattendu, la boite de dialogue indique maintenant
+  le type et le message de l'exception, en plus du dossier local des journaux.
+- La barriere de release ouvre desormais la fenetre Companion complete afin de
+  detecter cette categorie d'echec WPF avant publication.
+
 <!-- release:2026-0902-00 -->
 ## 2026.0902.00 - 2026-09-02
 

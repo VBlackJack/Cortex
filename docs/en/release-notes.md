@@ -7,6 +7,16 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0902-01 -->
+## 2026.0902.01 - 2026-09-02
+
+- Cortex Companion opens normally again. Version `2026.0902.00` could stop
+  before displaying its window because of an invalid progress-bar binding.
+- If an unexpected startup failure happens, the dialog now includes the
+  exception type and message as well as the local log directory.
+- The release gate now opens the complete Companion window so this class of WPF
+  runtime failure is caught before publication.
+
 <!-- release:2026-0902-00 -->
 ## 2026.0902.00 - 2026-09-02
 

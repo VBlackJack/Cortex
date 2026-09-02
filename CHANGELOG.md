@@ -7,6 +7,25 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0902.01] - 2026-09-02
+
+### Fixed
+
+- Fixed Cortex Companion failing before its window appeared because WPF treated
+  the read-only synchronization progress property as a two-way binding target.
+  The progress value is now explicitly one-way.
+- Made the application icon URI name the Companion assembly explicitly, so the
+  complete shell can also be loaded reliably by the release smoke test.
+- Added the exception type and message to the fatal startup dialog while keeping
+  the exact local log directory and the honest warning that the log may be
+  unavailable.
+
+### Tests
+
+- Added an STA smoke test that composes and shows the real `MainWindow`; this
+  reproduces invalid runtime WPF bindings that XAML compilation alone does not
+  detect.
+
 ## [2026.0902.00] - 2026-09-02
 
 ### Security
