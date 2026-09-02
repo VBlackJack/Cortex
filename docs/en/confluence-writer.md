@@ -76,6 +76,11 @@ reading this page list and resolving a page. Select 60 or 120 seconds, then
 seconds to start. Companion now reports an expired timeout explicitly instead
 of describing it as a CLI read refusal.
 
+`base_url` must use `https` unless the host is loopback. The PAT goes out as an
+`Authorization` header on every request, so a cleartext origin would publish it
+on the network. Redirects that change origin are refused, never followed. See
+[Security](security.md).
+
 ```toml
 schema_version = 2
 base_url = "https://confluence.example.test"

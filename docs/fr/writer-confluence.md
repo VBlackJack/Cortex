@@ -76,6 +76,11 @@ page. Choisir 60 ou 120 secondes, puis `Enregistrer et connecter`, si Cortex
 met plusieurs secondes a demarrer. Un depassement de delai est indique comme
 tel ; il n'est plus presente comme un refus de lecture du CLI.
 
+`base_url` doit etre en `https`, sauf pour un hote de bouclage. Le PAT part en
+en-tete `Authorization` sur chaque requete : une origine en clair le publierait
+sur le reseau. Les redirections qui changent d'origine sont refusees, jamais
+suivies. Voir [Securite](security.md).
+
 ```toml
 schema_version = 2
 base_url = "https://confluence.example.test"

@@ -31,6 +31,25 @@ precedente. La revocation distante reste un contrat du serveur Confluence :
 Cortex observe le rejet lors de la prochaine requete authentifiee et ne garde
 pas de second cache du token.
 
+## Transport du PAT Confluence
+
+Le PAT voyage en en-tete `Authorization: Bearer` sur chaque requete, donc deux
+regles encadrent le transport.
+
+`base_url` doit etre en `https`. Une origine `http` distante est refusee a la
+validation de la configuration, du cote Cortex comme du cote Companion, parce
+qu'elle publierait le jeton en clair sur le reseau. Les hotes de bouclage
+(`localhost`, `127.0.0.1`, `::1`) restent acceptes en `http` : aucun paquet ne
+quitte la machine.
+
+Aucune redirection HTTP ne sort de l'origine choisie. L'opener urllib par defaut
+rejoue tous les en-tetes de requete, `Authorization` compris, vers l'hote nomme
+par une redirection, quel qu'il soit. Le transport Cortex resout donc lui-meme
+les redirections : il compare l'origine de chaque saut a celle de la requete
+initiale, refuse le saut si elle differe, et borne le nombre de sauts. Une
+instance Confluence compromise ou un intermediaire ne peuvent pas faire suivre
+le jeton vers une origine tierce.
+
 ## Vulnerabilite ChromaDB ignoree (PYSEC-2026-311)
 
 L'audit CI ignore explicitement une vulnerabilite : `PYSEC-2026-311`

@@ -984,3 +984,31 @@ def test_frontmatter_is_complete_utf8_and_fake_secret_never_persists(
                 handler.close()
         logger.setLevel(previous_level)
         logger.propagate = previous_propagate
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://confluence.example.test",
+        "https://confluence.example.test:8443/wiki",
+        "http://localhost:8090",
+        "http://127.0.0.1:8090",
+        "http://[::1]:8090",
+    ],
+)
+def test_base_url_accepts_tls_and_loopback_origins(base_url: str) -> None:
+    assert ConfluenceSettings(base_url=base_url).base_url == base_url.rstrip("/")
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://confluence.example.test",
+        "http://10.0.0.5:8090",
+        "http://confluence.example.test:8080/wiki",
+    ],
+)
+def test_base_url_refuses_cleartext_remote_origins(base_url: str) -> None:
+    """The PAT is a bearer header on every request; a cleartext origin leaks it."""
+    with pytest.raises(ValueError, match="must use https"):
+        ConfluenceSettings(base_url=base_url)

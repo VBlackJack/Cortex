@@ -16,8 +16,10 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Mapping
+import threading
+from collections.abc import Iterator, Mapping
 from email.message import Message
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
@@ -281,3 +283,109 @@ def test_vendored_schema_bytes_match_frozen_3a_provenance() -> None:
     result = (_RESOURCES / "result.schema.json").read_bytes().replace(b"\r\n", b"\n")
     assert hashlib.sha256(job).hexdigest() == JOB_SCHEMA_SHA256
     assert hashlib.sha256(result).hexdigest() == RESULT_SCHEMA_SHA256
+
+
+class _CredentialCaptureHandler(BaseHTTPRequestHandler):
+    """Record whichever request headers reach this origin."""
+
+    received: list[Mapping[str, str]] = []
+
+    def do_GET(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler contract.
+        type(self).received.append(dict(self.headers))
+        body = b'{"captured": true}'
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *_args: object) -> None:
+        return None
+
+
+class _RedirectingOriginHandler(BaseHTTPRequestHandler):
+    """Answer with the redirect shape named by the requested path."""
+
+    foreign_port: int = 0
+
+    def do_GET(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler contract.
+        if self.path == "/foreign":
+            self.send_response(302)
+            self.send_header("Location", f"http://127.0.0.1:{type(self).foreign_port}/stolen")
+            self.end_headers()
+            return
+        if self.path == "/relative":
+            self.send_response(302)
+            self.send_header("Location", "/final")
+            self.end_headers()
+            return
+        if self.path == "/loop":
+            self.send_response(302)
+            self.send_header("Location", "/loop")
+            self.end_headers()
+            return
+        body = b'{"origin": true}'
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *_args: object) -> None:
+        return None
+
+
+def _serve(handler: type[BaseHTTPRequestHandler]) -> Iterator[int]:
+    server = HTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield int(server.server_address[1])
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+@pytest.fixture
+def foreign_origin_port() -> Iterator[int]:
+    _CredentialCaptureHandler.received = []
+    yield from _serve(_CredentialCaptureHandler)
+
+
+@pytest.fixture
+def confluence_origin_port(foreign_origin_port: int) -> Iterator[int]:
+    _RedirectingOriginHandler.foreign_port = foreign_origin_port
+    yield from _serve(_RedirectingOriginHandler)
+
+
+def test_cross_origin_redirect_never_replays_the_bearer_credential(
+    confluence_origin_port: int,
+    foreign_origin_port: int,
+) -> None:
+    headers = {"Authorization": f"Bearer {_FAKE_SECRET}"}
+
+    with pytest.raises(ConfluenceRestError, match="another origin"):
+        UrlLibTransport().get_json(
+            f"http://127.0.0.1:{confluence_origin_port}/foreign",
+            headers,
+        )
+
+    assert _CredentialCaptureHandler.received == []
+
+
+def test_same_origin_redirect_is_followed(confluence_origin_port: int) -> None:
+    payload = UrlLibTransport().get_json(
+        f"http://127.0.0.1:{confluence_origin_port}/relative",
+        {"Authorization": f"Bearer {_FAKE_SECRET}"},
+    )
+
+    assert payload == {"origin": True}
+
+
+def test_redirect_loop_is_bounded(confluence_origin_port: int) -> None:
+    with pytest.raises(ConfluenceRestError, match="redirect limit"):
+        UrlLibTransport().get_json(
+            f"http://127.0.0.1:{confluence_origin_port}/loop",
+            {"Authorization": f"Bearer {_FAKE_SECRET}"},
+        )

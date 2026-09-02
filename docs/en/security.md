@@ -30,6 +30,23 @@ previous generation. Remote revocation remains a Confluence-server contract:
 Cortex observes rejection on the next authenticated request and does not keep a
 second token cache.
 
+## Confluence PAT transport
+
+The PAT travels as an `Authorization: Bearer` header on every request, so two
+rules bound its transport.
+
+`base_url` must use `https`. A remote `http` origin is refused at configuration
+validation, in Cortex and in Companion alike, because it would publish the token
+in clear text on the network. Loopback hosts (`localhost`, `127.0.0.1`, `::1`)
+stay allowed over `http`: no packet leaves the machine.
+
+No HTTP redirect leaves the chosen origin. The default urllib opener replays
+every request header, `Authorization` included, to whatever host a redirect
+names. The Cortex transport therefore resolves redirects itself: it compares the
+origin of each hop with the origin of the initial request, refuses the hop when
+they differ, and bounds the hop count. A compromised Confluence instance or an
+intermediary cannot forward the token to a third-party origin.
+
 ## Ignored ChromaDB vulnerability (PYSEC-2026-311)
 
 The CI audit explicitly ignores one vulnerability: `PYSEC-2026-311`

@@ -22,15 +22,21 @@ from datetime import datetime
 from typing import Any, Protocol, cast, final
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urljoin, urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from confluence_writer.constants import PAGE_LIMIT
+from confluence_writer.constants import (
+    HTTP_TIMEOUT_SECONDS,
+    MAX_JSON_RESPONSE_BYTES,
+    MAX_REDIRECTS,
+    PAGE_LIMIT,
+)
 from confluence_writer.models import RemoteAttachment, RemotePage, RemotePageContent
 from ingestion.credentials import SecretValue
 from ingestion.scheduling import TransientIngestionError
 
 _LOG = logging.getLogger("cortex.confluence_writer.rest")
 _TRANSIENT_HTTP_STATUS = {408, 425, 429, 500, 502, 503, 504}
+_REDIRECT_HTTP_STATUS = range(300, 400)
 
 
 class ConfluenceRestError(RuntimeError):
@@ -88,7 +94,7 @@ class UrlLibTransport:
 
     def get_json(self, uri: str, headers: Mapping[str, str]) -> dict[str, Any]:
         """Read strict UTF-8 JSON while classifying retryable failures."""
-        payload = self.get_bytes(uri, headers, maximum_bytes=16 * 1024 * 1024)
+        payload = self.get_bytes(uri, headers, maximum_bytes=MAX_JSON_RESPONSE_BYTES)
         try:
             value = json.loads(payload.decode("utf-8", errors="strict"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -96,6 +102,47 @@ class UrlLibTransport:
         if not isinstance(value, dict):
             raise ConfluenceRestError("Confluence returned a non-object JSON response.")
         return cast(dict[str, Any], value)
+
+    @staticmethod
+    def _origin_of(uri: str) -> str:
+        parsed = urlsplit(uri)
+        return f"{parsed.scheme.casefold()}://{parsed.netloc.casefold()}"
+
+    def _open_same_origin(self, uri: str, headers: Mapping[str, str]) -> Any:
+        """Follow bounded redirects, refusing every hop that leaves the first origin.
+
+        The default urllib opener replays all request headers, Authorization
+        included, to whatever host a redirect names. The bearer credential must
+        only ever reach the origin the operator allowlisted, so redirects are
+        resolved here and validated before the request is sent again.
+        """
+        opener = build_opener(_NoRedirectHandler())
+        origin = self._origin_of(uri)
+        current = uri
+        for _ in range(MAX_REDIRECTS + 1):
+            request = Request(current, headers=dict(headers), method="GET")
+            try:
+                return opener.open(request, timeout=HTTP_TIMEOUT_SECONDS)  # noqa: S310
+            except HTTPError as exc:
+                if exc.code not in _REDIRECT_HTTP_STATUS:
+                    raise
+                location = exc.headers.get("Location")
+                if not isinstance(location, str) or not location:
+                    raise ConfluenceRestError(
+                        "Confluence returned a redirect without a Location."
+                    ) from exc
+                target = urljoin(current, location)
+                if self._origin_of(target) != origin:
+                    _LOG.error(
+                        "confluence_redirect_refused origin=%s target_origin=%s",
+                        origin,
+                        self._origin_of(target),
+                    )
+                    raise ConfluenceRestError(
+                        "Confluence redirected an authenticated request to another origin."
+                    ) from exc
+                current = target
+        raise ConfluenceRestError("Confluence exceeded the redirect limit.")
 
     def get_bytes(
         self,
@@ -105,9 +152,8 @@ class UrlLibTransport:
         maximum_bytes: int,
     ) -> bytes:
         """Read a bounded response and never include authentication in errors."""
-        request = Request(uri, headers=dict(headers), method="GET")
         try:
-            with urlopen(request, timeout=60.0) as response:  # noqa: S310
+            with self._open_same_origin(uri, headers) as response:
                 declared = response.headers.get("Content-Length")
                 if declared is not None and int(declared) > maximum_bytes:
                     raise ConfluenceRestError("Confluence response exceeds the configured limit.")
@@ -126,7 +172,8 @@ class UrlLibTransport:
         """Read one Location header without following it automatically."""
         request = Request(uri, headers=dict(headers), method="GET")
         try:
-            with build_opener(_NoRedirectHandler()).open(request, timeout=60.0) as response:
+            opener = build_opener(_NoRedirectHandler())
+            with opener.open(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
                 final_uri = cast(str, response.geturl())
         except HTTPError as exc:
             if 300 <= exc.code < 400:

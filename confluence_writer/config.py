@@ -41,6 +41,7 @@ from confluence_writer.constants import (
     DEFAULT_ATTACHMENT_SIZE_MB,
     DEFAULT_CREDENTIAL_TARGET,
     DEFAULT_FAILURE_THRESHOLD,
+    LOOPBACK_HOSTS,
     SUBTREE_CONFIG_SCHEMA_VERSION,
     SUPPORTED_CONFIG_SCHEMA_VERSIONS,
 )
@@ -160,6 +161,11 @@ class SpaceMapping(BaseModel):  # type: ignore[misc]
         return () if self.pages is None else tuple(page.page_id for page in self.pages)
 
 
+def _is_loopback(hostname: str | None) -> bool:
+    """Report whether an origin host never leaves the local machine."""
+    return hostname is not None and hostname.casefold().strip("[]") in LOOPBACK_HOSTS
+
+
 class ConfluenceSettings(BaseModel):  # type: ignore[misc]
     """Resolved writer settings without secret material."""
 
@@ -177,7 +183,7 @@ class ConfluenceSettings(BaseModel):  # type: ignore[misc]
     @field_validator("base_url")  # type: ignore[untyped-decorator]
     @classmethod
     def validate_base_url(cls, value: str | None) -> str | None:
-        """Require an HTTP origin without credentials, query, or fragment."""
+        """Require an https origin without credentials, query, or fragment."""
         if value is None:
             return None
         normalized = value.rstrip("/")
@@ -191,6 +197,12 @@ class ConfluenceSettings(BaseModel):  # type: ignore[misc]
             or parsed.fragment
         ):
             raise ValueError("base_url must be an HTTP(S) URL without credentials or query")
+        if parsed.scheme == "http" and not _is_loopback(parsed.hostname):
+            raise ValueError(
+                "base_url must use https: the personal access token is sent as a bearer "
+                "header on every request and a cleartext origin would expose it. Only "
+                "loopback hosts may use http."
+            )
         return normalized
 
     @field_validator("credential_target")  # type: ignore[untyped-decorator]

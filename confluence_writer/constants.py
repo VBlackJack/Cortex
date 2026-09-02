@@ -27,6 +27,17 @@ DEFAULT_CREDENTIAL_TARGET = "cortex-spike"
 DEFAULT_ATTACHMENT_SIZE_MB = 50
 DEFAULT_FAILURE_THRESHOLD = 0.10
 PAGE_LIMIT = 250
+
+# Bounded HTTP transport contract. The redirect limit exists so an authenticated
+# request can be replayed a few times without ever becoming an open follow loop.
+HTTP_TIMEOUT_SECONDS = 60.0
+MAX_JSON_RESPONSE_BYTES = 16 * 1024 * 1024
+MAX_REDIRECTS = 5
+
+# The PAT travels as a bearer header on every request, so a cleartext origin
+# would publish it to the network. Loopback stays allowed for local test
+# doubles, where no packet leaves the machine.
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 CLI_CONTRACT_VERSION = 1
 PAGES_CONTRACT_VERSION = 2
 
