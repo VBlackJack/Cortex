@@ -125,6 +125,53 @@ def _resolve_section(section: str | None) -> tuple[str | None, str | None]:
     )
 
 
+def _render_hit(rank: int, hit: dict[str, Any]) -> tuple[list[str], dict[str, Any]]:
+    """Render one hit as Markdown lines plus its structured twin."""
+    meta = hit.get("metadata", {})
+    contract = reconstruct_contract_metadata(meta)
+    title = contract.get("title") or contract.get("path") or "Unknown"
+    header = meta.get("header", "")
+    section = contract.get("section") or ""
+    if section == ROOT_SECTION:
+        section = "All documents"
+    distance = hit.get("distance")
+    text = hit.get("text", "")
+    freshness = hit.get("freshness", "unknown")
+    citation = contract.get("canonical_uri") or contract.get("path")
+    relevance: float | str | None = None
+
+    lines = [f"### [{rank}] {title}"]
+    lines.append(f"**Section:** {section} > {header}" if header else f"**Section:** {section}")
+    if distance is not None:
+        relevance = 1 - distance
+        lines.append(f"**Relevance:** {relevance:.0%}")
+    elif hit.get("lexical_only"):
+        relevance = "lexical-only"
+        lines.append("**Relevance:** lexical-only")
+    lines.append(
+        "**Source:** "
+        f"{contract.get('source_kind') or 'unknown'} / "
+        f"{contract.get('source_system') or 'unknown'}"
+    )
+    lines.append(f"**Occurred:** {contract.get('occurred_at') or 'unknown'}")
+    lines.append(f"**Updated:** {contract.get('updated_at') or 'unknown'}")
+    if citation:
+        if contract.get("canonical_uri"):
+            lines.append(f"**Citation:** [{title}]({citation})")
+        else:
+            lines.append(f"**Citation:** `{citation}`")
+    lines.extend([f"**Freshness:** {freshness}", "", text, ""])
+    structured = {
+        "id": hit.get("id"),
+        "text": text,
+        "metadata": contract,
+        "citation": citation,
+        "relevance": relevance,
+        "freshness": freshness,
+    }
+    return lines, structured
+
+
 # -- Tool: cortex_search -------------------------------------------------------
 
 
@@ -144,6 +191,7 @@ def cortex_search(
     Search the internal knowledge base using semantic similarity.
     Use this tool whenever the user asks about anything that may be documented
     in their local knowledge base. Supports French and English queries.
+    `top_k` is clamped to the 1-10 range; larger values return 10 results.
     """
     try:
         section, err = _resolve_section(section)
@@ -203,57 +251,10 @@ def cortex_search(
         lines.append(f"**Fallback reason:** {fallback_reason}")
     lines.append("")
     structured_hits: list[dict[str, Any]] = []
-    for i, hit in enumerate(hits, 1):
-        meta = hit.get("metadata", {})
-        contract = reconstruct_contract_metadata(meta)
-        title = contract.get("title") or contract.get("path") or "Unknown"
-        header = meta.get("header", "")
-        sec = contract.get("section") or ""
-        if sec == ROOT_SECTION:
-            sec = "All documents"
-        dist = hit.get("distance")
-        text = hit.get("text", "")
-        freshness = hit.get("freshness", "unknown")
-        citation = contract.get("canonical_uri") or contract.get("path")
-        relevance: float | str | None = None
-
-        lines.append(f"### [{i}] {title}")
-        if header:
-            lines.append(f"**Section:** {sec} > {header}")
-        else:
-            lines.append(f"**Section:** {sec}")
-        if dist is not None:
-            relevance = 1 - dist
-            lines.append(f"**Relevance:** {relevance:.0%}")
-        elif hit.get("lexical_only"):
-            relevance = "lexical-only"
-            lines.append("**Relevance:** lexical-only")
-        lines.append(
-            "**Source:** "
-            f"{contract.get('source_kind') or 'unknown'} / "
-            f"{contract.get('source_system') or 'unknown'}"
-        )
-        lines.append(f"**Occurred:** {contract.get('occurred_at') or 'unknown'}")
-        lines.append(f"**Updated:** {contract.get('updated_at') or 'unknown'}")
-        if citation:
-            if contract.get("canonical_uri"):
-                lines.append(f"**Citation:** [{title}]({citation})")
-            else:
-                lines.append(f"**Citation:** `{citation}`")
-        lines.append(f"**Freshness:** {freshness}")
-        lines.append("")
-        lines.append(text)
-        lines.append("")
-        structured_hits.append(
-            {
-                "id": hit.get("id"),
-                "text": text,
-                "metadata": contract,
-                "citation": citation,
-                "relevance": relevance,
-                "freshness": freshness,
-            }
-        )
+    for rank, hit in enumerate(hits, 1):
+        rendered, structured = _render_hit(rank, hit)
+        lines.extend(rendered)
+        structured_hits.append(structured)
 
     return SearchResponse(
         schema_version=2,
