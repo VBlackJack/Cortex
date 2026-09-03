@@ -7,6 +7,20 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0903-02 -->
+## 2026.0903.02 - 2026-09-03
+
+- Cortex Companion sait autoriser un nouvel espace Confluence depuis l'ecran
+  `Pages`. Collez l'URL de n'importe quelle page de l'espace, choisissez sa
+  classification, confirmez : modifier `confluence.toml` a la main n'est plus
+  le seul chemin. Seul l'ecran de premier lancement en etait capable, et il
+  disparait des que le fichier existe.
+- Ajouter une page d'un espace pas encore autorise ne s'arrete plus sur une
+  erreur. La carte est preremplie avec l'URL que vous venez de coller, elle
+  nomme l'espace concerne, et la confirmer ajoute votre page dans la foulee.
+- Les messages d'erreur ne se terminent plus par les lignes de journal ecrites
+  par Cortex pendant son travail. Seule la phrase qui vous est destinee reste.
+
 <!-- release:2026-0903-01 -->
 ## 2026.0903.01 - 2026-09-03
 

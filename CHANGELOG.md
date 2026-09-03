@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0903.02] - 2026-09-03
+
 ### Changed
 
 - Documented that a Confluence space is allowlisted from Cortex Companion

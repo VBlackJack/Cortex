@@ -7,6 +7,20 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0903-02 -->
+## 2026.0903.02 - 2026-09-03
+
+- Cortex Companion can authorize a new Confluence space from the `Pages`
+  screen. Paste the URL of any page of the space, pick its classification, and
+  confirm; editing `confluence.toml` by hand is no longer the only way. Only
+  the first-run screen could do this before, and it disappears once the file
+  exists.
+- Adding a page from a space that is not authorized yet no longer stops at an
+  error. The card is filled in with the URL you just pasted, names the space it
+  would authorize, and confirming adds your page in the same gesture.
+- Error messages no longer end with the log lines Cortex wrote while it worked.
+  Only the sentence meant for you is shown.
+
 <!-- release:2026-0903-01 -->
 ## 2026.0903.01 - 2026-09-03
 
