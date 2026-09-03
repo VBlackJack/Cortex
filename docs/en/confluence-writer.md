@@ -204,6 +204,17 @@ limit, and failure threshold also have matching uppercase
 `CORTEX_CONFLUENCE_...` environment overrides. Space allowlisting stays in
 TOML so an inherited environment cannot silently broaden the source scope.
 
+Allowlisting a space does not require editing the TOML by hand. In Cortex
+Companion, the `Pages` screen carries an `Autoriser un nouvel espace` card:
+paste the URL of any page of the space, pick the classification, and confirm.
+Companion reads the space key from the URL, refuses a URL that names no space
+or that points at another Confluence server, and writes the `[[spaces]]` entry
+under the same CAS lock as every other mutation. The space enters empty in
+explicit-pages mode, so allowlisting on its own still collects nothing. When
+`Resoudre et ajouter` refuses a page because its space is not allowlisted, that
+same card is filled in with the pasted URL, and confirming it adds the page in
+the same gesture.
+
 ## Store the PAT
 
 Store the PAT before the first Confluence sync and repeat the operation whenever

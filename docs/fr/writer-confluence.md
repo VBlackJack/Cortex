@@ -205,6 +205,17 @@ Ce lock protege uniquement les writers TOML. Il est distinct du lock de sync
 d'ingestion et du lock d'ecriture Chroma. Aucune commande CLI de mutation n'est
 encore exposee.
 
+Autoriser un espace ne demande pas de modifier le TOML a la main. Dans Cortex
+Companion, l'ecran `Pages` porte une carte `Autoriser un nouvel espace` : collez
+l'URL de n'importe quelle page de l'espace, choisissez la classification, puis
+confirmez. Companion lit la clef d'espace dans l'URL, refuse une URL qui ne
+nomme aucun espace ou qui pointe vers un autre serveur Confluence, et ecrit
+l'entree `[[spaces]]` sous le meme verrou CAS que toute autre mutation.
+L'espace entre vide, en mode pages explicites : l'autoriser ne collecte donc
+rien par lui-meme. Quand `Resoudre et ajouter` refuse une page parce que son
+espace n'est pas autorise, cette meme carte est preremplie avec l'URL collee, et
+la confirmer ajoute la page dans la foulee.
+
 ## Stocker le PAT
 
 Stockez le PAT avant la premiere synchronisation Confluence et repetez

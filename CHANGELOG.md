@@ -7,6 +7,11 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Changed
+
+- Documented that a Confluence space is allowlisted from Cortex Companion
+  rather than by editing the TOML by hand, and what the interface refuses.
+
 ## [2026.0903.01] - 2026-09-03
 
 ### Added
