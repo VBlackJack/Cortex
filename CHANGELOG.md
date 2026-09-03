@@ -7,6 +7,23 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Fixed
+
+- Translated the argparse usage-error exit status of every subcommand to the
+  Cortex invalid-input code. The raw status collided with the lock-contention
+  code that machine clients such as Cortex Companion act on.
+- Made `cortex sync --search` render vault text on a console whose encoding
+  lacks a character, such as cp1252 on Windows, by escaping it instead of
+  aborting the whole listing.
+
+### Changed
+
+- Ran the `ci` workflow on every pushed branch instead of a fixed prefix list.
+- Added the Apache 2.0 header to the Windows batch entry points and completed
+  two truncated test headers.
+- Silenced the fastembed pooling migration notice under pytest, matching the
+  runtime filter.
+
 ## [2026.0902.01] - 2026-09-02
 
 ### Fixed

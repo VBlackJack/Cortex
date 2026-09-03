@@ -32,14 +32,7 @@ build/
 .DS_Store
 Thumbs.db
 
-# Claude Code local settings
-.claude/
-CLAUDE.md
-
 # Test artifacts
-gemini_output.txt
-gemini_prompt.txt
-codex_task.md
 AUDIT.md
 
 # Local execution reports

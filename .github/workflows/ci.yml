@@ -9,7 +9,7 @@ name: ci
 
 on:
   push:
-    branches: [main, "claude/**", "claude-code/**", "codex/**"]
+    branches: ["**"]
   pull_request:
     branches: [main]
 
