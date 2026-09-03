@@ -21,7 +21,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from _version import __version__
-from confluence_writer.constants import EXIT_INVALID_INPUT
+from confluence_writer.constants import EXIT_ERROR, EXIT_INVALID_INPUT, EXIT_OK
 from sync_contract import SyncError, build_sync_failure_report
 
 if TYPE_CHECKING:
@@ -45,14 +45,32 @@ _COMMANDS: tuple[tuple[str, str], ...] = (
 )
 
 
+# argparse exits with this status on a usage error. Cortex reserves 2 for lock
+# contention, so the dispatcher translates it before a machine client sees it.
+_ARGPARSE_USAGE_EXIT = 2
+
+
+def _exit_code_from(exc: SystemExit) -> int:
+    """Translate a SystemExit raised by a subcommand into a Cortex exit code."""
+    code = exc.code
+    if code is None:
+        return EXIT_OK
+    if not isinstance(code, int):
+        # sys.exit accepts a message; it was already written to stderr.
+        return EXIT_ERROR
+    if code == _ARGPARSE_USAGE_EXIT:
+        return EXIT_INVALID_INPUT
+    return code
+
+
 def _run_setup(arguments: list[str], *, prog: str) -> int:
     from setup_config import main as setup_main
 
     try:
         setup_main(arguments, prog=prog)
     except SystemExit as exc:
-        return int(exc.code or 0)
-    return 0
+        return _exit_code_from(exc)
+    return EXIT_OK
 
 
 def _requested_sync_section(arguments: list[str]) -> str | None:
@@ -98,7 +116,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     for name, summary in _COMMANDS:
         subparsers.add_parser(name, add_help=False, help=summary)
     namespace, arguments = parser.parse_known_args(argv)
+    try:
+        return _dispatch(namespace, arguments)
+    except SystemExit as exc:
+        # Help and explicit exits keep their status; only the usage error is
+        # translated, because its raw status means lock contention to callers.
+        if exc.code != _ARGPARSE_USAGE_EXIT:
+            raise
+        return EXIT_INVALID_INPUT
 
+
+def _dispatch(namespace: argparse.Namespace, arguments: list[str]) -> int:
+    """Run the selected subcommand and return its exit code."""
     if namespace.command == "bundle":
         from bundle_command import main as bundle_main
 

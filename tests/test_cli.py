@@ -23,6 +23,7 @@ import pytest
 
 import cli
 from _version import __version__
+from confluence_writer.constants import EXIT_INVALID_INPUT
 
 
 @pytest.mark.parametrize(
@@ -154,3 +155,32 @@ def test_subcommand_help_names_the_typed_subcommand(
 
     assert raised.value.code == 0
     assert capsys.readouterr().out.startswith("usage: cortex sync")
+
+
+def _install_exiting_doctor(monkeypatch: pytest.MonkeyPatch, code: int) -> None:
+    module = ModuleType("doctor")
+
+    def fake_main(argv: list[str]) -> int:
+        raise SystemExit(code)
+
+    module.main = fake_main  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "doctor", module)
+
+
+def test_subcommand_usage_error_maps_to_invalid_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """argparse exits with 2 on a usage error, which Cortex reserves for locks."""
+    _install_exiting_doctor(monkeypatch, 2)
+
+    assert cli.main(["doctor", "--bogus"]) == EXIT_INVALID_INPUT
+
+
+def test_subcommand_other_exits_keep_their_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_exiting_doctor(monkeypatch, 0)
+
+    with pytest.raises(SystemExit) as raised:
+        cli.main(["doctor", "--help"])
+    assert raised.value.code == 0
