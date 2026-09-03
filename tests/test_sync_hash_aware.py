@@ -332,6 +332,54 @@ def test_complete_hash_and_chunking_version_is_skipped(
 
     assert stats["skipped_files"] == 1
     assert collection.upsert_calls == 0
+    assert stats["empty_files"] == 0
+
+
+def test_non_indexable_document_is_counted_apart_from_unchanged_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "kb"
+    section = root / "knowledge"
+    section.mkdir(parents=True)
+    (section / "note.md").write_text("", encoding="utf-8")
+    collection = Collection()
+    monkeypatch.setitem(
+        sync_hash_aware.CHUNKERS,
+        ".md",
+        lambda _path: ChunkResult(status="empty"),
+    )
+
+    stats = _sync_section_locked(collection, root, "knowledge")
+
+    assert stats["empty_files"] == 1
+    assert stats["skipped_files"] == 1
+    assert stats["removed_files"] == 0
+    assert stats["errors"] == 0
+
+
+def test_document_that_became_non_indexable_is_removed_and_still_counted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "kb"
+    section = root / "knowledge"
+    section.mkdir(parents=True)
+    (section / "note.md").write_text("", encoding="utf-8")
+    collection = Collection()
+    collection.seed(_chunks())
+    monkeypatch.setitem(
+        sync_hash_aware.CHUNKERS,
+        ".md",
+        lambda _path: ChunkResult(status="empty"),
+    )
+
+    stats = _sync_section_locked(collection, root, "knowledge")
+
+    assert stats["empty_files"] == 1
+    assert stats["removed_files"] == 1
+    assert stats["skipped_files"] == 0
+    assert collection.rows == {}
 
 
 def test_lexical_failure_is_reported_after_chroma_publish(
@@ -598,6 +646,7 @@ def test_current_document_generation_reconciles_chroma_and_lexical(
         "deleted_chunks": 2,
         "removed_files": 1,
         "skipped_files": 1,
+        "empty_files": 0,
         "errors": 0,
     }
     expected_paths = {

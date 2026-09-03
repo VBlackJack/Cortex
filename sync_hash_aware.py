@@ -87,6 +87,7 @@ def empty_sync_stats() -> dict[str, int]:
         "deleted_chunks": 0,
         "removed_files": 0,
         "skipped_files": 0,
+        "empty_files": 0,
         "errors": 0,
     }
 
@@ -637,6 +638,10 @@ def _sync_files_locked(
             continue
 
         if result.status in {"empty", "too_large"}:
+            stats["empty_files"] += 1
+            _LOG.info(
+                "file_not_indexable path=%s reason=%s", rel_path, result.status
+            )
             if old_ids:
                 try:
                     stats["deleted_chunks"] += _delete_ids(collection, old_ids)

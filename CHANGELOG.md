@@ -7,6 +7,14 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Added
+
+- Counted documents with no indexable body in the synchronization report. The
+  new `empty_files` counter is exposed by the sync CLI contract, the MCP sync
+  summary, and the completion log line; each such document is now logged as
+  `file_not_indexable` instead of disappearing silently into `skipped_files`.
+  Existing counters keep their exact values and the contract version stays 1.
+
 ## [2026.0903.00] - 2026-09-03
 
 ### Fixed

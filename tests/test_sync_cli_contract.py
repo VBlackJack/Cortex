@@ -66,6 +66,7 @@ def _report(
                 "deleted_chunks": 0,
                 "removed_files": 0,
                 "skipped_files": 0,
+                "empty_files": 0,
                 "errors": 0,
             }
             if counters is None
@@ -237,6 +238,7 @@ def test_lexical_preparation_failure_after_chroma_success_is_partial(
             "deleted_chunks": 0,
             "removed_files": 0,
             "skipped_files": 0,
+            "empty_files": 0,
             "errors": 1,
         },
         indexes=SyncIndexes(chroma="ok", lexical="failed"),
@@ -264,6 +266,7 @@ def test_error_samples_are_truncated_without_truncating_exact_counter() -> None:
             "deleted_chunks": 0,
             "removed_files": 0,
             "skipped_files": 0,
+            "empty_files": 0,
             "errors": len(errors),
         },
         indexes=SyncIndexes(chroma="failed", lexical="ok"),

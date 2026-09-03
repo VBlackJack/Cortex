@@ -406,12 +406,13 @@ def _sync_locked_report(
     if verbose:
         log.info(
             "Sync complete: PublishedFiles=%d AddedChunks=%d DeletedChunks=%d "
-            "RemovedFiles=%d SkippedFiles=%d Errors=%d",
+            "RemovedFiles=%d SkippedFiles=%d EmptyFiles=%d Errors=%d",
             stats["published_files"],
             stats["added_chunks"],
             stats["deleted_chunks"],
             stats["removed_files"],
             stats["skipped_files"],
+            stats["empty_files"],
             stats["errors"],
         )
     return _build_sync_report(

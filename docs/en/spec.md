@@ -51,7 +51,7 @@ MCP resource or prompt.
 | Tool | Parameters | Behavior | Response format |
 |---|---|---|---|
 | `cortex_search` | `query: str`, optional `section`, `top_k`, `source_kinds`, `authors`, and occurred/updated RFC 3339 bounds | Local hybrid search, metadata filters, vector fallback, and domain-aware freshness | Structured schema v2 object with effective filters, results, citations, relevance, freshness, metadata, and compatibility Markdown |
-| `cortex_sync` | `section: Optional[str] = None` | Incremental reconciliation of one section or the full configured scope | Markdown: `published_files`, `added_chunks`, `deleted_chunks`, `removed_files`, `skipped_files`, `errors` |
+| `cortex_sync` | `section: Optional[str] = None` | Incremental reconciliation of one section or the full configured scope | Markdown: `published_files`, `added_chunks`, `deleted_chunks`, `removed_files`, `skipped_files`, `empty_files`, `errors` |
 | `cortex_list_sections` | none | Lists included sections and top-level folders outside policy | Markdown: indexable sections followed by `out of policy` folders |
 | `cortex_freshness` | `section: Optional[str] = None`, `include_entries: bool = False` | Compares live sources with index metadata without modifying them | Structured object: contract, scope, summary, duration, and optional per-file entries |
 
@@ -109,8 +109,11 @@ hash, expected chunk count, freshness contract, and chunking contract version.
 
 Sync is hash-aware. An already complete and coherent version is skipped. A file
 that becomes missing, excluded, empty, or too large is removed from both
-indexes. A read, decode, extraction, or publication error increments `errors`
-and preserves the old vector version. Reconciliation remains bounded to the
+indexes. Every document whose body is empty or too large to chunk increments
+`empty_files`, whether or not it had indexed content to remove, and each one is
+logged as `file_not_indexable`. A document without indexable content is not an
+error: `errors` stays untouched. A read, decode, extraction, or publication
+error increments `errors` and preserves the old vector version. Reconciliation remains bounded to the
 current section; in whole-folder mode, the reserved internal section `.`
 represents all of `kb_path`. A full sync also reconciles `source_kind=doc` in
 section `sources`. It reads only the current complete generation and preserves

@@ -52,7 +52,7 @@ ou prompt MCP propre a Cortex.
 | Tool | Parametres | Comportement | Format de reponse |
 |---|---|---|---|
 | `cortex_search` | `query: str`, `section`, `top_k`, `source_kinds`, `authors` et bornes RFC 3339 de creation/mise a jour optionnels | Recherche hybride locale, filtres de metadonnees, fallback vectoriel et fraicheur par domaine | Objet structure schema v2 avec filtres effectifs, resultats, citations, pertinence, fraicheur, metadonnees et Markdown de compatibilite |
-| `cortex_sync` | `section: Optional[str] = None` | Reconciliation incrementale d'une section ou de toute la portee configuree | Markdown : `published_files`, `added_chunks`, `deleted_chunks`, `removed_files`, `skipped_files`, `errors` |
+| `cortex_sync` | `section: Optional[str] = None` | Reconciliation incrementale d'une section ou de toute la portee configuree | Markdown : `published_files`, `added_chunks`, `deleted_chunks`, `removed_files`, `skipped_files`, `empty_files`, `errors` |
 | `cortex_list_sections` | aucun | Liste les sections incluses et les dossiers de premier niveau hors politique | Markdown : sections indexables puis dossiers `out of policy` |
 | `cortex_freshness` | `section: Optional[str] = None`, `include_entries: bool = False` | Compare les sources vivantes aux metadonnees d'index sans les modifier | Objet structure : contrat, scope, resume, duree et, sur demande, entrees par fichier |
 
@@ -112,9 +112,13 @@ nombre de chunks attendu, le contrat de fraicheur et la version du contrat de
 chunking.
 
 Le sync est hash-aware. Une version deja complete et coherente est ignoree. Un
-fichier devenu absent, exclu, vide ou trop grand est retire des deux index. Une
-erreur de lecture, de decodage, d'extraction ou de publication incremente
-`errors` et preserve l'ancienne version vectorielle. La reconciliation reste
+fichier devenu absent, exclu, vide ou trop grand est retire des deux index.
+Tout document dont le corps est vide ou trop grand a decouper incremente
+`empty_files`, qu'il ait eu ou non du contenu indexe a retirer, et chacun est
+journalise en `file_not_indexable`. Un document sans contenu indexable n'est pas
+une erreur : `errors` reste inchange. Une erreur de lecture, de decodage,
+d'extraction ou de publication incremente `errors` et preserve l'ancienne
+version vectorielle. La reconciliation reste
 bornee a la section en cours ; en mode dossier entier, la section interne
 reservee `.` represente tout `kb_path`. Un sync complet reconcilie aussi
 `source_kind=doc` dans la section `sources`. Il lit uniquement la generation

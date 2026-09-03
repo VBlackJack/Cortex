@@ -46,6 +46,7 @@ class SyncCounters(SyncContractModel):
     deleted_chunks: int
     removed_files: int
     skipped_files: int
+    empty_files: int
     errors: int
 
     @classmethod
@@ -57,6 +58,7 @@ class SyncCounters(SyncContractModel):
             deleted_chunks=stats["deleted_chunks"],
             removed_files=stats["removed_files"],
             skipped_files=stats["skipped_files"],
+            empty_files=stats["empty_files"],
             errors=stats["errors"],
         )
 
@@ -68,6 +70,7 @@ class SyncCounters(SyncContractModel):
             "deleted_chunks": self.deleted_chunks,
             "removed_files": self.removed_files,
             "skipped_files": self.skipped_files,
+            "empty_files": self.empty_files,
             "errors": self.errors,
         }
 
@@ -189,6 +192,7 @@ def build_sync_failure_report(
             deleted_chunks=0,
             removed_files=0,
             skipped_files=0,
+            empty_files=0,
             errors=1,
         ),
         indexes=SyncIndexes(chroma=index_status, lexical=index_status),

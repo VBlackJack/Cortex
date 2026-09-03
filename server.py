@@ -320,6 +320,7 @@ def cortex_sync(section: str | None = None) -> str:
         f"- **Deleted chunks:** {stats['deleted_chunks']}\n"
         f"- **Removed files:** {stats['removed_files']}\n"
         f"- **Skipped files:** {stats['skipped_files']}\n"
+        f"- **Non-indexable files:** {stats['empty_files']}\n"
         f"- **Errors:** {stats['errors']}\n"
     )
 
