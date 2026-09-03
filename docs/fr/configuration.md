@@ -69,7 +69,9 @@ courante et son etat de sante. Cette commande ne lit aucun credential et ne
 contacte pas Confluence. `resolve` exige `base_url`, `auth_expires_at`, le
 credential Windows nomme et une requete REST Confluence authentifiee. Une
 configuration incomplete est classee comme entree invalide (code 6), pas comme
-erreur generale. Voir le
+erreur generale. Une erreur d'usage de la ligne de commande, par exemple une
+option inconnue, sort aussi avec le code 6, pour qu'un client machine ne la
+confonde jamais avec un verrou pris (code 2). Voir le
 [writer Confluence](writer-confluence.md#cli-lisible-par-une-machine) pour les
 contrats JSON et les exit codes.
 
