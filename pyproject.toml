@@ -150,3 +150,5 @@ disable_error_code = ["misc"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Same notice indexer.py filters at runtime; pytest resets the filters.
+filterwarnings = ["ignore:.*mean pooling.*:UserWarning"]

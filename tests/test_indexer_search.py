@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import io
 from typing import Any
 
 import pytest
@@ -264,3 +265,22 @@ def test_sqlite_query_error_falls_back_to_vector_only(
 
     assert results.mode == "vector-only"
     assert "broken FTS" in str(results.fallback_reason)
+
+
+def test_search_renderer_escapes_characters_a_cp1252_console_lacks() -> None:
+    buffer = io.BytesIO()
+    stream = io.TextIOWrapper(buffer, encoding="cp1252", write_through=True)
+    hits = [
+        {
+            "metadata": {"title": "Note \U0001f9e0", "section": "s", "header": "h"},
+            "distance": 0.5,
+            "text": "corps → emoji \U0001f600",
+        }
+    ]
+
+    indexer._render_search_hits(hits, indexer._lossless_console(stream))
+
+    stream.flush()
+    rendered = buffer.getvalue().decode("cp1252")
+    assert "[1] Note \\U0001f9e0 (dist=0.500)" in rendered
+    assert "corps \\u2192 emoji \\U0001f600..." in rendered

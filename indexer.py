@@ -28,7 +28,7 @@ import sys
 import warnings
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, TextIO
 
 _LOG = logging.getLogger("cortex.indexer")
 log = _LOG
@@ -875,19 +875,37 @@ def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int
     if args.search:
         warmup_reranker()
         hits = search(args.search, section=args.section, top_k=args.top_k)
-        for i, h in enumerate(hits, 1):
-            meta = h["metadata"]
-            distance = h.get("distance")
-            distance_label = f"{distance:.3f}" if distance is not None else "lexical-only"
-            print(
-                f"\n[{i}] {meta.get('title', meta.get('path', '?'))} "
-                f"(dist={distance_label})"
-            )
-            print(f"    Section: {meta.get('section')} | {meta.get('header', '')}")
-            print(f"    {h['text'][:300]}...")
+        _render_search_hits(hits, _lossless_console(sys.stdout))
     else:
         sync(section=args.section, verbose=True)
     return EXIT_OK
+
+
+_SEARCH_EXCERPT_CHARS = 300
+
+
+def _lossless_console(stream: TextIO) -> TextIO:
+    """Return ``stream`` configured to escape characters its encoding lacks.
+
+    A Windows console often runs cp1252 while vault text carries emoji; without
+    this, the first unencodable character aborts the whole rendering.
+    """
+    reconfigure = getattr(stream, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(errors="backslashreplace")
+    return stream
+
+
+def _render_search_hits(hits: Sequence[dict[str, Any]], stream: TextIO) -> None:
+    """Write the human-readable search hits to ``stream``."""
+    for rank, hit in enumerate(hits, 1):
+        meta = hit["metadata"]
+        distance = hit.get("distance")
+        distance_label = f"{distance:.3f}" if distance is not None else "lexical-only"
+        title = meta.get("title", meta.get("path", "?"))
+        stream.write(f"\n[{rank}] {title} (dist={distance_label})\n")
+        stream.write(f"    Section: {meta.get('section')} | {meta.get('header', '')}\n")
+        stream.write(f"    {hit['text'][:_SEARCH_EXCERPT_CHARS]}...\n")
 
 
 # -- CLI entry point -----------------------------------------------------------
