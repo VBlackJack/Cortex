@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0903.00] - 2026-09-03
+
 ### Fixed
 
 - Translated the argparse usage-error exit status of every subcommand to the

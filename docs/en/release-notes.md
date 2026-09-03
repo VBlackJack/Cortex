@@ -7,6 +7,18 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0903-00 -->
+## 2026.0903.00 - 2026-09-03
+
+- A command-line usage error, such as a mistyped flag, now exits with the
+  invalid-input code (6). It used to exit with 2, which Cortex Companion reads
+  as "another operation holds the index".
+- `cortex sync --search` no longer stops on a Windows console that cannot
+  display a character from your notes, such as an emoji. The character is
+  written as an escape sequence and the rest of the listing follows.
+- Cortex Companion drops nine interface strings that no screen displayed. No
+  visible change.
+
 <!-- release:2026-0902-01 -->
 ## 2026.0902.01 - 2026-09-02
 

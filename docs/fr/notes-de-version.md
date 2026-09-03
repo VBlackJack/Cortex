@@ -7,6 +7,18 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0903-00 -->
+## 2026.0903.00 - 2026-09-03
+
+- Une erreur d'usage de la ligne de commande, par exemple une option mal
+  tapee, sort desormais avec le code entree invalide (6). Elle sortait avec 2,
+  que Cortex Companion lit comme "une autre operation tient l'index".
+- `cortex sync --search` ne s'arrete plus sur une console Windows incapable
+  d'afficher un caractere de vos notes, par exemple un emoji. Le caractere est
+  ecrit sous forme de sequence d'echappement et la suite de la liste s'affiche.
+- Cortex Companion retire neuf textes d'interface qu'aucun ecran n'affichait.
+  Aucun changement visible.
+
 <!-- release:2026-0902-01 -->
 ## 2026.0902.01 - 2026-09-02
 
