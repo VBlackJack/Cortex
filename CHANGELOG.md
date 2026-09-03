@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0903.01] - 2026-09-03
+
 ### Added
 
 - Counted documents with no indexable body in the synchronization report. The

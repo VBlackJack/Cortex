@@ -7,6 +7,20 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0903-01 -->
+## 2026.0903.01 - 2026-09-03
+
+- Le rapport de synchronisation compte desormais les documents sans corps
+  indexable. Une page qui ne porte qu'une macro enfants de Confluence, ou aucun
+  texte, etait comptee comme ignoree avec les fichiers inchanges et n'etait
+  journalisee nulle part. Elle a maintenant son propre compteur et sa propre
+  ligne de journal, donc elle est retrouvable.
+- Cortex Companion arrete de suivre une synchronisation quand l'ecran qui la
+  suit est remplace. L'ecran abandonne continuait a lire l'etat local en
+  arriere-plan.
+- Cortex Companion renomme trois couleurs de theme pour que chacune porte le
+  nom du pinceau qui la lit. Aucun changement visible.
+
 <!-- release:2026-0903-00 -->
 ## 2026.0903.00 - 2026-09-03
 

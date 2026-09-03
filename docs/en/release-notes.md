@@ -7,6 +7,19 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0903-01 -->
+## 2026.0903.01 - 2026-09-03
+
+- The synchronization report now counts documents with no indexable body. A
+  page that holds only a Confluence children macro, or no text at all, used to
+  be reported as skipped alongside unchanged files and logged nowhere. It now
+  has its own counter and its own log line, so you can find it.
+- Cortex Companion stops watching a synchronization run when the screen that
+  watches it is replaced. The abandoned screen used to keep reading local state
+  in the background.
+- Cortex Companion renames three theme colors so each one matches the brush
+  that reads it. No visible change.
+
 <!-- release:2026-0903-00 -->
 ## 2026.0903.00 - 2026-09-03
 
