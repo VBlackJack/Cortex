@@ -124,7 +124,9 @@ meme vide. `pages` recupere uniquement les ID numeriques listes. Les ID sont
 uniques dans leur espace et chaque page recue est controlee contre `space_key`
 avant le staging de son contenu ou de ses pieces jointes.
 
-Une selection vide est legale et doit etre explicite :
+Une selection vide est legale. Les identifiants de page sont toujours des
+tables `[[spaces.pages]]`, donc une selection explicite qui ne contient rien
+omet simplement la clef :
 
 ```toml
 [[spaces]]
@@ -132,8 +134,13 @@ space_key = "EMPTY"
 target = "knowledge/empty"
 classification = "perso-non-sensible"
 selection = "pages"
-pages = []
 ```
+
+`pages = []` reste lu comme la meme selection vide, et reste la forme qu'ecrit
+Companion pour `selection = "subtree"`, ou les deux lecteurs exigent la
+presence de la clef et ou TOML ne sait pas ecrire une liste de tables vide.
+En dehors de ce seul cas, la forme en ligne n'apparait plus dans un fichier
+ecrit par Companion.
 
 Ce mode n'enumere aucun espace et ne collecte aucune page Confluence. Retirer
 un ID apres une selection complete et reussie retire la page de la generation

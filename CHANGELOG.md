@@ -7,6 +7,13 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Changed
+
+- Documented that page identifiers have one shape, `[[spaces.pages]]` tables.
+  An explicit selection with no page omits the key, which both readers already
+  treat as empty; `pages = []` survives only for `selection = "subtree"`, where
+  the key is mandatory and TOML cannot spell an empty list of tables.
+
 ## [2026.0904.00] - 2026-09-04
 
 ### Changed

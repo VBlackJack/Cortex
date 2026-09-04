@@ -122,7 +122,9 @@ empty one. `pages` fetches only the listed numeric page IDs. IDs must be unique
 within their space, and every fetched page is checked against `space_key`
 before content or attachments are staged.
 
-An empty page selection is legal and must be explicit:
+An empty page selection is legal. Page identifiers are always
+`[[spaces.pages]]` tables, so an explicit selection with nothing in it simply
+omits the key:
 
 ```toml
 [[spaces]]
@@ -130,8 +132,12 @@ space_key = "EMPTY"
 target = "knowledge/empty"
 classification = "perso-non-sensible"
 selection = "pages"
-pages = []
 ```
+
+`pages = []` is still read as the same empty selection, and remains the shape
+Companion writes for `selection = "subtree"`, where both readers require the
+key to be present and TOML cannot spell an empty list of tables. Outside that
+one case the inline form no longer appears in a file Companion wrote.
 
 This mode enumerates no space and collects zero Confluence pages. Removing a
 page ID from a complete successful selection removes that page from the next
