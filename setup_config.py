@@ -325,15 +325,29 @@ def client_registry(
     }
 
 
+def _file_config_path(target: ClientTarget) -> Path:
+    """Return the configuration file of a file-backed client target."""
+    if target.config_path is None:
+        raise ClientConfigError(f"Client '{target.name}' has no configuration file path.")
+    return target.config_path
+
+
+def _client_executable(target: ClientTarget) -> str:
+    """Return the executable of a command-driven client target."""
+    if target.executable is None:
+        raise ClientConfigError(f"Client '{target.name}' has no executable.")
+    return target.executable
+
+
 def _client_is_detected(target: ClientTarget) -> bool:
     if target.name == "claude-code":
         return target.executable is not None
-    assert target.config_path is not None
+    config_path = _file_config_path(target)
     if target.detect_path is not None:
-        return target.detect_path.is_dir() or target.config_path.exists()
+        return target.detect_path.is_dir() or config_path.exists()
     return (
-        target.config_path.exists()
-        or target.config_path.parent.exists()
+        config_path.exists()
+        or config_path.parent.exists()
         or target.executable is not None
     )
 
@@ -587,52 +601,52 @@ def _toml_without_entry(
 
 def _prepare_file_target(target: ClientTarget) -> bytes | None:
     """Parse and render a prospective update without touching the filesystem."""
-    assert target.config_path is not None
+    config_path = _file_config_path(target)
     if target.config_format in ("json", "json-servers"):
         key = _json_servers_key(target.config_format)
         return _json_with_entry(
-            _read_json_config(target.config_path, key), target.entry, key
+            _read_json_config(config_path, key), target.entry, key
         )
     if target.config_format.startswith("toml-table:"):
-        text, parsed = _read_toml_config(target.config_path)
-        return _toml_with_entry(text, parsed, target.entry, path=target.config_path)
+        text, parsed = _read_toml_config(config_path)
+        return _toml_with_entry(text, parsed, target.entry, path=config_path)
     raise ClientConfigError(f"Unsupported client format: {target.config_format}")
 
 
 def _prepare_file_unregistration(target: ClientTarget) -> bytes | None:
     """Parse and render removal of only the Cortex entry."""
-    assert target.config_path is not None
+    config_path = _file_config_path(target)
     if target.config_format in ("json", "json-servers"):
         key = _json_servers_key(target.config_format)
-        return _json_without_entry(_read_json_config(target.config_path, key), key)
+        return _json_without_entry(_read_json_config(config_path, key), key)
     if target.config_format.startswith("toml-table:"):
-        text, parsed = _read_toml_config(target.config_path)
-        return _toml_without_entry(text, parsed, path=target.config_path)
+        text, parsed = _read_toml_config(config_path)
+        return _toml_without_entry(text, parsed, path=config_path)
     raise ClientConfigError(f"Unsupported client format: {target.config_format}")
 
 
 def _register_file_target(target: ClientTarget, content: bytes | None) -> ClientResult:
-    assert target.config_path is not None
+    config_path = _file_config_path(target)
     if content is None:
         return ClientResult(target.name, "OK", "already registered")
-    backup = _replace_atomically(target.config_path, content)
-    detail = f"updated {target.config_path}"
+    backup = _replace_atomically(config_path, content)
+    detail = f"updated {config_path}"
     if backup is not None:
         detail += f" (backup: {backup.name})"
-    logger.info("Registered Cortex with %s at %s", target.name, target.config_path)
+    logger.info("Registered Cortex with %s at %s", target.name, config_path)
     return ClientResult(target.name, "OK", detail, changed=True)
 
 
 def _unregister_file_target(target: ClientTarget) -> ClientResult:
-    assert target.config_path is not None
+    config_path = _file_config_path(target)
     content = _prepare_file_unregistration(target)
     if content is None:
         return ClientResult(target.name, "OK", "already unregistered")
-    backup = _replace_atomically(target.config_path, content)
-    detail = f"updated {target.config_path}"
+    backup = _replace_atomically(config_path, content)
+    detail = f"updated {config_path}"
     if backup is not None:
         detail += f" (backup: {backup.name})"
-    logger.info("Unregistered Cortex from %s at %s", target.name, target.config_path)
+    logger.info("Unregistered Cortex from %s at %s", target.name, config_path)
     return ClientResult(target.name, "OK", detail, changed=True)
 
 
@@ -642,9 +656,9 @@ def _run_claude(
     *,
     runner: Runner,
 ) -> subprocess.CompletedProcess[str]:
-    assert target.executable is not None
+    executable = _client_executable(target)
     return runner(
-        [target.executable, *args],
+        [executable, *args],
         capture_output=True,
         text=True,
         timeout=30,
@@ -1071,13 +1085,13 @@ def check_user_config() -> bool:
 
 
 def _entry_from_file(target: ClientTarget) -> Mapping[str, Any] | None:
-    assert target.config_path is not None
+    config_path = _file_config_path(target)
     if target.config_format in ("json", "json-servers"):
         key = _json_servers_key(target.config_format)
-        config = _read_json_config(target.config_path, key)
+        config = _read_json_config(config_path, key)
         servers = config.get(key, {})
     else:
-        _, config = _read_toml_config(target.config_path)
+        _, config = _read_toml_config(config_path)
         servers = config.get("mcp_servers", {})
     return servers.get("cortex") if isinstance(servers, dict) else None
 

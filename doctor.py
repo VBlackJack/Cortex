@@ -1021,11 +1021,12 @@ def _default_handshake_probe(
             text=True,
             encoding="utf-8",
         )
-        assert process.stdin is not None
-        assert process.stdout is not None
-        process.stdin.write(json.dumps(request, separators=(",", ":")) + "\n")
-        process.stdin.flush()
-        result = executor.submit(_read_initialize_response, process.stdout).result(
+        stdin, stdout = process.stdin, process.stdout
+        if stdin is None or stdout is None:
+            raise RuntimeError("The handshake process exposes no stdio pipes.")
+        stdin.write(json.dumps(request, separators=(",", ":")) + "\n")
+        stdin.flush()
+        result = executor.submit(_read_initialize_response, stdout).result(
             timeout=timeout
         )
         server_info = result.get("serverInfo") or {}

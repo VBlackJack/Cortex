@@ -127,17 +127,19 @@ def resolve_page(
         raise InvalidPageReferenceError("Confluence base_url is not configured.")
     parsed = _parse_reference(value, base_url=settings.base_url)
     if parsed.kind == "tiny":
-        assert parsed.uri is not None
+        if parsed.uri is None:
+            raise InvalidPageReferenceError("Tiny link reference carries no URI.")
         redirected = client.resolve_tiny_link(parsed.uri)
         parsed = _parse_reference(redirected, base_url=settings.base_url, allow_tiny=False)
 
     page: RemotePage
     if parsed.kind == "id":
-        assert parsed.page_id is not None
+        if parsed.page_id is None:
+            raise InvalidPageReferenceError("Page id reference carries no page id.")
         page = client.get_page_by_id(parsed.page_id)
     else:
-        assert parsed.space_key is not None
-        assert parsed.title is not None
+        if parsed.space_key is None or parsed.title is None:
+            raise InvalidPageReferenceError("Title reference carries no space key or title.")
         page = client.find_page(parsed.space_key, parsed.title)
 
     mapping = next(
