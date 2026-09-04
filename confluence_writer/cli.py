@@ -76,6 +76,12 @@ from ingestion.storage import IngestionStorage, IngestionStorageError
 from user_config import CortexConfigError
 
 _LOG = logging.getLogger("cortex.confluence_writer.cli")
+# The machine commands have no human rendering, so the mandatory flag says so
+# instead of leaving argparse's bare 'required' error as the only hint.
+_JSON_HELP = (
+    "Required: emit the machine-readable JSON contract; this command has no "
+    "human output."
+)
 _CREDENTIAL_ERROR_CODES = {
     ERROR_AUTH_EXPIRED,
     "credential_unavailable",
@@ -142,21 +148,51 @@ def _write_json(model: BaseModel) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Store a PAT interactively or run the scheduled Confluence adapter."""
-    parser = argparse.ArgumentParser(prog="cortex confluence")
-    parser.add_argument("--config", type=Path)
-    parser.add_argument("--ingestion-config", type=Path)
+    parser = argparse.ArgumentParser(
+        prog="cortex confluence",
+        description="Store the Confluence PAT, or run and inspect the allowlisted writer.",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="CONFLUENCE.toml to use instead of the per-user file",
+    )
+    parser.add_argument(
+        "--ingestion-config",
+        type=Path,
+        help="INGESTION.toml to use instead of the per-user file",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("store-credential")
-    sync_parser = subparsers.add_parser("sync")
-    sync_parser.add_argument("--force", action="store_true")
-    resolve_parser = subparsers.add_parser("resolve")
-    resolve_parser.add_argument("reference")
-    resolve_parser.add_argument("--json", action="store_true", required=True)
-    pages_parser = subparsers.add_parser("pages")
-    pages_parser.add_argument("--json", action="store_true", required=True)
-    preview_parser = subparsers.add_parser("preview")
-    preview_parser.add_argument("reference")
-    preview_parser.add_argument("--json", action="store_true", required=True)
+    subparsers.add_parser(
+        "store-credential",
+        help="Prompt for the PAT and store it in Windows Credential Manager",
+    )
+    sync_parser = subparsers.add_parser(
+        "sync",
+        help="Collect the allowlisted pages when the cadence says a run is due",
+    )
+    sync_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Collect now, even when the cadence says the run is not due",
+    )
+    resolve_parser = subparsers.add_parser(
+        "resolve",
+        help="Resolve a page URL or ID to its space, title and allowlist verdict",
+    )
+    resolve_parser.add_argument("reference", help="Page URL, or numeric page ID")
+    resolve_parser.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
+    pages_parser = subparsers.add_parser(
+        "pages",
+        help="Print the configured spaces and pages with their local state",
+    )
+    pages_parser.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
+    preview_parser = subparsers.add_parser(
+        "preview",
+        help="Measure the page-only, subtree and whole-space scopes of a page",
+    )
+    preview_parser.add_argument("reference", help="Page URL, or numeric page ID")
+    preview_parser.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
     namespace = parser.parse_args(argv)
 
     try:

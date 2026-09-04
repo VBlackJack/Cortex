@@ -278,12 +278,27 @@ def _canonical_source_kind(value: str) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Report generic ingestion health or whether startup catch-up is due."""
-    parser = argparse.ArgumentParser(prog="cortex ingestion")
-    parser.add_argument("--config", type=Path)
+    parser = argparse.ArgumentParser(
+        prog="cortex ingestion",
+        description="Report the health of an ingestion source and its catch-up state.",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="INGESTION.toml to use instead of the per-user file",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for command in (_COMMAND_STATUS, _COMMAND_DUE):
-        subparser = subparsers.add_parser(command)
-        subparser.add_argument("source_kind", type=_canonical_source_kind)
+    command_help = {
+        _COMMAND_STATUS: "Print the last recorded attempt as JSON (exit 1 on error state)",
+        _COMMAND_DUE: "Print due or not-due for the startup catch-up (exit 3 when not due)",
+    }
+    for command, summary in command_help.items():
+        subparser = subparsers.add_parser(command, help=summary)
+        subparser.add_argument(
+            "source_kind",
+            type=_canonical_source_kind,
+            help="doc, or its alias confluence",
+        )
     namespace = parser.parse_args(argv)
 
     from cortex_logging import configure_logging
