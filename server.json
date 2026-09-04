@@ -6,13 +6,13 @@
     "url": "https://github.com/VBlackJack/Cortex",
     "source": "github"
   },
-  "version": "2026.904.2",
+  "version": "2026.904.3",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "cortex-local-rag",
-      "version": "2026.904.2",
+      "version": "2026.904.3",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

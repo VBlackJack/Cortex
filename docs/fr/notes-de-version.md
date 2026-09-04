@@ -7,6 +7,16 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0904-03 -->
+## 2026.0904.03 - 2026-09-04
+
+- Lancer la suite de tests de Cortex sur un poste de developpement n'ecrit plus
+  dans le vrai journal de Cortex, donc `cortex doctor` sur ce poste ne liste
+  plus d'erreurs venues des fixtures de test.
+- Cortex Companion : les deux preuves d'interoperabilite conservees sous
+  `tests/interop` sont decrites dans le README, avec ce qu'elles verifient et
+  comment les lancer.
+
 <!-- release:2026-0904-02 -->
 ## 2026.0904.02 - 2026-09-04
 

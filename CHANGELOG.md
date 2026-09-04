@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0904.03] - 2026-09-04
+
 ### Fixed
 
 - Kept the test suite out of the real Cortex data home. Entry points run

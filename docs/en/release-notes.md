@@ -7,6 +7,15 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0904-03 -->
+## 2026.0904.03 - 2026-09-04
+
+- Running the Cortex test suite on a developer machine no longer writes into
+  the real Cortex log, so `cortex doctor` on that machine no longer lists
+  errors that came from test fixtures.
+- Cortex Companion: the two interoperability proofs kept under `tests/interop`
+  are described in the README, with what they check and how to run them.
+
 <!-- release:2026-0904-02 -->
 ## 2026.0904.02 - 2026-09-04
 
