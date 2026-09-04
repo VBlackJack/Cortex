@@ -13,4 +13,4 @@
 # limitations under the License.
 """Single source of truth for the Cortex package version."""
 
-__version__ = "2026.0904.00"
+__version__ = "2026.0904.01"

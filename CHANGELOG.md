@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0904.01] - 2026-09-04
+
 ### Changed
 
 - Documented that page identifiers have one shape, `[[spaces.pages]]` tables.

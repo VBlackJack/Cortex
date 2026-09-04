@@ -7,6 +7,17 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0904-01 -->
+## 2026.0904.01 - 2026-09-04
+
+- Le fichier de configuration Confluence ecrit desormais les identifiants de
+  page d'une seule facon. Ce sont des tables `[[spaces.pages]]`, et un espace
+  configure sans aucune page omet simplement la clef au lieu d'ecrire une liste
+  vide en ligne. Les fichiers ecrits avant cette version continuent de
+  fonctionner tels quels ; seul `selection = "subtree"` porte encore
+  `pages = []`, parce que la clef y est obligatoire et que TOML ne sait pas
+  ecrire une liste de tables vide.
+
 <!-- release:2026-0904-00 -->
 ## 2026.0904.00 - 2026-09-04
 

@@ -7,6 +7,16 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0904-01 -->
+## 2026.0904.01 - 2026-09-04
+
+- The Confluence configuration file now writes page identifiers one way. They
+  are `[[spaces.pages]]` tables, and a space configured with no page simply
+  leaves the key out instead of writing an inline empty list. Files written
+  before this release keep working unchanged; only `selection = "subtree"`
+  still carries `pages = []`, because the key is required there and TOML has no
+  way to write an empty list of tables.
+
 <!-- release:2026-0904-00 -->
 ## 2026.0904.00 - 2026-09-04
 
