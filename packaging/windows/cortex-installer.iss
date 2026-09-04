@@ -1,4 +1,4 @@
-; Copyright 2026 Julien Bombled
+﻿; Copyright 2026 Julien Bombled
 ;
 ; Licensed under the Apache License, Version 2.0 (the "License");
 ; you may not use this file except in compliance with the License.
@@ -106,31 +106,31 @@ english.UnregisterFailed=Cortex could not remove every MCP client entry. The uni
 english.CompanionCleanupFailed=Cortex Companion could not safely remove its owned ingestion task. The uninstall will continue; review Task Scheduler manually.
 french.ReinstallCaption=Configuration Cortex existante
 french.ReinstallDescription=Choisissez ce que cette installation doit faire de votre configuration actuelle.
-french.ReinstallSubCaption=Garder conserve la configuration et l'index. Reinitialiser efface les donnees Cortex generees, puis applique le dossier et le mode choisis aux pages suivantes.
-french.KeepConfig=Garder ma configuration Cortex actuelle (recommande)
-french.ResetConfig=Reinitialiser la configuration et reconstruire l'index
+french.ReinstallSubCaption=Garder conserve la configuration et l'index. Réinitialiser efface les données Cortex générées, puis applique le dossier et le mode choisis aux pages suivantes.
+french.KeepConfig=Garder ma configuration Cortex actuelle (recommandé)
+french.ResetConfig=Réinitialiser la configuration et reconstruire l'index
 french.KBPageCaption=Dossier de base de connaissances
 french.KBPageDescription=Choisissez le dossier dans lequel Cortex lira vos documents.
 french.KBPageSubCaption=Vous pouvez commencer avec un dossier vide et ajouter des documents plus tard.
 french.IndexNow=Indexer ce dossier maintenant
 french.IndexModeCaption=Mode d'indexation
 french.IndexModeDescription=Choisissez comment Cortex doit lire ce dossier.
-french.IndexModeSubCaption=Recommande : tout devient cherchable automatiquement. Avance : seuls les dossiers de sections nommes sont indexes.
-french.WholeFolderMode=Tout indexer dans ce dossier (recommande)
-french.SectionsMode=Organiser en sections (avance)
+french.IndexModeSubCaption=Recommandé : tout devient cherchable automatiquement. Avancé : seuls les dossiers de sections nommés sont indexés.
+french.WholeFolderMode=Tout indexer dans ce dossier (recommandé)
+french.SectionsMode=Organiser en sections (avancé)
 french.SectionsCaption=Dossiers de sections
-french.SectionsDescription=Choisissez les dossiers que Cortex doit creer et indexer.
-french.SectionsHelp=knowledge : documents de reference ; projects : dossiers de travail ; notes : notes libres. Vous pouvez modifier cette liste.
-french.SectionsList=Dossiers de sections (separes par des virgules) :
-french.IndexModeFailed=Le mode d'indexation doit etre whole ou sections.
-french.SectionsFailed=Indiquez au moins un dossier de section, separe par des virgules.
-french.SetupFailed=Cortex a ete installe, mais la configuration automatique a echoue. Lancez Cortex Doctor depuis le menu Demarrer apres avoir corrige le probleme. L'installeur retournera un code d'echec.
+french.SectionsDescription=Choisissez les dossiers que Cortex doit créer et indexer.
+french.SectionsHelp=knowledge : documents de référence ; projects : dossiers de travail ; notes : notes libres. Vous pouvez modifier cette liste.
+french.SectionsList=Dossiers de sections (séparés par des virgules) :
+french.IndexModeFailed=Le mode d'indexation doit être whole ou sections.
+french.SectionsFailed=Indiquez au moins un dossier de section, séparé par des virgules.
+french.SetupFailed=Cortex a été installé, mais la configuration automatique a échoué. Lancez Cortex Doctor depuis le menu Démarrer après avoir corrigé le problème. L'installeur retournera un code d'échec.
 french.PathFailed=Cortex n'a pas pu ajouter son dossier d'application au PATH utilisateur.
 french.EnvironmentFailed=Cortex n'a pas pu transmettre le dossier de base de connaissances au processus de configuration.
-french.DirectoryFailed=Cortex n'a pas pu creer le dossier de base de connaissances selectionne :
-french.ResetFailed=Cortex n'a pas pu reinitialiser sa configuration et son index genere. Fermez toutes les applications IA utilisant Cortex, puis relancez l'installeur.
-french.UnregisterFailed=Cortex n'a pas pu retirer toutes les entrees des clients MCP. La desinstallation continue ; verifiez manuellement les configurations clientes.
-french.CompanionCleanupFailed=Cortex Companion n'a pas pu retirer de facon sure sa tache d'ingestion detenue. La desinstallation continue ; verifiez manuellement le Planificateur de taches.
+french.DirectoryFailed=Cortex n'a pas pu créer le dossier de base de connaissances sélectionné :
+french.ResetFailed=Cortex n'a pas pu réinitialiser sa configuration et son index généré. Fermez toutes les applications IA utilisant Cortex, puis relancez l'installeur.
+french.UnregisterFailed=Cortex n'a pas pu retirer toutes les entrées des clients MCP. La désinstallation continue ; vérifiez manuellement les configurations clientes.
+french.CompanionCleanupFailed=Cortex Companion n'a pas pu retirer de façon sûre sa tâche d'ingestion détenue. La désinstallation continue ; vérifiez manuellement le Planificateur de tâches.
 
 [Files]
 Source: "..\..\dist\cortex.exe"; DestDir: "{app}"; DestName: "cortex.exe"; Flags: ignoreversion
