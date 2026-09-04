@@ -20,7 +20,7 @@ import re
 import shutil
 import tempfile
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -134,6 +134,39 @@ def _sweep_orphaned_workspaces(*, now: float | None = None) -> tuple[Path, ...]:
                 type(exc).__name__,
             )
     return tuple(removed)
+
+
+def _log_collected_scopes(scope_summaries: Sequence[ScopeSummary]) -> None:
+    """Report what every configured space contributed, silence included.
+
+    A space that selects nothing enumerates nothing, so without this pass it leaves no
+    trace at all in the log and its zero disappears into the aggregate page count.
+    """
+    for summary in scope_summaries:
+        _LOG.info(
+            "confluence_space_collected space_key=%s selection=%s selected=%d available=%s",
+            summary.space_key,
+            summary.selection,
+            summary.selected_page_count,
+            "unknown" if summary.available_page_count is None else summary.available_page_count,
+        )
+        if summary.selected_page_count == 0:
+            _LOG.warning(
+                "space_selection_empty space_key=%s selection=%s; this space collects nothing "
+                "until its selection names at least one page",
+                summary.space_key,
+                summary.selection,
+            )
+            continue
+        if summary.excluded_descendant_count:
+            _LOG.warning(
+                "space_selection_narrow space_key=%s selected=%d available=%d excluded=%d; "
+                "descendants of the selected pages are not collected",
+                summary.space_key,
+                summary.selected_page_count,
+                summary.available_page_count,
+                summary.excluded_descendant_count,
+            )
 
 
 def _rfc3339(value: datetime) -> str:
@@ -326,6 +359,7 @@ class ConfluenceWriter:
                 )
             )
             emit_progress("enumeration", mapping_index, len(self._settings.spaces))
+        _log_collected_scopes(scope_summaries)
         by_id = {page.page_id: page for page in pages}
         if len(by_id) != len(pages):
             raise ConfluenceWriterError("Confluence enumeration returned duplicate page IDs.")
@@ -374,8 +408,10 @@ class ConfluenceWriter:
             default=None,
         )
         _LOG.info(
-            "confluence_generation_collected spaces=%d pages=%d changed=%d failed=%d",
+            "confluence_generation_collected spaces_configured=%d spaces_with_pages=%d "
+            "pages=%d changed=%d failed=%d",
             len(self._settings.spaces),
+            sum(1 for summary in scope_summaries if summary.selected_page_count > 0),
             len(pages),
             len(changed),
             len(failures),

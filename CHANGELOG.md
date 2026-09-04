@@ -7,6 +7,15 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Changed
+
+- Reported every configured Confluence space at collection time instead of only
+  the aggregate. A space whose selection resolves to zero pages now logs
+  `space_selection_empty` and degrades the published source health with a
+  dedicated code; the collection line separates `spaces_configured` from
+  `spaces_with_pages`. A space that collects nothing used to leave no log line
+  at all, count as a success, and keep the health at `ok`.
+
 ## [2026.0903.02] - 2026-09-03
 
 ### Changed

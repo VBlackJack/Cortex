@@ -36,7 +36,7 @@ from confluence_writer.rest import ConfluenceRestError
 from confluence_writer.writer import ConfluenceWriter
 from cortex_logging import configure_logging
 from ingestion.credentials import SecretValue
-from ingestion.engine import GenerationEngine
+from ingestion.engine import GenerationEngine, _degraded_error_code
 from ingestion.models import DocumentStatus, GenerationAttempt, HealthStatus, TombstoneKind
 from ingestion.storage import IngestionStorage
 
@@ -402,6 +402,56 @@ def test_empty_page_selection_publishes_without_space_enumeration(tmp_path: Path
     manifest = storage.load_current_manifest()
     assert manifest is not None
     assert [item.source_uid for item in manifest.documents] == ["zone:DOC"]
+
+
+def test_empty_page_selection_degrades_health_and_names_the_space(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
+    client = FakeRestClient([])
+    console = FakeConsole()
+
+    with caplog.at_level(logging.WARNING):
+        result = _run(
+            storage,
+            _page_settings(tmp_path, ()),
+            client,
+            console,
+            _NOW,
+        )
+
+    assert result.published  # type: ignore[attr-defined]
+    assert result.health.status is HealthStatus.DEGRADED  # type: ignore[attr-defined]
+    assert result.health.error_code == "space_selection_empty"  # type: ignore[attr-defined]
+    assert result.health.scope_summaries[0].selected_page_count == 0  # type: ignore[attr-defined]
+    assert any(
+        "space_selection_empty space_key=DOC" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+def test_a_space_that_collects_pages_stays_healthy(tmp_path: Path) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=2)
+    client = FakeRestClient([_page("1001", _NOW)])
+    console = FakeConsole()
+
+    result = _run(
+        storage,
+        _page_settings(tmp_path, ("1001",)),
+        client,
+        console,
+        _NOW,
+    )
+
+    assert result.health.status is HealthStatus.OK  # type: ignore[attr-defined]
+    assert result.health.error_code is None  # type: ignore[attr-defined]
+
+
+def test_real_failures_outrank_an_empty_selection_in_the_health_code() -> None:
+    assert _degraded_error_code(True, ("DOC",)) == "partial_failure"
+    assert _degraded_error_code(False, ("DOC",)) == "space_selection_empty"
+    assert _degraded_error_code(False, ()) is None
 
 
 def test_page_selection_collects_only_configured_pages(tmp_path: Path) -> None:

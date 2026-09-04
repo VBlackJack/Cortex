@@ -395,6 +395,18 @@ failed and requested page counts, measured rate, configured threshold, and two
 recovery choices: fix and retry, or deliberately raise the threshold to permit
 partial publication.
 
+A configured space that collected nothing is reported, never passed over in
+silence. Each space gets a `confluence_space_collected` line naming what it
+selected and what was available; a space whose selection resolves to zero pages
+adds a `space_selection_empty` warning, and a space that leaves descendants
+behind adds `space_selection_narrow`. The published health is then `degraded`
+with error code `space_selection_empty`, because a space with no page has no
+document to fail and would otherwise keep the run looking healthy. Real
+failures keep precedence: `partial_failure` still wins when documents failed or
+were carried forward. The collection line ends with `spaces_configured` and
+`spaces_with_pages` rather than a single space count, so a space that
+contributed nothing is never counted as a success.
+
 At the start of each collection, Cortex sweeps only direct, non-link directories
 named `%TEMP%\cortex-confluence-*` that are at least 24 hours old. Newer
 workspaces may belong to an active collection and are preserved.

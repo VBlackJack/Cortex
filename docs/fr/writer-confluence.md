@@ -404,6 +404,19 @@ nombre de pages en echec sur le total demande, le taux mesure, le seuil applique
 et les deux actions possibles : corriger puis relancer, ou augmenter le seuil de
 facon deliberee pour autoriser une publication partielle.
 
+Un espace configure qui n'a rien collecte est signale, jamais passe sous
+silence. Chaque espace recoit une ligne `confluence_space_collected` disant ce
+qu'il a selectionne et ce qui etait disponible ; un espace dont la selection
+donne zero page ajoute un avertissement `space_selection_empty`, et un espace
+qui laisse des descendants de cote ajoute `space_selection_narrow`. La sante
+publiee passe alors en `degraded` avec le code `space_selection_empty` : un
+espace sans page n'a aucun document a echouer, et laisserait sinon la
+synchronisation paraitre saine. Les echecs reels gardent la priorite,
+`partial_failure` l'emporte des qu'un document a echoue ou a ete reporte. La
+ligne de fin de collecte porte desormais `spaces_configured` et
+`spaces_with_pages` au lieu d'un compte unique, pour qu'un espace qui n'a rien
+produit ne soit jamais compte comme un succes.
+
 Au debut de chaque collecte, Cortex balaie uniquement les repertoires directs,
 non symboliques, nommes `%TEMP%\cortex-confluence-*` et ages d'au moins 24 heures.
 Les workspaces plus recents peuvent appartenir a une collecte encore active et

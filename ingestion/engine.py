@@ -28,6 +28,7 @@ from ingestion.constants import (
     ACTION_ATTEMPT_IN_PROGRESS,
     DOCUMENTS_DIRECTORY_NAME,
     ERROR_ATTEMPT_IN_PROGRESS,
+    ERROR_EMPTY_SPACE_SELECTION,
     ERROR_PARTIAL_FAILURE,
     ERROR_RUN_FAILED,
     ERROR_THRESHOLD_EXCEEDED,
@@ -71,6 +72,15 @@ def _write_document(path: Path, content: bytes) -> None:
 def _copy_document(source: Path, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
+
+
+def _degraded_error_code(partial: bool, empty_spaces: tuple[str, ...]) -> str | None:
+    """Name the reason a published attempt is not healthy, failures first."""
+    if partial:
+        return ERROR_PARTIAL_FAILURE
+    if empty_spaces:
+        return ERROR_EMPTY_SPACE_SELECTION
+    return None
 
 
 class GenerationEngine:
@@ -166,7 +176,15 @@ class GenerationEngine:
             )
             raise
 
-        degraded = counts.failed > 0 or counts.carry_forward > 0
+        # A configured space that collected nothing is never a healthy run: the counts
+        # stay clean because it produced no document to fail over in the first place.
+        empty_spaces = tuple(
+            summary.space_key
+            for summary in attempt.scope_summaries
+            if summary.selected_page_count == 0
+        )
+        partial = counts.failed > 0 or counts.carry_forward > 0
+        degraded = partial or bool(empty_spaces)
         health = SourceHealth(
             schema_version=SCHEMA_VERSION,
             source_kind=self.storage.source_kind,
@@ -175,7 +193,7 @@ class GenerationEngine:
             remote_cursor=attempt.remote_cursor,
             auth_expires_at=attempt.auth_expires_at,
             status=HealthStatus.DEGRADED if degraded else HealthStatus.OK,
-            error_code=ERROR_PARTIAL_FAILURE if degraded else None,
+            error_code=_degraded_error_code(partial, empty_spaces),
             action_required=None,
             counts=counts,
             selection_fingerprint=attempt.selection_fingerprint,
