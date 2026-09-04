@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0904.02] - 2026-09-04
+
 ### Added
 
 - Added `cortex search QUERY [--section] [--top-k]`, the console twin of the

@@ -7,6 +7,26 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0904-02 -->
+## 2026.0904.02 - 2026-09-04
+
+- `cortex sync` lance depuis une console ou depuis `sync.bat` rend le meme code
+  de sortie que le mode `--json` : un sync partiel ou en echec ne se termine
+  plus par `0` sans rien dire, et Ctrl+C arrete proprement avec le code `130`.
+- Nouvelle commande `cortex search "votre question"` pour interroger l'index
+  depuis la console, avec `--section` et `--top-k`. L'ancienne forme
+  `cortex sync --search` reste acceptee.
+- Chaque option de la ligne de commande est expliquee dans `--help`, et le
+  message affiche quand aucun dossier n'est configure renvoie vers
+  `cortex setup`.
+- Cortex Companion affiche un compteur de fichiers pendant la synchronisation
+  locale au lieu d'une barre indeterminee ; il faut ce Cortex pour le voir.
+- Companion : le PAT Confluence s'enregistre uniquement dans Reglages, les
+  libelles de navigation et de boutons sont harmonises, Entree valide le champ
+  en cours de saisie, un ecran bloque indique quel ecran ouvrir, et un succes de
+  programmation n'est plus affiche comme un avertissement.
+- Les pages francaises de l'installeur retrouvent leurs accents.
+
 <!-- release:2026-0904-01 -->
 ## 2026.0904.01 - 2026-09-04
 

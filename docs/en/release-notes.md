@@ -7,6 +7,25 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0904-02 -->
+## 2026.0904.02 - 2026-09-04
+
+- `cortex sync` run from a console or from `sync.bat` now returns the same exit
+  code as `--json`: a partial or failed sync no longer exits `0` silently, and
+  Ctrl+C stops cleanly with exit code `130`.
+- New `cortex search "your question"` command to query the index from the
+  console, with `--section` and `--top-k`. The old `cortex sync --search` form
+  is still accepted.
+- Every command-line option is explained in `--help`, and the message shown
+  when no folder is configured points to `cortex setup`.
+- Cortex Companion shows a file counter during the local synchronization
+  instead of an indeterminate bar; this Cortex is required to see it.
+- Companion: the Confluence PAT is stored from Settings only, navigation and
+  button labels are consistent, Enter submits the field being edited, a blocked
+  screen says which screen to open, and a successful scheduling operation is no
+  longer shown as a warning.
+- The French installer pages have their accents back.
+
 <!-- release:2026-0904-01 -->
 ## 2026.0904.01 - 2026-09-04
 
