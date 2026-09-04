@@ -32,7 +32,7 @@ _HANDLER_MARKER = "_cortex_managed_handler"
 
 def configure_logging(
     *,
-    log_dir: str | Path = CORTEX_LOG_DIR,
+    log_dir: str | Path | None = None,
     logger_name: str = "cortex",
     level: int = logging.INFO,
     max_bytes: int = LOG_MAX_BYTES,
@@ -41,7 +41,9 @@ def configure_logging(
     """Configure stderr plus rotating logs without duplicating handlers.
 
     Callers must log operational metadata only: paths, statuses and counters,
-    never document or chunk contents.
+    never document or chunk contents. The directory defaults to the module's
+    CORTEX_LOG_DIR at call time, so a test can redirect it before an entry
+    point runs.
     """
     target = logging.getLogger(logger_name)
     target.setLevel(level)
@@ -49,7 +51,7 @@ def configure_logging(
     if any(getattr(handler, _HANDLER_MARKER, False) for handler in target.handlers):
         return target
 
-    directory = Path(log_dir)
+    directory = Path(CORTEX_LOG_DIR if log_dir is None else log_dir)
     directory.mkdir(parents=True, exist_ok=True)
     formatter = logging.Formatter(
         "%(asctime)s %(levelname)s %(name)s %(message)s",

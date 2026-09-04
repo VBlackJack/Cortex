@@ -129,6 +129,7 @@ module = [
   "mcp.*",
   "pdfplumber.*",
   "pydantic.*",
+  "pytest",
   "setuptools",
   "setuptools.*",
   "tomli",
@@ -141,6 +142,10 @@ follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 module = "server"
+disable_error_code = ["untyped-decorator"]
+
+[[tool.mypy.overrides]]
+module = "conftest"
 disable_error_code = ["untyped-decorator"]
 
 [[tool.mypy.overrides]]

@@ -71,7 +71,13 @@ def _run_cli(
     if config_body is not None:
         config_path.write_text(config_body, encoding="utf-8")
         assert not config_path.read_bytes().startswith(_UTF8_BOM)
-    environment = {**os.environ, "APPDATA": str(appdata)}
+    # LOCALAPPDATA decides the data home, and with it the rotating log the
+    # child opens: keep it out of the developer's real Cortex data home.
+    environment = {
+        **os.environ,
+        "APPDATA": str(appdata),
+        "LOCALAPPDATA": str(Path(appdata).parent / "localappdata"),
+    }
     if python_path is not None:
         inherited_python_path = environment.get("PYTHONPATH")
         environment["PYTHONPATH"] = os.pathsep.join(
