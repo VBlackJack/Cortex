@@ -7,6 +7,26 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0904-00 -->
+## 2026.0904.00 - 2026-09-04
+
+- Un espace Confluence qui ne collecte rien n'a plus l'air en bonne sante. Un
+  espace dont la selection de pages est vide est nomme dans le journal, compte
+  a part des espaces qui ont produit des pages, et fait passer la sante de la
+  source en degradee. Auparavant il n'enumerait rien, ne journalisait rien,
+  comptait comme un succes et laissait la sante a `ok` : un espace pouvait
+  rester non indexe pendant des heures alors que tous les signaux disaient que
+  la synchronisation s'etait bien passee.
+- Cortex Companion ne laisse plus un espace autorise sans rien a collecter sans
+  vous le dire. Autoriser un espace et ajouter sa page sont desormais un seul
+  geste : si la page n'est pas ajoutee, Companion demande s'il faut garder un
+  espace qui ne collectera rien, et le retire si vous refusez. Le premier
+  lancement pose la meme question, et retirer la derniere page d'une selection
+  aussi.
+- Chaque carte d'espace indique ce que la derniere collecte a couvert : un
+  espace a zero page se lit comme tel, sans ouvrir un journal ni un fichier de
+  configuration.
+
 <!-- release:2026-0903-02 -->
 ## 2026.0903.02 - 2026-09-03
 

@@ -7,6 +7,23 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0904-00 -->
+## 2026.0904.00 - 2026-09-04
+
+- A Confluence space that collects nothing no longer looks healthy. A space
+  whose page selection is empty is named in the log, counted apart from the
+  spaces that did produce pages, and marks the source health as degraded. It
+  used to enumerate nothing, log nothing, count as a success, and leave the
+  health at `ok` - a space could stay unindexed for hours with every signal
+  saying the synchronization went fine.
+- Cortex Companion no longer leaves a space authorized with nothing to collect
+  without telling you. Authorizing a space and adding its page are now one
+  gesture: if the page is not added, Companion asks whether to keep a space
+  that will collect nothing and removes it when you decline. First-run setup
+  asks the same question, and so does removing the last page of a selection.
+- Every space card states what the last collection covered, so a space sitting
+  at zero pages reads as zero without opening a log or a configuration file.
+
 <!-- release:2026-0903-02 -->
 ## 2026.0903.02 - 2026-09-03
 

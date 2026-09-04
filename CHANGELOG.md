@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0904.00] - 2026-09-04
+
 ### Changed
 
 - Reported every configured Confluence space at collection time instead of only
