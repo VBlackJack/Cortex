@@ -193,7 +193,7 @@ def test_missing_kb_path_has_actionable_typed_error(tmp_path: Path) -> None:
         require_kb_path(config.kb_path, config_path=config_path)
 
     message = str(raised.value)
-    assert "setup_config.py --init" in message
+    assert "cortex setup" in message
     assert str(config_path) in message
 
 

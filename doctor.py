@@ -341,7 +341,7 @@ def _configuration_checks(
                 _check(
                     "kb.configured",
                     "FAIL",
-                    "kb_path is not configured; run setup_config.py --init",
+                    "kb_path is not configured; run `cortex setup`",
                 ),
                 _check("kb.accessible", "SKIP", "Skipped because kb_path is missing"),
             ]
