@@ -120,6 +120,7 @@ Le paquet installe expose une commande unique :
 | `cortex setup` | Config + index + enregistrement des clients en une fois (`--kb-path`, `--yes`, `--no-index`, `--reset`). |
 | `cortex serve` | Lance le serveur MCP (utilise par les clients). |
 | `cortex sync` | Synchronisation incrementale de l'index. |
+| `cortex search` | Recherche dans l'index depuis la console (aide au debogage). |
 | `cortex ingestion` | Affiche la sante d'une source et indique si un rattrapage est du. |
 | `cortex confluence` | Stocke le PAT interactivement ou lance le writer sur liste blanche. |
 | `cortex config` | Lit ou modifie la configuration via un contrat JSON atomique, notamment pour Companion. |

@@ -23,7 +23,7 @@ import pytest
 
 import cli
 from _version import __version__
-from confluence_writer.constants import EXIT_INVALID_INPUT
+from confluence_writer.constants import EXIT_INTERRUPTED, EXIT_INVALID_INPUT
 
 
 @pytest.mark.parametrize(
@@ -155,6 +155,38 @@ def test_subcommand_help_names_the_typed_subcommand(
 
     assert raised.value.code == 0
     assert capsys.readouterr().out.startswith("usage: cortex sync")
+
+
+def test_search_help_names_the_typed_subcommand(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cortex_logger = logging.getLogger("cortex")
+    preserved = list(cortex_logger.handlers)
+    try:
+        with pytest.raises(SystemExit) as raised:
+            cli.main(["search", "--help"])
+    finally:
+        cortex_logger.handlers[:] = preserved
+
+    assert raised.value.code == 0
+    rendered = capsys.readouterr().out
+    assert rendered.startswith("usage: cortex search")
+    assert "--section" in rendered
+
+
+def test_keyboard_interrupt_exits_quietly_with_a_stable_code(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def interrupted(*_args: object) -> int:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "_dispatch", interrupted)
+
+    assert cli.main(["doctor"]) == EXIT_INTERRUPTED
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "Cortex: interrupted.\n"
 
 
 def _install_exiting_doctor(monkeypatch: pytest.MonkeyPatch, code: int) -> None:

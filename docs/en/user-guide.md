@@ -57,13 +57,13 @@ internal documentation. You can also request it explicitly, for example:
 
 ```powershell
 # Global search
-python indexer.py --search "zabbix alerts"
+cortex search "zabbix alerts"
 
-# Search within a section (the section is positional)
-python indexer.py knowledge --search "deployment procedure"
+# Search within a section
+cortex search "deployment procedure" --section knowledge
 
 # Number of results
-python indexer.py --search "OSCARE" --top-k 10
+cortex search "OSCARE" --top-k 10
 ```
 
 Search responses use metadata schema v2. In addition to `section`, searches can
@@ -146,6 +146,7 @@ historical scripts:
 ```powershell
 cortex setup [--clients all] [--no-index] [--reset] [--yes]
 cortex sync [section] [--json]
+cortex search QUERY [--section SECTION] [--top-k N]
 cortex ingestion [--config FILE] {status,due} SOURCE_KIND
 cortex confluence [--config FILE] [--ingestion-config FILE] {store-credential,sync}
 cortex doctor [--json]
@@ -159,7 +160,9 @@ operational logs remain on stderr. Its process exit code is `0` for a successful
 sync, `1` for a partial or failed sync, `2` when a writer lock is unavailable,
 and `6` for invalid input or configuration. Search is not available in JSON
 mode. Without `--json`, the human-facing sync keeps its log output but returns
-the same exit codes: a partial or failed sync no longer exits `0`.
+the same exit codes: a partial or failed sync no longer exits `0`. Ctrl+C
+exits `130` without a traceback. `cortex sync --search` remains accepted as an
+alias of `cortex search`.
 
 `cortex setup` chains init, index and client registration in a single call (see
 [Setup](setup.md#one-command-setup)).

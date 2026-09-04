@@ -59,13 +59,13 @@ alertes Zabbix".
 
 ```powershell
 # Recherche globale
-python indexer.py --search "alertes zabbix"
+cortex search "alertes zabbix"
 
-# Recherche dans une section (la section est positionnelle)
-python indexer.py knowledge --search "procedure de deploiement"
+# Recherche dans une section
+cortex search "procedure de deploiement" --section knowledge
 
 # Nombre de resultats
-python indexer.py --search "OSCARE" --top-k 10
+cortex search "OSCARE" --top-k 10
 ```
 
 Les reponses de recherche utilisent le schema de metadonnees v2. En plus de
@@ -151,6 +151,7 @@ d'entree que les scripts historiques :
 ```powershell
 cortex setup [--clients all] [--no-index] [--reset] [--yes]
 cortex sync [section] [--json]
+cortex search QUERY [--section SECTION] [--top-k N]
 cortex ingestion [--config FILE] {status,due} SOURCE_KIND
 cortex confluence [--config FILE] [--ingestion-config FILE] {store-credential,sync}
 cortex doctor [--json]
@@ -165,7 +166,9 @@ vaut `0` pour un sync reussi, `1` pour un sync partiel ou en echec, `2` lorsqu'u
 verrou d'ecriture est indisponible et `6` pour une entree ou une configuration
 invalide. La recherche n'est pas disponible en mode JSON. Sans `--json`, le
 sync humain garde sa sortie de journal mais rend les memes codes de sortie :
-un sync partiel ou en echec ne se termine plus par `0`.
+un sync partiel ou en echec ne se termine plus par `0`. Une interruption par
+Ctrl+C rend `130`, sans trace d'appel. `cortex sync --search` reste accepte
+comme alias de `cortex search`.
 
 `cortex setup` enchaine init, index et enregistrement des clients en un appel
 (voir [Installation](setup.md#setup-en-une-commande)).

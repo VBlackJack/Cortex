@@ -21,7 +21,12 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from _version import __version__
-from confluence_writer.constants import EXIT_ERROR, EXIT_INVALID_INPUT, EXIT_OK
+from confluence_writer.constants import (
+    EXIT_ERROR,
+    EXIT_INTERRUPTED,
+    EXIT_INVALID_INPUT,
+    EXIT_OK,
+)
 from sync_contract import SyncError, build_sync_failure_report
 
 if TYPE_CHECKING:
@@ -32,6 +37,7 @@ if TYPE_CHECKING:
 _COMMANDS: tuple[tuple[str, str], ...] = (
     ("serve", "Run the MCP server over stdio (started by MCP clients)."),
     ("sync", "Incrementally index the knowledge base and the current generation."),
+    ("search", "Search the index from the console, the debugging twin of the MCP tool."),
     ("ingestion", "Report ingestion source health and whether a catch-up is due."),
     ("confluence", "Store the Confluence PAT or run the allowlisted writer."),
     ("bundle", "Describe or verify an encrypted portable archive."),
@@ -118,6 +124,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     namespace, arguments = parser.parse_known_args(argv)
     try:
         return _dispatch(namespace, arguments)
+    except KeyboardInterrupt:
+        # Ctrl+C is a request, not a fault: no traceback, a stable exit code.
+        # The write lock is a context manager, so it is already released.
+        sys.stderr.write("Cortex: interrupted.\n")
+        return EXIT_INTERRUPTED
     except SystemExit as exc:
         # Help and explicit exits keep their status; only the usage error is
         # translated, because its raw status means lock contention to callers.
@@ -151,6 +162,16 @@ def _dispatch(namespace: argparse.Namespace, arguments: list[str]) -> int:
             return _handle_sync_configuration_error(arguments, exc)
 
         return sync_main(arguments, prog="cortex sync")
+    if namespace.command == "search":
+        from user_config import CortexConfigError
+
+        try:
+            from indexer import search_main
+        except CortexConfigError as exc:
+            sys.stderr.write(f"Cortex search error: {exc}\n")
+            return EXIT_INVALID_INPUT
+
+        return search_main(arguments, prog="cortex search")
     if namespace.command == "ingestion":
         from ingestion.cli import main as ingestion_main
 

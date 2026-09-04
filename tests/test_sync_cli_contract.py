@@ -306,6 +306,42 @@ def test_human_sync_keeps_stdout_empty(
     assert calls == [(None, True)]
 
 
+def test_search_main_renders_hits_and_exits_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    hits = [
+        {
+            "text": "alpha body",
+            "metadata": {"title": "Alpha", "section": "knowledge", "header": "Intro"},
+            "distance": 0.25,
+        }
+    ]
+    calls: list[tuple[str, str | None, int]] = []
+
+    def fake_search(
+        query: str,
+        *,
+        section: str | None,
+        top_k: int,
+    ) -> list[dict[str, object]]:
+        calls.append((query, section, top_k))
+        return hits
+
+    monkeypatch.setattr(indexer, "warmup_reranker", lambda: None)
+    monkeypatch.setattr(indexer, "search", fake_search)
+
+    assert (
+        indexer.search_main(["alpha", "--section", "knowledge", "--top-k", "3"])
+        == EXIT_OK
+    )
+    rendered = capsys.readouterr().out
+
+    assert calls == [("alpha", "knowledge", 3)]
+    assert "[1] Alpha (dist=0.250)" in rendered
+    assert "Section: knowledge | Intro" in rendered
+
+
 def test_human_sync_exit_code_reports_partial_failures(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

@@ -875,6 +875,9 @@ def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
     return report, _sync_report_exit_code(report)
 
 
+_DEFAULT_TOP_K = 5
+
+
 def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int:
     """Run sync or search from the clone-compatible command line."""
     parser = argparse.ArgumentParser(prog=prog, description="Cortex indexer")
@@ -885,10 +888,19 @@ def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int
         "--search",
         metavar="QUERY",
         default=None,
-        help="Run a search instead of syncing",
+        help="Deprecated alias of `cortex search QUERY`: search instead of syncing",
     )
-    parser.add_argument("--top-k", type=int, default=5)
-    parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=_DEFAULT_TOP_K,
+        help=f"Number of results for --search (default: {_DEFAULT_TOP_K})",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the machine-readable sync report on stdout (Companion contract)",
+    )
     args = parser.parse_args(argv)
 
     # Configure logging only once the arguments are known to be actionable:
@@ -927,6 +939,39 @@ def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int
         progress=_log_indexation_progress,
     )
     return _sync_report_exit_code(report)
+
+
+def search_main(
+    argv: Sequence[str] | None = None,
+    *,
+    prog: str = "cortex search",
+) -> int:
+    """Run one console search: the debugging twin of the cortex_search tool."""
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        description="Search the Cortex index from the console.",
+    )
+    parser.add_argument("query", help="Natural-language query, French or English")
+    parser.add_argument(
+        "--section",
+        default=None,
+        help="Restrict the search to one section (default: all)",
+    )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=_DEFAULT_TOP_K,
+        help=f"Number of results (default: {_DEFAULT_TOP_K})",
+    )
+    args = parser.parse_args(argv)
+
+    from cortex_logging import configure_logging
+
+    configure_logging()
+    warmup_reranker()
+    hits = search(args.query, section=args.section, top_k=args.top_k)
+    _render_search_hits(hits, _lossless_console(sys.stdout))
+    return EXIT_OK
 
 
 _SEARCH_EXCERPT_CHARS = 300
