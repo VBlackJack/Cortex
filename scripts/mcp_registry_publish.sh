@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# mcp_registry_publish.sh — Publish the committed Cortex server descriptor.
+# mcp_registry_publish.sh - Publish the committed Cortex server descriptor.
 # Usage: ./scripts/mcp_registry_publish.sh [--dry-run] [--verbose]
 
 set -euo pipefail

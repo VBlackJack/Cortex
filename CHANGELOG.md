@@ -17,6 +17,11 @@ available in [French](docs/fr/notes-de-version.md) and
   `LOCALAPPDATA`. An in-process entry point no longer leaves its handlers on
   the `cortex` logger for the tests that follow.
 
+### Changed
+
+- Replaced the `assert` statements that narrowed optional fields in production
+  code with explicit errors, so they hold under `python -O` as well.
+
 ## [2026.0904.02] - 2026-09-04
 
 ### Added
