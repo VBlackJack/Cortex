@@ -258,6 +258,23 @@ def test_reconciliation_removes_absent_and_newly_excluded_paths(
     assert stats["deleted_chunks"] == 2
 
 
+def test_section_progress_reports_each_file_then_completion(tmp_path: Path) -> None:
+    section_root = tmp_path / "kb" / "knowledge"
+    section_root.mkdir(parents=True)
+    (section_root / "a.md").write_text("# A\n\nalpha", encoding="utf-8")
+    (section_root / "b.md").write_text("# B\n\nbeta", encoding="utf-8")
+    steps: list[tuple[int, int]] = []
+
+    _sync_section_locked(
+        Collection(),
+        tmp_path / "kb",
+        "knowledge",
+        progress=lambda done, total: steps.append((done, total)),
+    )
+
+    assert steps == [(0, 2), (1, 2), (2, 2)]
+
+
 def test_unavailable_section_preserves_all_indexed_content(tmp_path: Path) -> None:
     root = tmp_path / "kb"
     root.mkdir()

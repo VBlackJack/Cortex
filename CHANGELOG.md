@@ -7,6 +7,23 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Added
+
+- Emitted `CORTEX_PROGRESS` records with the new `indexation` phase during
+  `cortex sync --json`, one per file within a section or generation, so
+  Companion can show a counter instead of an indeterminate bar. The human
+  run logs `indexing_progress` about ten times per domain instead.
+
+### Changed
+
+- Made the human-facing `cortex sync` return the same exit codes as `--json`:
+  a partial or failed sync exits `1` and an unknown section `6`. It used to
+  exit `0` after logging the error, so `sync.bat` and the Start menu
+  shortcut never reported a failure.
+- Named the installed command in the missing `kb_path` error and in the
+  doctor check: `cortex setup` replaces `python setup_config.py --init`,
+  which users of the installer cannot run.
+
 ## [2026.0904.01] - 2026-09-04
 
 ### Changed

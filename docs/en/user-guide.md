@@ -158,7 +158,8 @@ cortex check [--clients all]
 operational logs remain on stderr. Its process exit code is `0` for a successful
 sync, `1` for a partial or failed sync, `2` when a writer lock is unavailable,
 and `6` for invalid input or configuration. Search is not available in JSON
-mode. Without `--json`, the existing human-facing sync behavior is unchanged.
+mode. Without `--json`, the human-facing sync keeps its log output but returns
+the same exit codes: a partial or failed sync no longer exits `0`.
 
 `cortex setup` chains init, index and client registration in a single call (see
 [Setup](setup.md#one-command-setup)).

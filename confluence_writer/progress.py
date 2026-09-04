@@ -14,7 +14,9 @@ import sys
 from typing import Literal
 
 PROGRESS_PREFIX = "CORTEX_PROGRESS "
-ProgressPhase = Literal["enumeration", "staging", "conversion", "publication"]
+ProgressPhase = Literal[
+    "enumeration", "staging", "conversion", "publication", "indexation"
+]
 
 
 def emit_progress(phase: ProgressPhase, current: int, total: int) -> None:

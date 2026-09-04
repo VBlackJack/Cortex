@@ -164,7 +164,8 @@ tandis que les journaux operationnels restent sur stderr. Son code de sortie
 vaut `0` pour un sync reussi, `1` pour un sync partiel ou en echec, `2` lorsqu'un
 verrou d'ecriture est indisponible et `6` pour une entree ou une configuration
 invalide. La recherche n'est pas disponible en mode JSON. Sans `--json`, le
-comportement historique du sync humain reste inchange.
+sync humain garde sa sortie de journal mais rend les memes codes de sortie :
+un sync partiel ou en echec ne se termine plus par `0`.
 
 `cortex setup` enchaine init, index et enregistrement des clients en un appel
 (voir [Installation](setup.md#setup-en-une-commande)).
