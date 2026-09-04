@@ -118,6 +118,7 @@ The installed package exposes a single command:
 | `cortex setup` | Config + index + client registration in one go (`--kb-path`, `--yes`, `--no-index`, `--reset`). |
 | `cortex serve` | Runs the MCP server (used by clients). |
 | `cortex sync` | Incremental index synchronization. |
+| `cortex search` | Searches the index from the console (debugging aid). |
 | `cortex ingestion` | Shows source health and whether catch-up is due. |
 | `cortex confluence` | Stores the PAT interactively or runs the allowlisted writer. |
 | `cortex config` | Reads or changes configuration through an atomic JSON contract, notably for Companion. |

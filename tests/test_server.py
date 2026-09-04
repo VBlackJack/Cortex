@@ -101,7 +101,7 @@ def test_sync_and_freshness_format_missing_kb_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     error = CortexConfigError(
-        "Missing required 'kb_path'. Run `python setup_config.py --init`."
+        "Missing required 'kb_path'. Set CORTEX_KB_PATH or run `cortex setup`."
     )
 
     def fail_sync(**_kwargs: object) -> dict[str, int]:
@@ -117,7 +117,7 @@ def test_sync_and_freshness_format_missing_kb_configuration(
     freshness_response = server.cortex_freshness()
 
     assert sync_response.startswith("## Cortex sync configuration error")
-    assert "setup_config.py --init" in sync_response
+    assert "cortex setup" in sync_response
     assert freshness_response == {"error": str(error)}
 
 

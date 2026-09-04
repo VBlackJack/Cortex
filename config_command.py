@@ -213,16 +213,42 @@ def _set(
     return exit_code
 
 
+# The machine commands have no human rendering, so the mandatory flag says so
+# instead of leaving argparse's bare 'required' error as the only hint.
+_JSON_HELP = (
+    "Required: emit the machine-readable JSON contract; this command has no "
+    "human output."
+)
+
+
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="cortex config")
+    parser = argparse.ArgumentParser(
+        prog="cortex config",
+        description="Read or change the per-user configuration through the atomic "
+        "JSON contract used by Cortex Companion.",
+    )
     subparsers = parser.add_subparsers(dest="operation", required=True)
-    get_parser = subparsers.add_parser("get")
-    get_parser.add_argument("--json", action="store_true", required=True)
-    set_parser = subparsers.add_parser("set")
-    set_parser.add_argument("--json", action="store_true", required=True)
-    set_parser.add_argument("--expected-hash")
-    set_parser.add_argument("--expect-absent", action="store_true")
-    set_parser.add_argument("--kb-path", required=True)
+    get_parser = subparsers.add_parser("get", help="Print the configuration and its hash")
+    get_parser.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
+    set_parser = subparsers.add_parser(
+        "set",
+        help="Change the knowledge-base folder with compare-and-swap protection",
+    )
+    set_parser.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
+    set_parser.add_argument(
+        "--expected-hash",
+        help="Hash returned by `get`; the write is refused when the file changed",
+    )
+    set_parser.add_argument(
+        "--expect-absent",
+        action="store_true",
+        help="Require that no configuration file exists yet (first write)",
+    )
+    set_parser.add_argument(
+        "--kb-path",
+        required=True,
+        help="Absolute path of the knowledge-base folder to record",
+    )
     return parser
 
 

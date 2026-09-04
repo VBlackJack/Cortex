@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -31,6 +32,7 @@ from confluence_writer.constants import (
     EXIT_LOCKED,
     EXIT_OK,
 )
+from confluence_writer.progress import PROGRESS_PREFIX
 from embedding_fingerprint import EmbeddingFingerprintMismatchError
 from ingestion.config import IngestionConfigError
 from ingestion.locking import IngestionLockedError
@@ -41,6 +43,7 @@ from sync_contract import (
     SyncIngestion,
     SyncReport,
     SyncScope,
+    build_sync_failure_report,
     build_sync_report,
 )
 from user_config import CortexConfigError
@@ -284,17 +287,167 @@ def test_human_sync_keeps_stdout_empty(
 ) -> None:
     calls: list[tuple[str | None, bool]] = []
 
-    def successful_sync(section: str | None, verbose: bool) -> dict[str, int]:
+    def successful_sync(
+        *,
+        section: str | None,
+        verbose: bool,
+        progress: Callable[[int, int], None],
+    ) -> SyncReport:
         calls.append((section, verbose))
-        return _report().counters.to_stats()
+        progress(0, 0)
+        return _report()
 
-    monkeypatch.setattr(indexer, "sync", successful_sync)
+    monkeypatch.setattr(indexer, "sync_report", successful_sync)
 
     assert indexer.main([]) == EXIT_OK
     captured = capsys.readouterr()
 
     assert captured.out == ""
     assert calls == [(None, True)]
+
+
+def test_search_main_renders_hits_and_exits_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    hits = [
+        {
+            "text": "alpha body",
+            "metadata": {"title": "Alpha", "section": "knowledge", "header": "Intro"},
+            "distance": 0.25,
+        }
+    ]
+    calls: list[tuple[str, str | None, int]] = []
+
+    def fake_search(
+        query: str,
+        *,
+        section: str | None,
+        top_k: int,
+    ) -> list[dict[str, object]]:
+        calls.append((query, section, top_k))
+        return hits
+
+    monkeypatch.setattr(indexer, "warmup_reranker", lambda: None)
+    monkeypatch.setattr(indexer, "search", fake_search)
+
+    assert (
+        indexer.search_main(["alpha", "--section", "knowledge", "--top-k", "3"])
+        == EXIT_OK
+    )
+    rendered = capsys.readouterr().out
+
+    assert calls == [("alpha", "knowledge", 3)]
+    assert "[1] Alpha (dist=0.250)" in rendered
+    assert "Section: knowledge | Intro" in rendered
+
+
+def test_human_sync_exit_code_reports_partial_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    report = _report(
+        counters={
+            "published_files": 1,
+            "added_chunks": 2,
+            "deleted_chunks": 0,
+            "removed_files": 0,
+            "skipped_files": 0,
+            "empty_files": 0,
+            "errors": 1,
+        },
+        indexes=SyncIndexes(chroma="ok", lexical="failed"),
+        errors=[
+            SyncError(
+                code="lexical_publication_failed",
+                phase="publish_lexical",
+                path="knowledge/note.md",
+            )
+        ],
+    )
+    monkeypatch.setattr(indexer, "sync_report", lambda **_kwargs: report)
+
+    assert indexer.main([]) == EXIT_ERROR
+    assert capsys.readouterr().out == ""
+
+
+def test_human_sync_exit_code_reports_invalid_section(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = build_sync_failure_report(
+        requested_section="nope",
+        index_whole_folder=False,
+        included_ingestion_documents=False,
+        error=SyncError(code="invalid_section", phase="validate", path="nope"),
+        status="failed",
+        recommendation="none",
+    )
+    monkeypatch.setattr(indexer, "sync_report", lambda **_kwargs: report)
+
+    assert indexer.main(["nope"]) == EXIT_INVALID_INPUT
+
+
+def test_json_sync_emits_indexation_progress_on_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_sync_report(
+        *,
+        section: str | None,
+        verbose: bool,
+        progress: Callable[[int, int], None],
+    ) -> SyncReport:
+        progress(0, 2)
+        progress(2, 2)
+        return _report()
+
+    monkeypatch.setattr(indexer, "sync_report", fake_sync_report)
+
+    assert indexer.main(["--json"]) == EXIT_OK
+    captured = capsys.readouterr()
+    records = [
+        json.loads(line.removeprefix(PROGRESS_PREFIX))
+        for line in captured.err.splitlines()
+        if line.startswith(PROGRESS_PREFIX)
+    ]
+
+    assert records == [
+        {"contract_version": 1, "current": 0, "phase": "indexation", "total": 2},
+        {"contract_version": 1, "current": 2, "phase": "indexation", "total": 2},
+    ]
+    assert json.loads(captured.out)["status"] == "succeeded"
+
+
+def test_human_sync_logs_coarse_progress_without_machine_lines(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def fake_sync_report(
+        *,
+        section: str | None,
+        verbose: bool,
+        progress: Callable[[int, int], None],
+    ) -> SyncReport:
+        for done in range(21):
+            progress(done, 20)
+        return _report()
+
+    monkeypatch.setattr(indexer, "sync_report", fake_sync_report)
+
+    with caplog.at_level(logging.INFO):
+        assert indexer.main([]) == EXIT_OK
+    captured = capsys.readouterr()
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("indexing_progress")
+    ]
+
+    assert PROGRESS_PREFIX not in captured.err
+    assert messages == [
+        f"indexing_progress files={done}/20" for done in range(0, 21, 2)
+    ]
 
 
 @pytest.mark.parametrize(

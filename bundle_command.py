@@ -174,16 +174,38 @@ def _verify(path: Path, input_stream: TextIO, output: TextIO) -> int:
     return EXIT_OK
 
 
+# The machine commands have no human rendering, so the mandatory flag says so
+# instead of leaving argparse's bare 'required' error as the only hint.
+_JSON_HELP = (
+    "Required: emit the machine-readable JSON contract; this command has no "
+    "human output."
+)
+
+
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="cortex bundle")
+    parser = argparse.ArgumentParser(
+        prog="cortex bundle",
+        description="Describe or verify an encrypted portable Cortex archive.",
+    )
     subparsers = parser.add_subparsers(dest="operation", required=True)
-    describe = subparsers.add_parser("describe")
-    describe.add_argument("archive", type=Path)
-    describe.add_argument("--json", action="store_true", required=True)
-    verify = subparsers.add_parser("verify")
-    verify.add_argument("archive", type=Path)
-    verify.add_argument("--json", action="store_true", required=True)
-    verify.add_argument("--password-stdin", action="store_true", required=True)
+    describe = subparsers.add_parser(
+        "describe",
+        help="Print the archive header without decrypting its payload",
+    )
+    describe.add_argument("archive", type=Path, help="Path of the .cortex-bundle archive")
+    describe.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
+    verify = subparsers.add_parser(
+        "verify",
+        help="Check the archive integrity with its password",
+    )
+    verify.add_argument("archive", type=Path, help="Path of the .cortex-bundle archive")
+    verify.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
+    verify.add_argument(
+        "--password-stdin",
+        action="store_true",
+        required=True,
+        help="Required: read the password from stdin, never from the command line",
+    )
     return parser
 
 

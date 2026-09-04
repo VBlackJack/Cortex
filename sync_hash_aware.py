@@ -42,6 +42,11 @@ from lexical_index import LexicalIndex
 from sync_contract import SYNC_ERROR_SAMPLE_LIMIT, SyncError
 from write_lock import chroma_write_lock
 
+# Receives (files processed so far, files to process) for one ownership
+# domain: a section, or the current ingestion generation. The counter
+# restarts for each domain; the caller labels the phase.
+ProgressCallback = Callable[[int, int], None]
+
 _LOG = logging.getLogger("cortex.sync")
 _UPSERT_BATCH_SIZE = 100
 _DELETE_BATCH_SIZE = 500
@@ -293,6 +298,7 @@ def sync_section_report(
     lexical_index: LexicalIndex | None = None,
     *,
     errors: list[SyncError],
+    progress: ProgressCallback | None = None,
 ) -> dict[str, int]:
     """Reconcile one section and append structured error samples."""
     with chroma_write_lock():
@@ -304,6 +310,7 @@ def sync_section_report(
             verbose=verbose,
             lexical_index=lexical_index,
             errors=errors,
+            progress=progress,
         )
 
 
@@ -336,6 +343,7 @@ def sync_ingestion_documents_report(
     verbose: bool = False,
     lexical_index: LexicalIndex | None = None,
     errors: list[SyncError] | None = None,
+    progress: ProgressCallback | None = None,
 ) -> tuple[dict[str, int], str | None]:
     """Reconcile ingestion documents and return counters plus selected generation."""
     error_samples = [] if errors is None else errors
@@ -348,6 +356,7 @@ def sync_ingestion_documents_report(
             verbose=verbose,
             lexical_index=lexical_index,
             errors=error_samples,
+            progress=progress,
         )
 
 
@@ -381,6 +390,7 @@ def _sync_ingestion_documents_locked_report(
     verbose: bool = False,
     lexical_index: LexicalIndex | None = None,
     errors: list[SyncError],
+    progress: ProgressCallback | None = None,
 ) -> tuple[dict[str, int], str | None]:
     """Resolve one immutable generation and append structured error samples."""
     stats = empty_sync_stats()
@@ -469,6 +479,7 @@ def _sync_ingestion_documents_locked_report(
             apply_exclusions=False,
             generation_id=generation_id,
             errors=errors,
+            progress=progress,
         ),
         generation_id,
     )
@@ -482,6 +493,7 @@ def _sync_section_locked(
     verbose: bool = False,
     lexical_index: LexicalIndex | None = None,
     errors: list[SyncError] | None = None,
+    progress: ProgressCallback | None = None,
 ) -> dict[str, int]:
     """Reconcile live, excluded and removed paths for one section."""
     stats = empty_sync_stats()
@@ -518,6 +530,7 @@ def _sync_section_locked(
         rebase_chunks=False,
         apply_exclusions=True,
         errors=errors,
+        progress=progress,
     )
 
 
@@ -559,6 +572,7 @@ def _sync_files_locked(
     apply_exclusions: bool,
     generation_id: str | None = None,
     errors: list[SyncError] | None = None,
+    progress: ProgressCallback | None = None,
 ) -> dict[str, int]:
     """Reconcile an explicit immutable file set for one ownership domain."""
     stats = empty_sync_stats()
@@ -578,7 +592,10 @@ def _sync_files_locked(
             generation_id,
         )
 
-    for path in files:
+    total_files = len(files)
+    for index, path in enumerate(files, 1):
+        if progress is not None:
+            progress(index - 1, total_files)
         rel_path = path.relative_to(root).as_posix()
         if apply_exclusions and is_excluded_path(path.relative_to(root)):
             continue
@@ -693,6 +710,9 @@ def _sync_files_locked(
             phase="extract",
             path=rel_path,
         )
+
+    if progress is not None:
+        progress(total_files, total_files)
 
     for rel_path in sorted(set(existing) - eligible_paths):
         old_ids, _ = existing[rel_path]

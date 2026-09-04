@@ -370,7 +370,7 @@ def require_kb_path(value: str | None, *, config_path: Path | None = None) -> st
     path = user_config_path() if config_path is None else config_path
     raise _error(
         "Missing required 'kb_path'. Set CORTEX_KB_PATH or run "
-        "`python setup_config.py --init`.",
+        "`cortex setup`.",
         path,
     )
 

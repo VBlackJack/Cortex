@@ -54,6 +54,9 @@ EXIT_NOT_FOUND = 7
 EXIT_OUTSIDE_ALLOWLIST = 8
 EXIT_CONFLICT = 9
 EXIT_INTEGRITY = 10
+# Ctrl+C follows the POSIX convention (128 + SIGINT), outside the machine
+# contract range, so no client mistakes an interrupted run for a verdict.
+EXIT_INTERRUPTED = 130
 
 SCHEMA_SOURCE_COMMIT = "fceda69da9246e9cf927ca7b8ad68a330f5a7b9b"
 JOB_SCHEMA_SHA256 = "7c9c2ff1452ca5418ab926e5f9e893b426cd0315e0d7621656014c738ec27b57"

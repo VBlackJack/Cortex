@@ -79,6 +79,7 @@ from confluence_writer.constants import (  # noqa: E402
     EXIT_LOCKED,
     EXIT_OK,
 )
+from confluence_writer.progress import emit_progress  # noqa: E402
 from data_home import ensure_index_location  # noqa: E402
 from embedding_fingerprint import (  # noqa: E402
     EmbeddingFingerprintMismatchError,
@@ -103,6 +104,7 @@ from sync_contract import (  # noqa: E402
     build_sync_report,
 )
 from sync_hash_aware import (  # noqa: E402
+    ProgressCallback,
     empty_sync_stats,
     merge_sync_stats,
     sync_ingestion_documents_report,
@@ -234,7 +236,12 @@ def sync(section: str | None = None, verbose: bool = True) -> dict[str, int]:
     return sync_report(section, verbose).counters.to_stats()
 
 
-def sync_report(section: str | None = None, verbose: bool = True) -> SyncReport:
+def sync_report(
+    section: str | None = None,
+    verbose: bool = True,
+    *,
+    progress: ProgressCallback | None = None,
+) -> SyncReport:
     """Run one locked synchronization and return its machine-readable report."""
     should_sync_documents = _should_sync_ingestion_documents(section)
     if _requested_section_is_invalid(section):
@@ -258,6 +265,7 @@ def sync_report(section: str | None = None, verbose: bool = True) -> SyncReport:
                     verbose,
                     ingestion_settings_state=exc,
                     validate_requested_section=True,
+                    progress=progress,
                 )
             storage = IngestionStorage(
                 ingestion_settings.data_root,
@@ -273,8 +281,14 @@ def sync_report(section: str | None = None, verbose: bool = True) -> SyncReport:
                     verbose,
                     ingestion_settings_state=ingestion_settings,
                     validate_requested_section=True,
+                    progress=progress,
                 )
-        return _sync_locked_report(section, verbose, validate_requested_section=True)
+        return _sync_locked_report(
+            section,
+            verbose,
+            validate_requested_section=True,
+            progress=progress,
+        )
 
 
 def _sync_locked(section: str | None = None, verbose: bool = True) -> dict[str, int]:
@@ -287,6 +301,7 @@ def _sync_locked_report(
     *,
     ingestion_settings_state: IngestionSettings | IngestionConfigError | None = None,
     validate_requested_section: bool = False,
+    progress: ProgressCallback | None = None,
 ) -> SyncReport:
     """Run synchronization with the Chroma lock already held."""
     kb_root = Path(require_kb_path(KB_PATH))
@@ -377,6 +392,7 @@ def _sync_locked_report(
             verbose=verbose,
             lexical_index=lexical_index,
             errors=errors,
+            progress=progress,
         )
         merge_sync_stats(stats, section_stats)
 
@@ -400,6 +416,7 @@ def _sync_locked_report(
                 verbose=verbose,
                 lexical_index=lexical_index,
                 errors=errors,
+                progress=progress,
             )
             merge_sync_stats(stats, document_stats)
 
@@ -783,10 +800,33 @@ def _sync_failure_report(
     )
 
 
+def _emit_indexation_progress(current: int, total: int) -> None:
+    """Forward local indexing counters to the machine progress stream."""
+    emit_progress("indexation", current, total)
+
+
+# Human runs log the counter about ten times per domain instead of once per
+# file, which keeps a large knowledge base readable in a console.
+_PROGRESS_LOG_STEPS = 10
+
+
+def _log_indexation_progress(current: int, total: int) -> None:
+    """Log local indexing counters at coarse steps for a human console."""
+    if total == 0:
+        return
+    step = max(1, total // _PROGRESS_LOG_STEPS)
+    if current == total or current % step == 0:
+        log.info("indexing_progress files=%d/%d", current, total)
+
+
 def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
     """Run sync behind the machine-mode exception funnel."""
     try:
-        report = sync_report(section=section, verbose=True)
+        report = sync_report(
+            section=section,
+            verbose=True,
+            progress=_emit_indexation_progress,
+        )
     except (CortexConfigError, IngestionConfigError) as exc:
         _LOG.error("sync_invalid_configuration error_type=%s", type(exc).__name__)
         report = _sync_failure_report(
@@ -835,6 +875,9 @@ def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
     return report, _sync_report_exit_code(report)
 
 
+_DEFAULT_TOP_K = 5
+
+
 def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int:
     """Run sync or search from the clone-compatible command line."""
     parser = argparse.ArgumentParser(prog=prog, description="Cortex indexer")
@@ -845,10 +888,19 @@ def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int
         "--search",
         metavar="QUERY",
         default=None,
-        help="Run a search instead of syncing",
+        help="Deprecated alias of `cortex search QUERY`: search instead of syncing",
     )
-    parser.add_argument("--top-k", type=int, default=5)
-    parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=_DEFAULT_TOP_K,
+        help=f"Number of results for --search (default: {_DEFAULT_TOP_K})",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the machine-readable sync report on stdout (Companion contract)",
+    )
     args = parser.parse_args(argv)
 
     # Configure logging only once the arguments are known to be actionable:
@@ -877,8 +929,48 @@ def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int
         warmup_reranker()
         hits = search(args.search, section=args.section, top_k=args.top_k)
         _render_search_hits(hits, _lossless_console(sys.stdout))
-    else:
-        sync(section=args.section, verbose=True)
+        return EXIT_OK
+
+    # The human run shares the machine exit contract: a partial or failed
+    # sync must not exit 0, or batch drivers and shortcuts never see it.
+    report = sync_report(
+        section=args.section,
+        verbose=True,
+        progress=_log_indexation_progress,
+    )
+    return _sync_report_exit_code(report)
+
+
+def search_main(
+    argv: Sequence[str] | None = None,
+    *,
+    prog: str = "cortex search",
+) -> int:
+    """Run one console search: the debugging twin of the cortex_search tool."""
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        description="Search the Cortex index from the console.",
+    )
+    parser.add_argument("query", help="Natural-language query, French or English")
+    parser.add_argument(
+        "--section",
+        default=None,
+        help="Restrict the search to one section (default: all)",
+    )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=_DEFAULT_TOP_K,
+        help=f"Number of results (default: {_DEFAULT_TOP_K})",
+    )
+    args = parser.parse_args(argv)
+
+    from cortex_logging import configure_logging
+
+    configure_logging()
+    warmup_reranker()
+    hits = search(args.query, section=args.section, top_k=args.top_k)
+    _render_search_hits(hits, _lossless_console(sys.stdout))
     return EXIT_OK
 
 

@@ -7,6 +7,35 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Added
+
+- Added `cortex search QUERY [--section] [--top-k]`, the console twin of the
+  MCP tool. Search used to hide under `cortex sync --search`, a sync command
+  that did not sync, and the guide showed `python indexer.py --search`, which
+  the installed executable cannot run. The old flag stays as an alias.
+- Exited `130` with a one-line message on Ctrl+C instead of a Python
+  traceback. The write lock is a context manager and was already released.
+- Emitted `CORTEX_PROGRESS` records with the new `indexation` phase during
+  `cortex sync --json`, one per file within a section or generation, so
+  Companion can show a counter instead of an indeterminate bar. The human
+  run logs `indexing_progress` about ten times per domain instead.
+
+### Changed
+
+- Made the human-facing `cortex sync` return the same exit codes as `--json`:
+  a partial or failed sync exits `1` and an unknown section `6`. It used to
+  exit `0` after logging the error, so `sync.bat` and the Start menu
+  shortcut never reported a failure.
+- Named the installed command in the missing `kb_path` error and in the
+  doctor check: `cortex setup` replaces `python setup_config.py --init`,
+  which users of the installer cannot run.
+- Described every option of `sync`, `config`, `bundle`, `confluence` and
+  `ingestion` in `--help`; the mandatory `--json` flags now say that the
+  command is a machine contract with no human output.
+- Restored the French accents on the installer wizard pages; the script is
+  UTF-8 with a byte-order mark, which Inno Setup 6 requires to read it as
+  Unicode.
+
 ## [2026.0904.01] - 2026-09-04
 
 ### Changed
