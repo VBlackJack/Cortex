@@ -51,3 +51,6 @@ jobs:
       - name: Verify canonical TOML bytes
         working-directory: CortexCompanion
         run: python tests/interop/renderer_differential_proof.py
+      - name: Verify the desktop search contract
+        working-directory: CortexCompanion
+        run: python tests/interop/search_contract_proof.py

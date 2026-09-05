@@ -1,0 +1,308 @@
+{
+  "schema_version": 1,
+  "description": "Synthetic operational corpus; baseline for mechanics, not a substitute for user relevance judgments.",
+  "documents": [
+    {
+      "path": "operations/backup.md",
+      "text": "---\ntitle: Encrypted backup recovery\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Encrypted backup recovery\n\nRestore the nightly encrypted backup into an isolated directory. Validate the SHA-256 checksum before restoring. Keep the previous production copy until the recovery test succeeds. The recovery owner records the recovery time and the age of the restored data. Never overwrite the only remaining backup.\n"
+    },
+    {
+      "path": "operations/dns.md",
+      "text": "---\ntitle: DNS troubleshooting\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# DNS troubleshooting\n\nWhen a hostname does not resolve, query the configured DNS resolver first. Compare its answer with the authoritative server. Check the TTL and negative cache before flushing caches. A successful IP connection does not prove that DNS resolution works. Record the failing name, resolver address and response code.\n"
+    },
+    {
+      "path": "operations/tls.md",
+      "text": "---\ntitle: Certificate renewal\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Certificate renewal\n\nRenew the TLS certificate before its expiry date. Install the full intermediate certificate chain and verify the hostname in the subject alternative names. Reload the service and check the certificate actually served to clients. An expired root in the client trust store requires a separate trust-store correction.\n"
+    },
+    {
+      "path": "operations/pat.md",
+      "text": "---\ntitle: Rotation du jeton Confluence\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Rotation du jeton Confluence\n\nLe jeton personnel Confluence est conservé dans le gestionnaire des identifiants Windows. Créer un nouveau jeton avant expiration puis remplacer la valeur enregistrée. Vérifier une lecture autorisée et révoquer ensuite l’ancien jeton. Ne jamais copier un secret dans les journaux ou dans un rapport de diagnostic.\n"
+    },
+    {
+      "path": "operations/disk.md",
+      "text": "---\ntitle: Disque plein pendant une collecte\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Disque plein pendant une collecte\n\nEn cas de manque d’espace disque, conserver la génération publiée. Identifier les anciens journaux et générations avant toute suppression. Vérifier le volume réellement utilisé par la racine de données. Une collecte interrompue peut laisser un répertoire de préparation ; il ne doit jamais être servi comme une publication valide.\n"
+    },
+    {
+      "path": "operations/vpn.md",
+      "text": "---\ntitle: VPN routing\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# VPN routing\n\nAn established VPN tunnel does not guarantee access to the destination subnet. Check the selected route, split-tunnel policy, DNS suffixes and firewall rules. Compare route selection before and after connection. Keep a local recovery path when modifying remote access rules to avoid locking out the administrator.\n"
+    },
+    {
+      "path": "operations/generation.md",
+      "text": "---\ntitle: Publication atomique des documents\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Publication atomique des documents\n\nLa collecte écrit une nouvelle génération dans un dossier de préparation. Après validation du manifeste, le pointeur courant est remplacé atomiquement. Les lecteurs utilisent uniquement la génération courante. La purge des anciennes générations intervient après la publication ; une erreur de purge ne signifie pas que la publication a échoué.\n"
+    },
+    {
+      "path": "operations/index.md",
+      "text": "---\ntitle: Collecte et indexation\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Collecte et indexation\n\nLa collecte Confluence publie des fichiers Markdown. L’indexation locale transforme ensuite ces fichiers en fragments consultables. Une collecte réussie ne prouve pas que l’index contient la nouvelle génération. Comparer l’identifiant publié et l’identifiant de génération confirmé dans le résultat de synchronisation.\n"
+    },
+    {
+      "path": "operations/restore.md",
+      "text": "---\ntitle: Database point in time recovery\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Database point in time recovery\n\nPoint-in-time recovery replays transaction logs after a full database backup. Choose a timestamp before the erroneous transaction and restore to a separate instance. Check application consistency before redirecting clients. Retain the complete log chain; a missing log segment can prevent reaching the requested recovery point.\n"
+    },
+    {
+      "path": "operations/logs.md",
+      "text": "---\ntitle: Diagnostic log handling\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Diagnostic log handling\n\nA diagnostic bundle should include versions, operation identifiers and timestamps. Remove credentials, authorization headers and private document text. Rotate logs with a bounded size and retention policy. If log persistence fails while a child process writes output, continue draining both pipes so the child cannot block on a full pipe.\n"
+    },
+    {
+      "path": "operations/latency.md",
+      "text": "---\ntitle: Search performance measurement\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Search performance measurement\n\nMeasure the first query separately from repeated warm queries. Record embedding model load time, reranker initialization, index size and corpus size. Compare median and ninety-fifth percentile latency over the same queries. A small test corpus measures overhead but does not establish production capacity or relevance quality.\n"
+    },
+    {
+      "path": "operations/permissions.md",
+      "text": "---\ntitle: File access permissions\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# File access permissions\n\nWhen access is denied, inspect both the share permissions and filesystem access control list. Confirm the effective user identity and inherited deny entries. Do not grant broad administrator privileges as a diagnostic shortcut. Test access with the same identity as the service and preserve the original permission set for rollback.\n"
+    },
+    {
+      "path": "operations/scheduler.md",
+      "text": "---\ntitle: Planification Windows\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Planification Windows\n\nLa tâche planifiée doit utiliser le compte propriétaire de la configuration et des identifiants. Vérifier son historique, son code de sortie et le chemin de l’exécutable. Une fenêtre fermée ne signifie pas que le worker est arrêté. Ne pas lancer une seconde exécution quand un worker identifié est encore actif.\n"
+    },
+    {
+      "path": "operations/ranking.md",
+      "text": "---\ntitle: Hybrid retrieval ranking\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Hybrid retrieval ranking\n\nHybrid search combines semantic vector candidates with lexical matches using reciprocal rank fusion. A reranker scores the fused candidates against the query. Evaluate document-level recall and reciprocal rank with expected documents; multiple chunks from one source should not inflate the score. Record degraded modes separately.\n"
+    },
+    {
+      "path": "operations/cancel.md",
+      "text": "---\ntitle: Interruption et reprise\nupdated_at: 2026-09-05T00:00:00Z\n---\n\n# Interruption et reprise\n\nL’annulation vise uniquement le worker possédé et son processus enfant. Comparer l’identifiant du processus et son heure de création avant de terminer l’arbre. Conserver un résultat durable marqué interrompu. La prochaine synchronisation complète l’index ; elle ne doit pas interpréter une collecte partielle comme une suppression des sources absentes.\n"
+    }
+  ],
+  "questions": [
+    {
+      "id": "backup-fr",
+      "language": "fr",
+      "query": "Comment restaurer une sauvegarde chiffrée sans perdre la copie actuelle ?",
+      "expected": [
+        "operations/backup.md"
+      ]
+    },
+    {
+      "id": "backup-en",
+      "language": "en",
+      "query": "How do I validate an encrypted backup before restoring it?",
+      "expected": [
+        "operations/backup.md"
+      ]
+    },
+    {
+      "id": "dns-fr",
+      "language": "fr",
+      "query": "Que vérifier quand un nom de serveur ne se résout plus ?",
+      "expected": [
+        "operations/dns.md"
+      ]
+    },
+    {
+      "id": "dns-en",
+      "language": "en",
+      "query": "How do I diagnose failed hostname resolution?",
+      "expected": [
+        "operations/dns.md"
+      ]
+    },
+    {
+      "id": "tls-fr",
+      "language": "fr",
+      "query": "Comment vérifier un certificat après son renouvellement ?",
+      "expected": [
+        "operations/tls.md"
+      ]
+    },
+    {
+      "id": "tls-en",
+      "language": "en",
+      "query": "What must I verify after renewing a TLS certificate?",
+      "expected": [
+        "operations/tls.md"
+      ]
+    },
+    {
+      "id": "pat-fr",
+      "language": "fr",
+      "query": "Où conserver le PAT Confluence et comment le renouveler ?",
+      "expected": [
+        "operations/pat.md"
+      ]
+    },
+    {
+      "id": "pat-en",
+      "language": "en",
+      "query": "How do I rotate the Confluence personal access token?",
+      "expected": [
+        "operations/pat.md"
+      ]
+    },
+    {
+      "id": "disk-fr",
+      "language": "fr",
+      "query": "Que faire si le disque se remplit pendant une collecte ?",
+      "expected": [
+        "operations/disk.md"
+      ]
+    },
+    {
+      "id": "disk-en",
+      "language": "en",
+      "query": "What should happen when ingestion runs out of disk space?",
+      "expected": [
+        "operations/disk.md"
+      ]
+    },
+    {
+      "id": "vpn-fr",
+      "language": "fr",
+      "query": "Le VPN est connecté mais le réseau distant reste inaccessible, que vérifier ?",
+      "expected": [
+        "operations/vpn.md"
+      ]
+    },
+    {
+      "id": "vpn-en",
+      "language": "en",
+      "query": "Why can a connected VPN fail to reach a remote subnet?",
+      "expected": [
+        "operations/vpn.md"
+      ]
+    },
+    {
+      "id": "generation-fr",
+      "language": "fr",
+      "query": "Une purge échoue après la publication : les nouveaux documents sont-ils actifs ?",
+      "expected": [
+        "operations/generation.md"
+      ]
+    },
+    {
+      "id": "generation-en",
+      "language": "en",
+      "query": "When does the current generation pointer change during publication?",
+      "expected": [
+        "operations/generation.md"
+      ]
+    },
+    {
+      "id": "index-fr",
+      "language": "fr",
+      "query": "Pourquoi une page collectée récemment reste-t-elle absente de la recherche ?",
+      "expected": [
+        "operations/index.md"
+      ]
+    },
+    {
+      "id": "index-en",
+      "language": "en",
+      "query": "Does successful collection mean the new documents are searchable?",
+      "expected": [
+        "operations/index.md"
+      ]
+    },
+    {
+      "id": "restore-fr",
+      "language": "fr",
+      "query": "Comment revenir avant une transaction erronée dans une base de données ?",
+      "expected": [
+        "operations/restore.md"
+      ]
+    },
+    {
+      "id": "restore-en",
+      "language": "en",
+      "query": "What does point-in-time database recovery require?",
+      "expected": [
+        "operations/restore.md"
+      ]
+    },
+    {
+      "id": "logs-fr",
+      "language": "fr",
+      "query": "Comment éviter un blocage du processus si le journal devient inaccessible ?",
+      "expected": [
+        "operations/logs.md"
+      ]
+    },
+    {
+      "id": "logs-en",
+      "language": "en",
+      "query": "Why must a parent drain child output after a log write failure?",
+      "expected": [
+        "operations/logs.md"
+      ]
+    },
+    {
+      "id": "latency-fr",
+      "language": "fr",
+      "query": "Comment comparer la latence de la première recherche et des suivantes ?",
+      "expected": [
+        "operations/latency.md"
+      ]
+    },
+    {
+      "id": "latency-en",
+      "language": "en",
+      "query": "Which measurements distinguish cold search from warm search latency?",
+      "expected": [
+        "operations/latency.md"
+      ]
+    },
+    {
+      "id": "permissions-fr",
+      "language": "fr",
+      "query": "Quels droits vérifier lorsque le service ne peut pas lire un fichier partagé ?",
+      "expected": [
+        "operations/permissions.md"
+      ]
+    },
+    {
+      "id": "permissions-en",
+      "language": "en",
+      "query": "How do I troubleshoot access denied on a shared file?",
+      "expected": [
+        "operations/permissions.md"
+      ]
+    },
+    {
+      "id": "scheduler-fr",
+      "language": "fr",
+      "query": "Pourquoi la tâche planifiée ne retrouve-t-elle pas mes identifiants ?",
+      "expected": [
+        "operations/scheduler.md"
+      ]
+    },
+    {
+      "id": "scheduler-en",
+      "language": "en",
+      "query": "Which identity should a scheduled collection task use?",
+      "expected": [
+        "operations/scheduler.md"
+      ]
+    },
+    {
+      "id": "ranking-fr",
+      "language": "fr",
+      "query": "Comment évaluer la pertinence sans compter plusieurs fragments du même document ?",
+      "expected": [
+        "operations/ranking.md"
+      ]
+    },
+    {
+      "id": "ranking-en",
+      "language": "en",
+      "query": "How are lexical and semantic candidates combined before reranking?",
+      "expected": [
+        "operations/ranking.md"
+      ]
+    },
+    {
+      "id": "cancel-fr",
+      "language": "fr",
+      "query": "Comment interrompre une collecte sans tuer un processus dont le PID a été réutilisé ?",
+      "expected": [
+        "operations/cancel.md"
+      ]
+    },
+    {
+      "id": "cancel-en",
+      "language": "en",
+      "query": "How should a cancelled collection be recorded and resumed?",
+      "expected": [
+        "operations/cancel.md"
+      ]
+    }
+  ]
+}

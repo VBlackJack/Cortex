@@ -7,6 +7,25 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+## Unreleased
+
+These additions are present in source and do not identify a new installable
+release.
+
+- Companion offers indexed search with excerpts, filters and explicit source
+  opening through the new `cortex search --json` contract.
+- Published generation and latest observed successful indexing are displayed
+  separately; missing evidence remains unconfirmed.
+- Log failures no longer block workers, and cleanup failure after publication
+  is reported as degraded maintenance.
+- Search rejects lexical candidates absent from Chroma and preserves separate
+  source domains with identical relative paths.
+- A bilingual corpus, isolated benchmarks and recovery tests extend validation.
+  The `release-pair` workflow verifies two explicit commit SHAs.
+
+See [the validation guide](retrieval-validation.md) for commands and limits,
+including the remaining manual Narrator and physical multi-monitor checks.
+
 <!-- release:2026-0904-03 -->
 ## 2026.0904.03 - 2026-09-04
 

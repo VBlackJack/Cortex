@@ -185,3 +185,7 @@ cortex setup --yes --kb-path "D:\Documents\Knowledge"
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).
+
+## Retrieval validation
+
+See [the validation guide](docs/en/retrieval-validation.md) for the desktop JSON search contract, the isolated FR/EN relevance corpus, performance measurements and exact paired-commit checks.

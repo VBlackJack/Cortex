@@ -62,9 +62,32 @@ class Lexical:
         return self.hits
 
 
+def test_vector_evaluation_does_not_touch_lexical_or_reranker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(indexer, "get_collection", Collection)
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("Vector mode must not initialize the lexical branch or reranker")
+
+    monkeypatch.setattr(indexer, "LexicalIndex", forbidden)
+    monkeypatch.setattr(indexer, "rerank_fused_hits", forbidden)
+    assert indexer.search("test", retrieval_mode="vector").mode == "vector-only"
+
+
+def test_hybrid_evaluation_skips_reranker(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(indexer, "get_collection", Collection)
+    monkeypatch.setattr(indexer, "LexicalIndex", Lexical)
+    monkeypatch.setattr(
+        indexer, "rerank_fused_hits", lambda *args: pytest.fail("Unexpected rerank")
+    )
+    assert indexer.search("test", retrieval_mode="hybrid").mode == "hybrid"
+
+
 @pytest.mark.parametrize("unavailable", [False, True])
 def test_search_never_returns_unverified_lexical_content(
-    monkeypatch: pytest.MonkeyPatch, unavailable: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    unavailable: bool,
 ) -> None:
     class AuthoritativeCollection(Collection):
         def get(self, **kwargs: Any) -> dict[str, Any]:
@@ -73,9 +96,15 @@ def test_search_never_returns_unverified_lexical_content(
             return {"ids": [], "metadatas": []}
 
     monkeypatch.setattr(indexer, "get_collection", AuthoritativeCollection)
-    monkeypatch.setattr(indexer, "LexicalIndex", lambda: Lexical(hits=[
-        {"id": "deleted", "text": "obsolete", "metadata": {"path": "deleted.md"}},
-    ]))
+    monkeypatch.setattr(
+        indexer,
+        "LexicalIndex",
+        lambda: Lexical(
+            hits=[
+                {"id": "deleted", "text": "obsolete", "metadata": {"path": "deleted.md"}},
+            ]
+        ),
+    )
     monkeypatch.setattr(indexer, "rerank_fused_hits", lambda query, hits: (hits, None))
     results = indexer.search("obsolete")
     assert results == []
@@ -199,9 +228,7 @@ def test_hybrid_search_exposes_rerank_mode_and_bounds_final_top_k(
 
     observed: list[int] = []
 
-    def rerank(
-        _query: str, hits: list[dict[str, Any]]
-    ) -> tuple[list[dict[str, Any]], None]:
+    def rerank(_query: str, hits: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], None]:
         observed.append(len(hits))
         reranked = [dict(hit, rerank_score=1.0) for hit in reversed(hits[:10])]
         return reranked, None

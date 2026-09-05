@@ -49,6 +49,9 @@ client may still pass requested chunks to its model under its own policy.
 - [Confluence writer](confluence-writer.md): allowlisted REST ingestion,
   interactive PAT storage, conversion, and scheduling.
 
+- [Retrieval validation](retrieval-validation.md): desktop JSON contract, isolated
+  relevance and performance evaluation, exact paired-commit checks.
+
 ## At a glance
 
 | Item | Value |

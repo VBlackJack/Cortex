@@ -188,3 +188,7 @@ cortex setup --yes --kb-path "D:\Documents\Connaissances"
 ## Licence
 
 Apache 2.0. Voir [LICENSE](LICENSE).
+
+## Validation de la recherche
+
+Le contrat `cortex search --json`, le corpus FR/EN, les mesures de performance et la validation des deux SHA sont décrits dans [le guide de validation](docs/fr/validation-recherche.md).

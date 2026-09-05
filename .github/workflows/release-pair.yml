@@ -1,0 +1,79 @@
+# Copyright 2026 Julien Bombled
+# Licensed under the Apache License, Version 2.0.
+name: release-pair
+on:
+  workflow_dispatch:
+    inputs:
+      cortex_sha:
+        description: Full Cortex commit SHA to certify
+        required: true
+        type: string
+      companion_sha:
+        description: Full Companion commit SHA to certify
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: windows-latest
+    steps:
+      - name: Validate immutable inputs
+        shell: pwsh
+        env:
+          CORTEX_SHA: ${{ inputs.cortex_sha }}
+          COMPANION_SHA: ${{ inputs.companion_sha }}
+        run: |
+          if ($env:CORTEX_SHA -cnotmatch '^[0-9a-f]{40}$' -or $env:COMPANION_SHA -cnotmatch '^[0-9a-f]{40}$') { throw 'Full lowercase commit SHAs are required.' }
+      - name: Checkout Cortex
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: VBlackJack/Cortex
+          ref: ${{ inputs.cortex_sha }}
+          path: Cortex
+      - name: Checkout Companion
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: VBlackJack/CortexCompanion
+          ref: ${{ inputs.companion_sha }}
+          path: CortexCompanion
+      - name: Verify checked out identities
+        shell: pwsh
+        env:
+          CORTEX_SHA: ${{ inputs.cortex_sha }}
+          COMPANION_SHA: ${{ inputs.companion_sha }}
+        run: |
+          if ((git -C Cortex rev-parse HEAD) -cne $env:CORTEX_SHA) { throw 'Cortex revision mismatch.' }
+          if ((git -C CortexCompanion rev-parse HEAD) -cne $env:COMPANION_SHA) { throw 'Companion revision mismatch.' }
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          dotnet-version: 10.0.x
+      - name: Install locked Python dependencies
+        run: python -m pip install --require-hashes -r Cortex/requirements.lock
+      - name: Restore locked Companion dependencies
+        run: dotnet restore CortexCompanion/CortexCompanion.sln --locked-mode
+      - name: Build the cross-process probe
+        run: dotnet build CortexCompanion/tests/CortexCompanion.LockProbe/CortexCompanion.LockProbe.csproj --no-restore
+      - name: Verify the shared byte lock
+        working-directory: CortexCompanion
+        run: python tests/interop/lock_interop_proof.py
+      - name: Verify canonical TOML bytes
+        working-directory: CortexCompanion
+        run: python tests/interop/renderer_differential_proof.py
+      - name: Verify the desktop search contract
+        working-directory: CortexCompanion
+        run: python tests/interop/search_contract_proof.py
+      - name: Record the verified pair
+        shell: pwsh
+        env:
+          CORTEX_SHA: ${{ inputs.cortex_sha }}
+          COMPANION_SHA: ${{ inputs.companion_sha }}
+        run: |
+          "Verified Cortex commit: $env:CORTEX_SHA" >> $env:GITHUB_STEP_SUMMARY
+          "Verified Companion commit: $env:COMPANION_SHA" >> $env:GITHUB_STEP_SUMMARY
+          "Checks: shared byte lock, canonical TOML v1/v2/v3 and desktop search JSON. This does not certify installer payload bytes." >> $env:GITHUB_STEP_SUMMARY

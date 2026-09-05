@@ -35,13 +35,13 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import fastembed  # noqa: E402
-from probe_reranker import metric_rank, rss_mb, summarize_ranks  # noqa: E402
 
 from config import (  # noqa: E402
     SEARCH_HYBRID_CANDIDATES,
     SEARCH_RERANK_CANDIDATES,
     SEARCH_RRF_K,
 )
+from eval.probe_reranker import metric_rank, rss_mb, summarize_ranks  # noqa: E402
 from indexer import _vector_search, get_collection, reciprocal_rank_fusion  # noqa: E402
 from lexical_index import LexicalIndex  # noqa: E402
 from reranker import rerank_fused_hits, warmup_reranker  # noqa: E402

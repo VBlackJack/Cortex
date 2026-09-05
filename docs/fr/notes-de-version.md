@@ -7,6 +7,25 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+## Non publié
+
+Ces ajouts sont présents dans les sources et ne désignent pas une nouvelle
+version installable.
+
+- Companion propose un écran de recherche avec extraits, filtres et ouverture
+  explicite de la source, via le nouveau contrat `cortex search --json`.
+- La génération publiée et la dernière indexation réussie observée sont
+  distinguées dans Companion ; une preuve absente reste non confirmée.
+- Les erreurs de journal ne bloquent plus les workers ; un défaut de purge
+  après publication est signalé comme une maintenance dégradée.
+- La recherche écarte les candidats lexicaux supprimés de Chroma et préserve
+  les domaines locaux et collectés ayant des chemins identiques.
+- Un corpus FR/EN, des benchmarks isolés et des tests de reprise complètent
+  les validations. Le workflow `release-pair` vérifie deux SHA explicites.
+
+Voir [le guide de validation](validation-recherche.md) pour les commandes et
+les limites, notamment l'absence de validation manuelle Narrator/multi-écran.
+
 <!-- release:2026-0904-03 -->
 ## 2026.0904.03 - 2026-09-04
 

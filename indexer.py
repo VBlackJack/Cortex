@@ -704,6 +704,7 @@ def search(
     occurred_at_to: str | None = None,
     updated_at_from: str | None = None,
     updated_at_to: str | None = None,
+    retrieval_mode: Literal["vector", "hybrid", "rerank"] = "rerank",
 ) -> SearchResults:
     """Return hybrid results, explicitly degrading to vector-only when needed.
 
@@ -721,6 +722,9 @@ def search(
         updated_at_to=updated_at_to,
     )
     bounded_top_k = max(SEARCH_TOP_K_MIN, min(top_k, SEARCH_TOP_K_MAX))
+    if retrieval_mode == "vector":
+        return SearchResults(_vector_search(collection, query, where, bounded_top_k),
+                             mode="vector-only")
     lexical = LexicalIndex()
     fallback_reason: str | None = None
     lexical_hits: list[dict[str, Any]] = []
@@ -755,6 +759,8 @@ def search(
         SEARCH_HYBRID_CANDIDATES,
     )
     fused = reciprocal_rank_fusion(vector_hits, lexical_hits)
+    if retrieval_mode == "hybrid":
+        return SearchResults(fused[:bounded_top_k], mode="hybrid")
     reranked, rerank_failure = rerank_fused_hits(query, fused)
     if rerank_failure is not None:
         log.warning("search_mode_hybrid reason=%s", rerank_failure)
@@ -965,13 +971,22 @@ def search_main(
         default=_DEFAULT_TOP_K,
         help=f"Number of results (default: {_DEFAULT_TOP_K})",
     )
+    parser.add_argument("--json", action="store_true",
+                        help="Return the desktop search JSON contract")
+    parser.add_argument("--source-kind", choices=sorted(SOURCE_KINDS), help="Restrict source kind")
     args = parser.parse_args(argv)
 
     from cortex_logging import configure_logging
+    from search_command import QUERY_LIMIT, emit_search
 
+    if not args.query.strip() or len(args.query) > QUERY_LIMIT:
+        parser.error(f"query must contain between 1 and {QUERY_LIMIT} characters")
     configure_logging()
+    if args.json:
+        return emit_search(args.query, args.section, args.top_k, args.source_kind)
     warmup_reranker()
-    hits = search(args.query, section=args.section, top_k=args.top_k)
+    hits = search(args.query, section=args.section, top_k=args.top_k,
+                  source_kinds=[args.source_kind] if args.source_kind else None)
     _render_search_hits(hits, _lossless_console(sys.stdout))
     return EXIT_OK
 

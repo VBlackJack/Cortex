@@ -126,6 +126,21 @@ def test_killed_process_preserves_served_generation_and_coherent_health(
     assert health.status is HealthStatus.DEGRADED
     assert health.error_code == ERROR_ATTEMPT_IN_PROGRESS
 
+    # A new process-equivalent engine must recover without serving the abandoned staging tree.
+    recovered_storage = _storage(tmp_path)
+    recovered = GenerationEngine(recovered_storage).run(
+        GenerationAttempt(
+            documents=(_document("document-1", b"recovered\n"),),
+            remote_seen_source_uids=frozenset({"document-1"}),
+            enumeration_complete=True,
+            enumeration_succeeded=True,
+        ),
+        now=_NOW + timedelta(days=1),
+    )
+    assert recovered.published
+    assert recovered_storage.current_generation_id() == recovered.generation_id
+    assert recovered.health.status is HealthStatus.OK
+
 
 def test_existing_failure_is_carried_forward_stale_and_new_failure_is_absent(
     tmp_path: Path,
@@ -358,6 +373,49 @@ def test_health_is_independent_from_immutable_manifest(tmp_path: Path) -> None:
         )
     )
     assert manifest_path.read_bytes() == before
+
+
+def test_disk_full_before_pointer_preserves_previous_then_recovers(tmp_path: Path) -> None:
+    import errno
+
+    storage = _storage(tmp_path)
+    previous = _publish_initial(storage)
+    before = storage.current_pointer_path.read_bytes()
+    attempt = GenerationAttempt(
+        documents=(_document("document-1", b"new\n"),),
+        remote_seen_source_uids=frozenset({"document-1"}),
+        enumeration_complete=True, enumeration_succeeded=True,
+    )
+
+    def full_disk() -> None:
+        raise OSError(errno.ENOSPC, "Injected disk full before pointer publication")
+
+    with pytest.raises(OSError):
+        GenerationEngine(storage).run(attempt, now=_NOW + timedelta(hours=1),
+                                      before_pointer_switch=full_disk)
+    assert storage.current_pointer_path.read_bytes() == before
+    assert storage.current_generation_id() == previous
+    recovered = GenerationEngine(_storage(tmp_path)).run(attempt, now=_NOW + timedelta(hours=2))
+    assert recovered.published
+    assert storage.current_generation_id() == recovered.generation_id
+
+
+def test_network_enumeration_failure_then_retry_does_not_delete_sources(tmp_path: Path) -> None:
+    storage = _storage(tmp_path)
+    previous = _publish_initial(storage)
+    failed = GenerationEngine(storage).run(GenerationAttempt(
+        documents=(), remote_seen_source_uids=frozenset(),
+        enumeration_complete=False, enumeration_succeeded=False,
+    ), now=_NOW + timedelta(hours=1))
+    assert not failed.published
+    assert storage.current_generation_id() == previous
+    recovered = GenerationEngine(_storage(tmp_path)).run(GenerationAttempt(
+        documents=(_document("document-1"), _document("document-2")),
+        remote_seen_source_uids=frozenset({"document-1", "document-2"}),
+        enumeration_complete=True, enumeration_succeeded=True,
+    ), now=_NOW + timedelta(hours=2))
+    assert recovered.published
+    assert recovered.health.counts.tombstones == 0
 
 
 @pytest.mark.parametrize(

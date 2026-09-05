@@ -51,6 +51,9 @@ demandes, selon sa propre politique.
 - [Writer Confluence](writer-confluence.md) : ingestion REST sur liste blanche,
   stockage interactif du PAT, conversion et planification.
 
+- [Validation de la recherche](validation-recherche.md) : contrat JSON, mesures
+  isolées de pertinence et de performance, vérification des deux SHA.
+
 ## En un coup d'oeil
 
 | Element | Valeur |

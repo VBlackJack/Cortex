@@ -7,6 +7,13 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Added
+
+- Desktop JSON search contract with bounded excerpts and constrained source targets.
+- Isolated bilingual relevance and performance benchmarks with optional regression gates.
+- Exact paired-commit interoperability workflow and desktop search contract proof.
+- Recovery tests for disk-full, killed-worker restart and failed enumeration retry.
+
 ### Fixed
 
 - Reject lexical candidates no longer present in Chroma and fall back explicitly
