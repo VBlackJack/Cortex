@@ -26,10 +26,12 @@ from pathlib import Path
 
 from ingestion.constants import (
     ACTION_ATTEMPT_IN_PROGRESS,
+    ACTION_RETRY_RETENTION,
     DOCUMENTS_DIRECTORY_NAME,
     ERROR_ATTEMPT_IN_PROGRESS,
     ERROR_EMPTY_SPACE_SELECTION,
     ERROR_PARTIAL_FAILURE,
+    ERROR_RETENTION_FAILED,
     ERROR_RUN_FAILED,
     ERROR_THRESHOLD_EXCEEDED,
     SCHEMA_VERSION,
@@ -153,7 +155,7 @@ class GenerationEngine:
                 pending=pending,
                 published_at=attempted_at,
             )
-            self.storage.publish_pending_generation(
+            retention_succeeded = self.storage.publish_pending_generation(
                 generation_id,
                 manifest,
                 before_pointer_switch=before_pointer_switch,
@@ -184,7 +186,7 @@ class GenerationEngine:
             if summary.selected_page_count == 0
         )
         partial = counts.failed > 0 or counts.carry_forward > 0
-        degraded = partial or bool(empty_spaces)
+        degraded = partial or bool(empty_spaces) or not retention_succeeded
         health = SourceHealth(
             schema_version=SCHEMA_VERSION,
             source_kind=self.storage.source_kind,
@@ -193,8 +195,10 @@ class GenerationEngine:
             remote_cursor=attempt.remote_cursor,
             auth_expires_at=attempt.auth_expires_at,
             status=HealthStatus.DEGRADED if degraded else HealthStatus.OK,
-            error_code=_degraded_error_code(partial, empty_spaces),
-            action_required=None,
+            error_code=_degraded_error_code(partial, empty_spaces) or (
+                ERROR_RETENTION_FAILED if not retention_succeeded else None
+            ),
+            action_required=ACTION_RETRY_RETENTION if not retention_succeeded else None,
             counts=counts,
             selection_fingerprint=attempt.selection_fingerprint,
             scope_summaries=attempt.scope_summaries,

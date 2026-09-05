@@ -45,6 +45,11 @@ ERROR_LOCKED = "sync_already_running"
 ERROR_EMPTY_SPACE_SELECTION = "space_selection_empty"
 ERROR_PARTIAL_FAILURE = "partial_failure"
 ERROR_RUN_FAILED = "run_failed"
+ERROR_RETENTION_FAILED = "retention_cleanup_failed"
+ACTION_RETRY_RETENTION = (
+    "The new generation is active. Check permissions on old generations; "
+    "cleanup will be retried after the next successful collection."
+)
 ERROR_THRESHOLD_EXCEEDED = "failure_threshold_exceeded"
 
 ACTION_ATTEMPT_IN_PROGRESS = (

@@ -645,20 +645,22 @@ def reciprocal_rank_fusion(
 def _hydrate_lexical_metadata(collection: Any, hits: list[dict[str, Any]]) -> None:
     """Attach authoritative Chroma metadata to lexical-only candidates."""
     get_method = getattr(collection, "get", None)
-    if not hits or not callable(get_method):
+    if not hits:
         return
+    if not callable(get_method):
+        raise CortexSearchError("lexical candidates could not be verified against Chroma")
     try:
         result = get_method(ids=[str(hit["id"]) for hit in hits], include=["metadatas"])
-    except Exception as exc:  # noqa: BLE001 -- search remains available with null reconstruction.
-        log.warning("lexical_metadata_hydration_failed reason=%s", exc)
-        return
-    metadata_by_id = {
-        str(chunk_id): metadata
-        for chunk_id, metadata in zip(
-            result.get("ids") or [], result.get("metadatas") or [], strict=True
-        )
-        if isinstance(metadata, dict)
-    }
+        metadata_by_id = {
+            str(chunk_id): metadata
+            for chunk_id, metadata in zip(
+                result.get("ids") or [], result.get("metadatas") or [], strict=True
+            )
+            if isinstance(metadata, dict)
+        }
+    except Exception as exc:  # noqa: BLE001 -- reject unverifiable lexical candidates.
+        raise CortexSearchError("lexical candidates could not be verified against Chroma") from exc
+    hits[:] = [hit for hit in hits if str(hit["id"]) in metadata_by_id]
     for hit in hits:
         metadata = metadata_by_id.get(str(hit["id"]))
         if metadata is not None:
@@ -735,7 +737,7 @@ def search(
                 limit=SEARCH_HYBRID_CANDIDATES,
             )
             _hydrate_lexical_metadata(collection, lexical_hits)
-        except (OSError, sqlite3.Error) as exc:
+        except (OSError, sqlite3.Error, CortexSearchError) as exc:
             fallback_reason = f"lexical query failed: {exc}"
     if fallback_reason is not None:
         log.warning("search_mode_vector_only reason=%s", fallback_reason)

@@ -7,6 +7,21 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject lexical candidates no longer present in Chroma and fall back explicitly
+  to vector search when their authoritative metadata cannot be read.
+- Scope lexical replacement and deletion to the source kind so local notes and
+  ingested documents with the same relative path can coexist.
+- Preserve a committed generation when retention cleanup fails, reporting degraded
+  maintenance health instead of an uncommitted run failure.
+- Exclude nested checkouts from the source-size gate.
+
+### Changed
+
+- Run cross-repository byte-lock and canonical TOML interoperability checks in CI.
+  The peer defaults to `main`; manual runs can select its revision with `peer_ref`.
+
 ## [2026.0904.03] - 2026-09-04
 
 ### Fixed

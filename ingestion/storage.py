@@ -214,8 +214,8 @@ class IngestionStorage:
         manifest: GenerationManifest,
         *,
         before_pointer_switch: Callable[[], None] | None = None,
-    ) -> None:
-        """Finalize a generation, then atomically switch the served pointer."""
+    ) -> bool:
+        """Commit the generation and return whether post-commit retention succeeded."""
         if manifest.generation_id != generation_id:
             raise IngestionStorageError("manifest generation_id does not match publication")
         pending = self.pending_generation_path(generation_id)
@@ -236,7 +236,15 @@ class IngestionStorage:
                 generation_id=generation_id,
             ),
         )
-        self.purge_old_generations(dry_run=False)
+        retention_succeeded = True
+        try:
+            self.purge_old_generations(dry_run=False)
+        except (OSError, IngestionStorageError):
+            retention_succeeded = False
+            _LOG.exception(
+                "ingestion_retention_failed_after_commit source_kind=%s generation_id=%s",
+                self.source_kind, generation_id,
+            )
         _LOG.info(
             "ingestion_generation_published source_kind=%s generation_id=%s documents=%d "
             "tombstones=%d",
@@ -245,6 +253,7 @@ class IngestionStorage:
             len(manifest.documents),
             len(manifest.tombstones),
         )
+        return retention_succeeded
 
     def purge_old_generations(self, *, dry_run: bool) -> tuple[Path, ...]:
         """Plan or remove generations older than the configured retention."""

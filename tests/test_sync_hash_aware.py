@@ -415,7 +415,7 @@ def test_lexical_failure_is_reported_after_chroma_publish(
         def replace_file(self, _chunks: list[dict[str, Any]]) -> None:
             raise RuntimeError("sqlite failed")
 
-        def delete_path(self, _path: str) -> None:
+        def delete_path(self, _path: str, *, source_kind: str | None = None) -> None:
             return None
 
     monkeypatch.setitem(

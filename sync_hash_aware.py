@@ -680,7 +680,7 @@ def _sync_files_locked(
                 )
                 if lexical_index is not None:
                     try:
-                        lexical_index.delete_path(rel_path)
+                        lexical_index.delete_path(rel_path, source_kind=source_kind)
                     except Exception:  # noqa: BLE001 -- Chroma remains authoritative.
                         stats["errors"] += 1
                         _LOG.exception("lexical_remove_error path=%s", rel_path)
@@ -732,7 +732,7 @@ def _sync_files_locked(
         _LOG.info("file_removed path=%s removed_reason=absent_or_excluded", rel_path)
         if lexical_index is not None:
             try:
-                lexical_index.delete_path(rel_path)
+                lexical_index.delete_path(rel_path, source_kind=source_kind)
             except Exception:  # noqa: BLE001 -- Chroma remains authoritative.
                 stats["errors"] += 1
                 _LOG.exception("lexical_reconcile_remove_error path=%s", rel_path)

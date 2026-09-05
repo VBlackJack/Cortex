@@ -132,3 +132,34 @@ def test_replace_file_rolls_back_on_sqlite_error(
     with pytest.raises(RuntimeError, match="sqlite failed"):
         index.replace_file([_chunk("new", "new text")])
     assert index.ids() == {"old"}
+
+
+@pytest.mark.parametrize("first,second", [("note", "doc"), ("doc", "note")])
+def test_homonymous_source_domains_survive_replace_and_delete(
+    tmp_path: Path, first: str, second: str,
+) -> None:
+    index = LexicalIndex(tmp_path / "lexical.db")
+    index.rebuild(Collection([]))
+    for kind in (first, second):
+        chunk = _chunk(kind, "shared content")
+        chunk["metadata"]["source_kind"] = kind
+        index.replace_file([chunk])
+    assert index.ids() == {"note", "doc"}
+    replacement = _chunk("updated", "replacement")
+    replacement["metadata"]["source_kind"] = first
+    index.replace_file([replacement])
+    assert index.ids() == {"updated", second}
+    index.delete_path("knowledge/note.md", source_kind=first)
+    assert index.ids() == {second}
+
+
+def test_legacy_note_rows_are_replaced_without_removing_documents(tmp_path: Path) -> None:
+    legacy = _chunk("legacy", "old")
+    document = _chunk("document", "doc")
+    document["metadata"]["source_kind"] = "doc"
+    index = LexicalIndex(tmp_path / "lexical.db")
+    index.rebuild(Collection([legacy, document]))
+    note = _chunk("note", "new")
+    note["metadata"]["source_kind"] = "note"
+    index.replace_file([note])
+    assert index.ids() == {"note", "document"}

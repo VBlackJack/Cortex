@@ -28,6 +28,7 @@ from config import (
     CHROMA_PATH,
     COLLECTION_NAME,
     LEXICAL_INDEX_CONTRACT_VERSION,
+    VAULT_SOURCE_KIND,
 )
 
 LEXICAL_SCHEMA_VERSION = "2"
@@ -122,6 +123,12 @@ class LexicalIndex:
         if len(paths) != 1 or not isinstance(next(iter(paths)), str):
             raise ValueError("lexical chunks must describe exactly one path")
         path = next(iter(paths))
+        source_kinds = {
+            chunk["metadata"].get("source_kind") or VAULT_SOURCE_KIND for chunk in chunks
+        }
+        if len(source_kinds) != 1:
+            raise ValueError("lexical chunks must describe exactly one source kind")
+        source_kind = next(iter(source_kinds))
         rows = [
             (
                 chunk["id"],
@@ -136,7 +143,10 @@ class LexicalIndex:
             for chunk in chunks
         ]
         with closing(self._connect_write()) as connection, connection:
-            connection.execute("DELETE FROM chunks WHERE path = ?", (path,))
+            connection.execute(
+                "DELETE FROM chunks WHERE path = ? AND COALESCE(source_kind, ?) = ?",
+                (path, VAULT_SOURCE_KIND, source_kind),
+            )
             connection.executemany(
                 "INSERT INTO chunks("
                 "id, path, section, source_kind, author, occurred_at_epoch_ms, "
@@ -145,9 +155,13 @@ class LexicalIndex:
                 rows,
             )
 
-    def delete_path(self, path: str) -> None:
+    def delete_path(self, path: str, *, source_kind: str | None = None) -> None:
+        """Delete one path only within its source domain; legacy rows belong to notes."""
         with closing(self._connect_write()) as connection, connection:
-            connection.execute("DELETE FROM chunks WHERE path = ?", (path,))
+            connection.execute(
+                "DELETE FROM chunks WHERE path = ? AND COALESCE(source_kind, ?) = ?",
+                (path, VAULT_SOURCE_KIND, source_kind or VAULT_SOURCE_KIND),
+            )
 
     def search(
         self,

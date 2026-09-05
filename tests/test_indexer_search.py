@@ -29,6 +29,9 @@ class Collection:
         self.error = error
         self.n_results: list[int] = []
 
+    def get(self, *, ids: list[str], include: list[str]) -> dict[str, Any]:
+        return {"ids": ids, "metadatas": [{"path": "knowledge/lexical.md"} for _ in ids]}
+
     def query(self, *, n_results: int, **_kwargs: object) -> dict[str, Any]:
         self.n_results.append(n_results)
         if self.error:
@@ -57,6 +60,27 @@ class Lexical:
         if self.error:
             raise self.error
         return self.hits
+
+
+@pytest.mark.parametrize("unavailable", [False, True])
+def test_search_never_returns_unverified_lexical_content(
+    monkeypatch: pytest.MonkeyPatch, unavailable: bool,
+) -> None:
+    class AuthoritativeCollection(Collection):
+        def get(self, **kwargs: Any) -> dict[str, Any]:
+            if unavailable:
+                raise RuntimeError("offline")
+            return {"ids": [], "metadatas": []}
+
+    monkeypatch.setattr(indexer, "get_collection", AuthoritativeCollection)
+    monkeypatch.setattr(indexer, "LexicalIndex", lambda: Lexical(hits=[
+        {"id": "deleted", "text": "obsolete", "metadata": {"path": "deleted.md"}},
+    ]))
+    monkeypatch.setattr(indexer, "rerank_fused_hits", lambda query, hits: (hits, None))
+    results = indexer.search("obsolete")
+    assert results == []
+    assert results.mode == ("vector-only" if unavailable else "hybrid+rerank")
+    assert bool(results.fallback_reason) is unavailable
 
 
 @pytest.mark.parametrize(("requested", "expected"), [(0, 1), (1, 1), (10, 10), (99, 10)])

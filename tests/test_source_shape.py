@@ -23,11 +23,15 @@ remove it from the record.
 from __future__ import annotations
 
 import ast
+import os
+import sys
 from pathlib import Path
+
+import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MAXIMUM_FUNCTION_LINES = 120
-_SKIPPED_DIRECTORIES = frozenset({".git", "__pycache__", "local", "tests", "eval"})
+_SKIPPED_DIRECTORIES = frozenset({".git", ".claude", "__pycache__", "local", "tests", "eval"})
 
 # Accepted at the time the guard was introduced. Never add an entry without a
 # recorded reason; prefer extracting the helper the length is asking for.
@@ -51,11 +55,16 @@ _RECORDED_LONG_FUNCTIONS = frozenset(
 
 
 def _python_sources() -> list[Path]:
-    return [
-        path
-        for path in sorted(_REPO_ROOT.rglob("*.py"))
-        if not _SKIPPED_DIRECTORIES.intersection(path.relative_to(_REPO_ROOT).parts)
-    ]
+    sources: list[Path] = []
+    for directory, children, files in os.walk(_REPO_ROOT):
+        root = Path(directory)
+        # A nested checkout may live anywhere, not only in a tool-owned folder.
+        children[:] = [
+            name for name in children
+            if name not in _SKIPPED_DIRECTORIES and not (root / name / ".git").exists()
+        ]
+        sources.extend(root / name for name in files if name.endswith(".py"))
+    return sorted(sources)
 
 
 def _long_functions() -> set[str]:
@@ -87,3 +96,16 @@ def test_recorded_long_functions_are_still_long() -> None:
         f"These functions now fit the budget: {resolved}. Remove them from "
         "_RECORDED_LONG_FUNCTIONS so the ratchet keeps tightening."
     )
+
+
+def test_source_inventory_excludes_nested_checkouts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "_REPO_ROOT", tmp_path)
+    (tmp_path / "current.py").write_text("pass\n")
+    for name in (".claude/worktrees/other", "vendor/other"):
+        checkout = tmp_path / name
+        checkout.mkdir(parents=True)
+        (checkout / ".git").write_text("gitdir: unused\n")
+        (checkout / "foreign.py").write_text("invalid source bytes")
+    assert _python_sources() == [tmp_path / "current.py"]

@@ -313,6 +313,31 @@ def test_retention_runs_only_after_successful_publication(tmp_path: Path) -> Non
     assert len(retained) == 2
 
 
+def test_retention_failure_preserves_committed_generation_and_reports_maintenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _storage(tmp_path, retention=1)
+    previous = _publish_initial(storage)
+
+    def refuse_cleanup(*args: object, **kwargs: object) -> None:
+        raise PermissionError("retention denied")
+
+    monkeypatch.setattr("ingestion.storage.shutil.rmtree", refuse_cleanup)
+    result = GenerationEngine(storage).run(GenerationAttempt(
+        documents=(_document("document-1", b"new"),),
+        remote_seen_source_uids=frozenset({"document-1"}),
+        enumeration_complete=True, enumeration_succeeded=True,
+    ), now=_NOW + timedelta(hours=1))
+    assert result.published
+    assert result.generation_id != previous
+    assert storage.current_generation_id() == result.generation_id
+    assert result.health.status == HealthStatus.DEGRADED
+    assert result.health.error_code == "retention_cleanup_failed"
+    assert result.health.last_success_at == _NOW + timedelta(hours=1)
+    assert result.health.action_required is not None
+    assert storage.load_health() == result.health
+
+
 def test_health_is_independent_from_immutable_manifest(tmp_path: Path) -> None:
     storage = _storage(tmp_path)
     generation_id = _publish_initial(storage)
