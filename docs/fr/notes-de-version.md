@@ -7,6 +7,7 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:unreleased -->
 ## Non publié
 
 Ces ajouts sont présents dans les sources et ne désignent pas une nouvelle
