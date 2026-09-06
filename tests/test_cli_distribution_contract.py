@@ -93,7 +93,7 @@ def _copy_wheel_project(destination: Path, sources: dict[str, Path]) -> None:
     destination.mkdir()
     for name in (
         "LICENSE",
-        "README.en.md",
+        "README.md",
         "pyproject.toml",
         "requirements.txt",
         "setup.py",

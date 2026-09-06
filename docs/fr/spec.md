@@ -311,5 +311,5 @@ techniques restent dans [architecture.md](architecture.md) ; les reglages
 operationnels restent dans [configuration.md](configuration.md) et le parcours
 utilisateur dans le [guide](user-guide.md).
 
-Cette spec et l'implementation de reference [Cortex](../../README.md) sont
+Cette spec et l'implementation de reference [Cortex](../../README.fr.md) sont
 publiees sous la [licence Apache, version 2.0](../../LICENSE).

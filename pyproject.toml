@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "cortex-local-rag"
 dynamic = ["version", "dependencies"]
 description = "Local multi-client RAG server over the Model Context Protocol"
-readme = { file = "README.en.md", content-type = "text/markdown" }
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
 license = "Apache-2.0"
 license-files = ["LICENSE"]

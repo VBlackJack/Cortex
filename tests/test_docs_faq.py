@@ -103,8 +103,8 @@ def test_faq_is_linked_from_both_indexes_and_readmes() -> None:
     expected_links = {
         ROOT / "docs" / "fr" / "index.md": "[FAQ](faq.md)",
         ROOT / "docs" / "en" / "index.md": "[FAQ](faq.md)",
-        ROOT / "README.md": "[FAQ](docs/fr/faq.md)",
-        ROOT / "README.en.md": "[FAQ](docs/en/faq.md)",
+        ROOT / "README.fr.md": "[FAQ](docs/fr/faq.md)",
+        ROOT / "README.md": "[FAQ](docs/en/faq.md)",
     }
 
     for path, link in expected_links.items():
@@ -131,8 +131,8 @@ def test_spec_is_linked_from_both_indexes_and_readmes() -> None:
     expected_links = {
         ROOT / "docs" / "fr" / "index.md": "[Specification publique](spec.md)",
         ROOT / "docs" / "en" / "index.md": "[Public specification](spec.md)",
-        ROOT / "README.md": "[Specification publique](docs/fr/spec.md)",
-        ROOT / "README.en.md": "[Public specification](docs/en/spec.md)",
+        ROOT / "README.fr.md": "[Specification publique](docs/fr/spec.md)",
+        ROOT / "README.md": "[Public specification](docs/en/spec.md)",
     }
 
     for path, link in expected_links.items():
@@ -162,11 +162,11 @@ def test_release_notes_are_linked_from_both_indexes_and_readmes() -> None:
     expected_links = {
         ROOT / "docs" / "fr" / "index.md": ("[Notes de version](notes-de-version.md)",),
         ROOT / "docs" / "en" / "index.md": ("[Release notes](release-notes.md)",),
-        ROOT / "README.md": (
+        ROOT / "README.fr.md": (
             "[Notes de version](docs/fr/notes-de-version.md)",
             "[Journal technique](CHANGELOG.md)",
         ),
-        ROOT / "README.en.md": (
+        ROOT / "README.md": (
             "[Release notes](docs/en/release-notes.md)",
             "[Technical changelog](CHANGELOG.md)",
         ),
@@ -180,8 +180,8 @@ def test_release_notes_are_linked_from_both_indexes_and_readmes() -> None:
 
 def test_novice_local_sync_docs_use_the_exact_companion_labels() -> None:
     paths = (
+        ROOT / "README.fr.md",
         ROOT / "README.md",
-        ROOT / "README.en.md",
         FR_WINDOWS_INSTALL,
         EN_WINDOWS_INSTALL,
         FR_RELEASE_NOTES,
@@ -199,8 +199,8 @@ def test_novice_local_sync_docs_use_the_exact_companion_labels() -> None:
 
 def test_unsigned_installer_docs_verify_sha256_before_smartscreen_bypass() -> None:
     expectations = {
-        ROOT / "README.md": "`Executer quand meme`",
-        ROOT / "README.en.md": "`Run anyway`",
+        ROOT / "README.fr.md": "`Executer quand meme`",
+        ROOT / "README.md": "`Run anyway`",
         FR_WINDOWS_INSTALL: "`Executer quand meme`",
         EN_WINDOWS_INSTALL: "`Run anyway`",
     }

@@ -300,5 +300,5 @@ setup, and distribution. Internal topology and design rationale remain in
 [configuration.md](configuration.md), and the user journey remains in the
 [guide](user-guide.md).
 
-This spec and the [Cortex](../../README.en.md) reference implementation are
+This spec and the [Cortex](../../README.md) reference implementation are
 released under the [Apache License, Version 2.0](../../LICENSE).
