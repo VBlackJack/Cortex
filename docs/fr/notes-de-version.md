@@ -10,11 +10,12 @@ Cette page resume les changements visibles pour les utilisateurs. Le
 <!-- release:2026-0906-00 -->
 ## 2026.0906.00 - 2026-09-06
 
-Version candidate. La publication et la validation de l’installeur sont suivies
-séparément.
-
 - Companion propose un écran de recherche avec extraits, filtres et ouverture
   explicite de la source, via le nouveau contrat `cortex search --json`.
+- La recherche peut être interrompue avec Échap et écarte les réponses aux critères
+  modifiés. Les sources impossibles à ouvrir présentent une explication.
+- Les saisies non enregistrées des réglages et de la programmation sont conservées
+  au rechargement ; la fraîcheur et les actions de récupération sont accessibles.
 - La génération publiée et la dernière indexation réussie observée sont
   distinguées dans Companion ; une preuve absente reste non confirmée.
 - Les erreurs de journal ne bloquent plus les workers ; un défaut de purge

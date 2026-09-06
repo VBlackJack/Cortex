@@ -10,10 +10,12 @@ This page summarizes user-visible changes. See the
 <!-- release:2026-0906-00 -->
 ## 2026.0906.00 - 2026-09-06
 
-Release candidate. Publication and installer validation are tracked separately.
-
 - Companion offers indexed search with excerpts, filters and explicit source
   opening through the new `cortex search --json` contract.
+- Search supports Escape cancellation and discards responses to edited criteria.
+  Sources that cannot be opened display an explanation.
+- Unsaved settings and scheduling edits survive refresh; freshness and recovery
+  actions are directly accessible.
 - Published generation and latest observed successful indexing are displayed
   separately; missing evidence remains unconfirmed.
 - Log failures no longer block workers, and cleanup failure after publication
