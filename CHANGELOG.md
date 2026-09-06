@@ -5,7 +5,7 @@ available in [French](docs/fr/notes-de-version.md) and
 [English](docs/en/release-notes.md). Cortex versions follow CalVer in the
 `YYYY.MMDD.PATCH` form.
 
-## [Unreleased]
+## [2026.0906.00] - 2026-09-06
 
 ### Added
 

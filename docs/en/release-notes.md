@@ -7,11 +7,10 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
-<!-- release:unreleased -->
-## Unreleased
+<!-- release:2026-0906-00 -->
+## 2026.0906.00 - 2026-09-06
 
-These additions are present in source and do not identify a new installable
-release.
+Release candidate. Publication and installer validation are tracked separately.
 
 - Companion offers indexed search with excerpts, filters and explicit source
   opening through the new `cortex search --json` contract.

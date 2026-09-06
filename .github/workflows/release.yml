@@ -17,6 +17,12 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      companion_ref:
+        description: Companion commit SHA or ref for a candidate build
+        required: true
+        default: main
+        type: string
 
 permissions:
   contents: read
@@ -148,7 +154,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
         with:
           repository: VBlackJack/CortexCompanion
-          ref: ${{ github.ref_type == 'tag' && github.ref_name || 'main' }}
+          ref: ${{ github.ref_type == 'tag' && github.ref_name || inputs.companion_ref || 'main' }}
           path: companion-source
 
       - name: Set up Python
@@ -678,6 +684,17 @@ jobs:
           Write-Output $searchText
           if ($searchText -notmatch "offline-installer-smoke") {
             throw "Installed Cortex search did not return the offline smoke document."
+          }
+          [string]$jsonSearchText = (& $installed search "offline installer smoke" --json) -join "`n"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed JSON search failed with exit code $LASTEXITCODE."
+          }
+          $jsonSearch = $jsonSearchText | ConvertFrom-Json
+          if ($jsonSearch.contract_version -ne 1 -or $jsonSearch.status -cne "succeeded") {
+            throw "Installed JSON search returned an incompatible contract."
+          }
+          if (-not ($jsonSearch.results | Where-Object { $_.path -match "offline-installer-smoke" })) {
+            throw "Installed JSON search did not return the offline smoke document."
           }
           Write-Output "Offline installer embedding and reranker smoke passed."
 

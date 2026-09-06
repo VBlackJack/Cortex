@@ -7,11 +7,11 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
-<!-- release:unreleased -->
-## Non publié
+<!-- release:2026-0906-00 -->
+## 2026.0906.00 - 2026-09-06
 
-Ces ajouts sont présents dans les sources et ne désignent pas une nouvelle
-version installable.
+Version candidate. La publication et la validation de l’installeur sont suivies
+séparément.
 
 - Companion propose un écran de recherche avec extraits, filtres et ouverture
   explicite de la source, via le nouveau contrat `cortex search --json`.
