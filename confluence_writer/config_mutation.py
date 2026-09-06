@@ -87,6 +87,12 @@ def render_confluence_settings(settings: ConfluenceSettings) -> bytes:
             f"failure_threshold = {settings.failure_threshold!r}",
         )
     )
+    if (
+        not settings.spaces
+        and settings.schema_version >= 2
+        and "spaces" in settings.model_fields_set
+    ):
+        lines.append("spaces = []")
     for mapping in settings.spaces:
         lines.extend(
             (

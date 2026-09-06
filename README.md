@@ -15,6 +15,27 @@ locaux.
 
 Depuis 2026.0906.01, Companion propose un accueil guide, un historique et l'ajout Confluence par un seul lien de page ou d'espace. La connexion et le choix du nombre de pages restent dans le parcours ; la collecte reussie est suivie de l'indexation. Utiliser l'installeur combine pour garder Cortex et Companion compatibles.
 
+## Gestion des sources dans Companion (2026.0906.02)
+
+Ce parcours inclut recherche, arborescence distante, apercu des changements,
+etats verifies, enregistrement avec mise a jour, annulation du dernier retrait
+et actions de recuperation. Voir [les contrats](docs/fr/writer-confluence.md).
+
+
+La version appariee 2026.0906.02 propose **Mes sources**, un editeur pre-rempli,
+le retrait confirme de pages ou d'espaces et l'ouverture des originaux dans
+Confluence. Les retraits modifient uniquement le suivi Cortex et prennent effet
+dans la recherche apres une collecte et une indexation reussies.
+
+Le retrait de la derniere source ecrit explicitement `spaces = []` dans une
+configuration schema v2 ou v3. Cette liste volontairement vide autorise une
+publication vide avec les tombstones des anciens documents. Une cle `spaces`
+absente reste une configuration incomplete et la collecte est refusee.
+Les validations de connexion, de credentials et les protections de publication
+restent applicables. Cette capacite requiert Cortex et Companion 2026.0906.02 ou ulterieurs ;
+elle n'est pas disponible dans la release installee 2026.0906.01.
+
+
 ## Installation
 
 ### Windows, sans Python (recommande)

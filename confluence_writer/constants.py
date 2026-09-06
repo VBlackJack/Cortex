@@ -27,6 +27,7 @@ DEFAULT_CREDENTIAL_TARGET = "cortex-spike"
 DEFAULT_ATTACHMENT_SIZE_MB = 50
 DEFAULT_FAILURE_THRESHOLD = 0.10
 PAGE_LIMIT = 250
+CATALOG_PAGE_LIMIT = 10000
 
 # Bounded HTTP transport contract. The redirect limit exists so an authenticated
 # request can be replayed a few times without ever becoming an open follow loop.

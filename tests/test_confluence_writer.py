@@ -426,8 +426,7 @@ def test_empty_page_selection_degrades_health_and_names_the_space(
     assert result.health.error_code == "space_selection_empty"  # type: ignore[attr-defined]
     assert result.health.scope_summaries[0].selected_page_count == 0  # type: ignore[attr-defined]
     assert any(
-        "space_selection_empty space_key=DOC" in record.getMessage()
-        for record in caplog.records
+        "space_selection_empty space_key=DOC" in record.getMessage() for record in caplog.records
     )
 
 
@@ -1062,3 +1061,43 @@ def test_base_url_refuses_cleartext_remote_origins(base_url: str) -> None:
     """The PAT is a bearer header on every request; a cleartext origin leaks it."""
     with pytest.raises(ValueError, match="must use https"):
         ConfluenceSettings(base_url=base_url)
+
+
+def test_explicit_removal_of_all_sources_publishes_tombstones(tmp_path: Path) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=3)
+    console = FakeConsole()
+    initial = _page_settings(tmp_path, ("1001",))
+    assert _run(storage, initial, FakeRestClient([_page("1001", _NOW)]), console, _NOW).published
+    empty = initial.model_copy(update={"spaces": ()})
+    client = FakeRestClient([])
+    result = _run(storage, empty, client, console, _NOW + timedelta(hours=1))
+    assert result.published
+    manifest = storage.load_current_manifest()
+    assert manifest is not None
+    assert not manifest.documents
+    assert {item.source_uid for item in manifest.tombstones} == {"1001", "zone:DOC"}
+    assert not client.enumeration_calls
+    assert not client.page_calls
+
+
+def test_missing_allowlist_remains_invalid_and_explicit_empty_survives_render(
+    tmp_path: Path,
+) -> None:
+    from confluence_writer.config import (
+        ConfluenceConfigError,
+        parse_confluence_settings_bytes,
+        require_sync_settings,
+    )
+    from confluence_writer.config_mutation import render_confluence_settings
+
+    empty = _page_settings(tmp_path, ()).model_copy(update={"spaces": ()})
+    rendered = render_confluence_settings(empty)
+    assert b"spaces = []" in rendered
+    require_sync_settings(
+        parse_confluence_settings_bytes(rendered, source=tmp_path / "empty.toml")
+    )
+    missing = parse_confluence_settings_bytes(
+        rendered.replace(b"spaces = []\n", b""), source=tmp_path / "missing.toml"
+    )
+    with pytest.raises(ConfluenceConfigError, match="spaces allowlist"):
+        require_sync_settings(missing)

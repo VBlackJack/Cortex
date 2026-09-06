@@ -7,6 +7,16 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0906-02 -->
+## 2026.0906.02 - 2026-09-06
+
+- Manage followed sources directly from My sources, with search and a page tree.
+- Review affected pages and subpages before saving; update search immediately or save for later.
+- Undo the last removal during the session if configuration is unchanged. Remote originals are never deleted.
+- See explicit readiness and recover with retry or Confluence reconnection.
+
+Upgrade Cortex and Companion together with the combined installer. User acceptance and native accessibility checks remain manual.
+
 <!-- release:2026-0906-01 -->
 ## 2026.0906.01 - 2026-09-06
 

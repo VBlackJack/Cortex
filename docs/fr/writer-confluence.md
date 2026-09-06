@@ -33,6 +33,22 @@ schema gele. L'infrastructure commune gere le verrou, les reprises, les
 generations atomiques, le carry-forward, les tombstones, la retention et l'etat
 de sante.
 
+## Gestion des sources dans Companion (2026.0906.02)
+
+La version appariee 2026.0906.02 propose **Mes sources**, un editeur pre-rempli,
+le retrait confirme de pages ou d'espaces et l'ouverture des originaux dans
+Confluence. Les retraits modifient uniquement le suivi Cortex et prennent effet
+dans la recherche apres une collecte et une indexation reussies.
+
+Le retrait de la derniere source ecrit explicitement `spaces = []` dans une
+configuration schema v2 ou v3. Cette liste volontairement vide autorise une
+publication vide avec les tombstones des anciens documents. Une cle `spaces`
+absente reste une configuration incomplete et la collecte est refusee.
+Les validations de connexion, de credentials et les protections de publication
+restent applicables. Cette capacite requiert Cortex et Companion 2026.0906.02 ou ulterieurs ;
+elle n'est pas disponible dans la release installee 2026.0906.01.
+
+
 ## Configuration
 
 Le fichier writer optionnel est `%APPDATA%\Cortex\confluence.toml`. Les
@@ -447,3 +463,16 @@ jamais dans une generation publiee.
 La resolution et la previsualisation acceptent `/spaces/KEY`, `/spaces/KEY/overview`, `/spaces/KEY/pages` et `/display/KEY/`, avec le chemin de contexte configure. Elles resolvent la page d'accueil via REST v1, verifient l'espace et l'identifiant numerique retournes, puis mesurent les perimetres page, arborescence et espace entier. L'espace entier peut inclure des pages hors de l'arborescence d'accueil. Les origines etrangeres et espaces hors liste autorisee sont refuses avant tout acces reseau. Ce support exige Cortex et Companion 2026.0906.01 ou ulterieur.
 
 Reference REST : [API espaces Atlassian](https://developer.atlassian.com/server/confluence/rest/v9210/api-group-space/).
+
+## Contrats de gestion des sources (non publies)
+
+`cortex confluence --config <fichier> catalog <CLE_ESPACE> --json` lit les titres
+et les ancetres des pages d'un espace deja autorise. Le contrat version 1 contient
+`space_key` et `pages` (`page_id`, `title`, `ancestor_ids`). La lecture suit les
+pages REST avec controle d'origine, limite de 10 000 pages et refus des donnees
+incompletes ; aucun contenu de page ou piece jointe n'est telecharge.
+
+`cortex confluence --config <fichier> source-status --json` reste local, sans PAT
+ni reseau. Le contrat version 1 expose `selection_current`, `generation_id` et
+`status`. Companion compare aussi la generation indexee observee avant d'afficher
+Disponible. Les contrats existants pages/resolve/preview restent inchanges.

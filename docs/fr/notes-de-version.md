@@ -7,6 +7,16 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0906-02 -->
+## 2026.0906.02 - 2026-09-06
+
+- Retrouvez et modifiez vos sources depuis Mes sources, avec recherche et arborescence.
+- Verifiez les pages et sous-pages concernees avant d'enregistrer ; mettez la recherche a jour maintenant ou plus tard.
+- Annulez le dernier retrait pendant la session si la configuration est inchangee. Aucun original Confluence n'est supprime.
+- Suivez la disponibilite et reprenez une erreur avec Reessayer ou Reconnecter Confluence.
+
+Mettez Cortex et Companion a jour ensemble avec l'installeur combine. La recette utilisateur et les controles d'accessibilite natifs restent manuels.
+
 <!-- release:2026-0906-01 -->
 ## 2026.0906.01 - 2026-09-06
 

@@ -104,9 +104,7 @@ def test_frozen_install_defaults_to_the_embedded_console(
 
     settings = load_confluence_settings(path=tmp_path / "absent.toml", environ={})
 
-    assert settings.console_path == (
-        tmp_path / "Converters" / "ConfluenceRAGBuilder.Console.exe"
-    )
+    assert settings.console_path == (tmp_path / "Converters" / "ConfluenceRAGBuilder.Console.exe")
 
 
 def test_v1_config_loads_as_whole_space_without_rewriting(tmp_path: Path) -> None:
@@ -374,3 +372,53 @@ def test_root_cli_routes_confluence_arguments(monkeypatch: pytest.MonkeyPatch) -
 
     assert cli.main(["confluence", "store-credential"]) == 7
     assert received == ["store-credential"]
+
+
+def test_catalog_refuses_unconfigured_space_before_credentials(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from confluence_writer.config import ConfluenceSettings
+
+    monkeypatch.setattr(
+        confluence_cli, "load_confluence_settings", lambda **_kwargs: ConfluenceSettings()
+    )
+
+    def unexpected() -> None:
+        raise AssertionError("Credentials must not be read outside the allowlist")
+
+    monkeypatch.setattr(confluence_cli, "WindowsCredentialReader", unexpected)
+    assert confluence_cli.main(["catalog", "FOREIGN", "--json"]) == 8
+
+
+def test_source_status_uses_local_publication_evidence_without_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import json
+    from types import SimpleNamespace
+
+    from confluence_writer.config import ConfluenceSettings
+
+    settings = ConfluenceSettings()
+    health = SimpleNamespace(
+        selection_fingerprint=settings.selection_fingerprint(), status=SimpleNamespace(value="ok")
+    )
+    storage = SimpleNamespace(
+        load_health=lambda: health, current_generation_id=lambda: "generation"
+    )
+    monkeypatch.setattr(confluence_cli, "load_confluence_settings", lambda **_kwargs: settings)
+    monkeypatch.setattr(confluence_cli, "load_ingestion_settings", lambda **_kwargs: None)
+    monkeypatch.setattr(confluence_cli, "_storage", lambda _: storage)
+
+    def unexpected() -> None:
+        raise AssertionError("Status must not read credentials")
+
+    monkeypatch.setattr(confluence_cli, "WindowsCredentialReader", unexpected)
+    assert confluence_cli.main(["source-status", "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["selection_current"] is True
+    assert result["generation_id"] == "generation"
+    health.selection_fingerprint = "different"
+    assert confluence_cli.main(["source-status", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["selection_current"] is False

@@ -5,6 +5,18 @@ available in [French](docs/fr/notes-de-version.md) and
 [English](docs/en/release-notes.md). Cortex versions follow CalVer in the
 `YYYY.MMDD.PATCH` form.
 
+## [Unreleased]
+
+## [2026.0906.02] - 2026-09-06
+
+- Add bounded allowlisted `catalog --json` page ancestry for Companion tree editing
+  and effective impact review, plus local-only `source-status --json` evidence.
+
+- Support Companion's confirmed removal of the last Confluence source: explicit
+  `spaces = []` in schema v2/v3 can publish an empty generation with tombstones.
+  A missing allowlist remains invalid, and rendering preserves that distinction.
+- Document the paired My sources editor, removal and collection/indexing flow.
+
 ## [2026.0906.01] - 2026-09-06
 
 - Resolve Confluence space links through their verified homepage for Companion's

@@ -145,3 +145,28 @@ class PagesContract(CliContractModel):
     contract_version: Literal[2]
     spaces: tuple[ConfiguredSpaceContract, ...]
     last_sync: LastSyncContract
+
+
+class CatalogPageContract(CliContractModel):
+    """A remotely observed page and its complete ancestor chain."""
+
+    page_id: str
+    title: str
+    ancestor_ids: tuple[str, ...]
+
+
+class SourceCatalogContract(CliContractModel):
+    """Complete bounded space catalogue for tree selection and impact review."""
+
+    contract_version: Literal[1] = 1
+    space_key: str
+    pages: tuple[CatalogPageContract, ...]
+
+
+class SourceStatusContract(CliContractModel):
+    """Local evidence; collection readiness does not imply indexing readiness."""
+
+    contract_version: Literal[1] = 1
+    selection_current: bool
+    generation_id: str | None
+    status: Literal["ok", "degraded", "error"] | None

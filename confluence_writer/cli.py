@@ -43,6 +43,7 @@ from confluence_writer.constants import (
     SOURCE_KIND,
 )
 from confluence_writer.converter import ConverterContractError
+from confluence_writer.models import SourceCatalogContract, SourceStatusContract
 from confluence_writer.progress import emit_progress
 from confluence_writer.resolver import (
     InvalidPageReferenceError,
@@ -78,10 +79,7 @@ from user_config import CortexConfigError
 _LOG = logging.getLogger("cortex.confluence_writer.cli")
 # The machine commands have no human rendering, so the mandatory flag says so
 # instead of leaving argparse's bare 'required' error as the only hint.
-_JSON_HELP = (
-    "Required: emit the machine-readable JSON contract; this command has no "
-    "human output."
-)
+_JSON_HELP = "Required: emit the machine-readable JSON contract; this command has no human output."
 _CREDENTIAL_ERROR_CODES = {
     ERROR_AUTH_EXPIRED,
     "credential_unavailable",
@@ -193,6 +191,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     preview_parser.add_argument("reference", help="Page URL, or numeric page ID")
     preview_parser.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
+    catalog_parser = subparsers.add_parser(
+        "catalog", help="Read the complete allowlisted page tree"
+    )
+    catalog_parser.add_argument("space_key")
+    catalog_parser.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
+    status_parser = subparsers.add_parser(
+        "source-status", help="Read local selection publication evidence"
+    )
+    status_parser.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
     namespace = parser.parse_args(argv)
 
     try:
@@ -202,6 +209,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         settings = load_confluence_settings(path=namespace.config)
         if namespace.command == "store-credential":
             return _store_credential(settings.credential_target)
+        if namespace.command == "catalog":
+            mapping = next(
+                (item for item in settings.spaces if item.space_key == namespace.space_key), None
+            )
+            if mapping is None:
+                raise OutsideAllowlistError("Space is not allowlisted.")
+            if settings.base_url is None or settings.auth_expires_at is None:
+                raise ConfluenceConfigError("Catalogue requires base_url and auth_expires_at.")
+            if settings.auth_expires_at <= datetime.now(timezone.utc):
+                return EXIT_AUTH
+            secret = WindowsCredentialReader().read(settings.credential_target)
+            client = ConfluenceRestClient(settings.base_url, secret)
+            _write_json(
+                SourceCatalogContract(
+                    space_key=mapping.space_key, pages=client.page_catalog(mapping.space_key)
+                )
+            )
+            return EXIT_OK
         if namespace.command in {"resolve", "preview"}:
             if settings.base_url is None or settings.auth_expires_at is None:
                 raise ConfluenceConfigError(
@@ -229,6 +254,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         ingestion_settings = load_ingestion_settings(path=namespace.ingestion_config)
         storage = _storage(ingestion_settings)
+        if namespace.command == "source-status":
+            health = storage.load_health()
+            generation_id = storage.current_generation_id()
+            _write_json(
+                SourceStatusContract(
+                    selection_current=health is not None
+                    and generation_id is not None
+                    and health.selection_fingerprint == settings.selection_fingerprint(),
+                    generation_id=generation_id,
+                    status=None if health is None else health.status.value,
+                )
+            )
+            return EXIT_OK
         if namespace.command == "pages":
             _write_json(build_pages_contract(settings, storage))
             return EXIT_OK

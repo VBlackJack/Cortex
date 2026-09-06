@@ -389,3 +389,48 @@ def test_redirect_loop_is_bounded(confluence_origin_port: int) -> None:
             f"http://127.0.0.1:{confluence_origin_port}/loop",
             {"Authorization": f"Bearer {_FAKE_SECRET}"},
         )
+
+
+def test_catalog_paginates_titles_and_ancestor_chains() -> None:
+    first = _page("1", "2026-08-01T10:00:00Z") | {"ancestors": []}
+    child = _page("2", "2026-08-01T10:00:00Z") | {"ancestors": [{"id": "1"}]}
+    transport = QueueTransport(
+        [
+            {"results": [first], "_links": {"next": "/rest/api/content?start=250"}},
+            {"results": [child], "_links": {}},
+        ]
+    )
+    client = ConfluenceRestClient(
+        "https://confluence.example.test", SecretValue(_FAKE_SECRET), transport=transport
+    )
+    pages = client.page_catalog("DOC")
+    assert [page.page_id for page in pages] == ["1", "2"]
+    assert pages[1].ancestor_ids == ("1",)
+    assert "expand=space,ancestors" in transport.json_calls[0]
+
+
+@pytest.mark.parametrize(
+    "ancestors", [None, [{"id": "1"}], [{"id": "2"}, {"id": "2"}], [{"id": "bad"}]]
+)
+def test_catalog_refuses_missing_or_invalid_ancestry(ancestors: object) -> None:
+    page = _page("1", "2026-08-01T10:00:00Z")
+    if ancestors is not None:
+        page["ancestors"] = ancestors
+    transport = QueueTransport([{"results": [page], "_links": {}}])
+    client = ConfluenceRestClient(
+        "https://confluence.example.test", SecretValue(_FAKE_SECRET), transport=transport
+    )
+    with pytest.raises(ConfluenceRestError):
+        client.page_catalog("DOC")
+
+
+def test_catalog_refuses_foreign_pagination_before_following_it() -> None:
+    transport = QueueTransport(
+        [{"results": [], "_links": {"next": "https://foreign.test/rest/api/content"}}]
+    )
+    client = ConfluenceRestClient(
+        "https://confluence.example.test", SecretValue(_FAKE_SECRET), transport=transport
+    )
+    with pytest.raises(ConfluenceRestError, match="origin"):
+        client.page_catalog("DOC")
+    assert len(transport.json_calls) == 1

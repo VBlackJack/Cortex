@@ -30,7 +30,12 @@ from confluence_writer.constants import (
     MAX_REDIRECTS,
     PAGE_LIMIT,
 )
-from confluence_writer.models import RemoteAttachment, RemotePage, RemotePageContent
+from confluence_writer.models import (
+    CatalogPageContract,
+    RemoteAttachment,
+    RemotePage,
+    RemotePageContent,
+)
 from ingestion.credentials import SecretValue
 from ingestion.scheduling import TransientIngestionError
 
@@ -280,6 +285,48 @@ class ConfluenceRestClient:
 
     def _api_uri(self, relative: str) -> str:
         return self._base_url + "/" + relative.lstrip("/")
+
+    def page_catalog(self, space_key: str) -> tuple[CatalogPageContract, ...]:
+        """Read a bounded complete tree, rejecting cycles and incomplete ancestor data."""
+        from confluence_writer.constants import CATALOG_PAGE_LIMIT
+
+        uri: str | None = self._api_uri(
+            "rest/api/content"
+            f"?spaceKey={quote(space_key, safe='')}"
+            "&type=page&status=current&expand=space,ancestors"
+            f"&limit={PAGE_LIMIT}"
+        )
+        visited: set[str] = set()
+        pages: dict[str, CatalogPageContract] = {}
+        while uri is not None:
+            if uri in visited:
+                raise ConfluenceRestError("Confluence catalogue pagination returned a cycle.")
+            visited.add(uri)
+            payload = self._transport.get_json(uri, self._headers)
+            for raw in _list(payload.get("results"), "results"):
+                value = _object(raw, "results[]")
+                page = self._parse_page(value, space_key)
+                ancestors = tuple(
+                    _string(_object(item, "ancestor").get("id"), "ancestor.id")
+                    for item in _list(value.get("ancestors"), "ancestors")
+                )
+                if (
+                    not page.page_id.isascii()
+                    or not page.page_id.isdigit()
+                    or page.page_id in pages
+                    or page.page_id in ancestors
+                    or len(set(ancestors)) != len(ancestors)
+                    or any(not item.isascii() or not item.isdigit() for item in ancestors)
+                ):
+                    raise ConfluenceRestError("Confluence catalogue has invalid page identities.")
+                pages[page.page_id] = CatalogPageContract(
+                    page_id=page.page_id, title=page.title, ancestor_ids=ancestors
+                )
+                if len(pages) > CATALOG_PAGE_LIMIT:
+                    raise ConfluenceRestError("Confluence catalogue exceeds the supported size.")
+            next_link = _optional_string(_object(payload.get("_links", {}), "_links").get("next"))
+            uri = None if next_link is None else self._resolve(next_link, current=uri)
+        return tuple(pages.values())
 
     def enumerate_pages(self, space_key: str) -> tuple[RemotePage, ...]:
         """Follow every `_links.next` page at the fixed measured cadence."""

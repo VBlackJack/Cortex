@@ -15,6 +15,26 @@ the generated Markdown, vector index, and lexical index remain local.
 
 Starting with 2026.0906.01, Companion offers a guided home screen, operation history and Confluence setup from one page or space link. Connection and measured scope confirmation stay in the flow; successful collection is followed by indexing. Use the combined installer to keep Cortex and Companion compatible.
 
+## Source management in Companion (2026.0906.02)
+
+The workflow includes search, remote page trees, impact review, evidence-based
+readiness, save-and-update, last-removal undo and recovery actions. See
+[the contracts](docs/en/confluence-writer.md).
+
+
+Paired version 2026.0906.02 provides visible **Mes sources** cards, a prefilled
+selection editor, confirmed page/space removal and browser links to originals.
+Removal only changes Cortex tracking; search reflects it after successful
+collection and indexing.
+
+Removing the final source explicitly writes `spaces = []` in a schema v2 or v3
+configuration. This intentional empty allowlist permits an empty publication
+with tombstones for prior documents. An absent `spaces` key remains incomplete
+configuration and collection is refused. Connection and credential validation
+and publication safeguards still apply. Both updated components are required;
+this capability is absent from the installed 2026.0906.01 release.
+
+
 ## Installation
 
 ### Windows, no Python (recommended)

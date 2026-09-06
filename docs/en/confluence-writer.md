@@ -32,6 +32,21 @@ page-count and serialized-byte limits read from the frozen schema. The common
 ingestion engine owns locking, retry, atomic generations, carry-forward,
 tombstones, retention, and health state.
 
+## Source management in Companion (2026.0906.02)
+
+Paired version 2026.0906.02 provides visible **Mes sources** cards, a prefilled
+selection editor, confirmed page/space removal and browser links to originals.
+Removal only changes Cortex tracking; search reflects it after successful
+collection and indexing.
+
+Removing the final source explicitly writes `spaces = []` in a schema v2 or v3
+configuration. This intentional empty allowlist permits an empty publication
+with tombstones for prior documents. An absent `spaces` key remains incomplete
+configuration and collection is refused. Connection and credential validation
+and publication safeguards still apply. Both updated components are required;
+this capability is absent from the installed 2026.0906.01 release.
+
+
 ## Configuration
 
 The optional writer file is `%APPDATA%\Cortex\confluence.toml`. Environment
@@ -434,3 +449,16 @@ generation.
 The resolver and scope preview accept `/spaces/KEY`, `/spaces/KEY/overview`, `/spaces/KEY/pages` and `/display/KEY/`, including the configured context path. They resolve the space homepage through REST v1, validate the returned space and numeric page identifier, then use the existing measured page/subtree/whole-space preview. Whole-space scope can include pages outside the homepage tree. Foreign origins and spaces outside the candidate allowlist are rejected before network access. This support requires Cortex and Companion 2026.0906.01 or newer.
 
 REST reference: [Atlassian space API](https://developer.atlassian.com/server/confluence/rest/v9210/api-group-space/).
+
+## Source management contracts (2026.0906.02)
+
+`cortex confluence --config <file> catalog <SPACE_KEY> --json` reads titles and
+ancestor chains within an already allowlisted space. Contract version 1 contains
+`space_key` and `pages` (`page_id`, `title`, `ancestor_ids`). REST pagination stays
+on origin, is bounded to 10,000 pages, and rejects incomplete data. Page bodies
+and attachments are not downloaded.
+
+`cortex confluence --config <file> source-status --json` is local, without PAT or
+network access. Contract version 1 exposes `selection_current`, `generation_id`
+and `status`. Companion additionally compares observed indexed generation identity
+before displaying availability. Existing pages/resolve/preview contracts are unchanged.

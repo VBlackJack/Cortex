@@ -401,7 +401,11 @@ def require_sync_settings(settings: ConfluenceSettings) -> None:
         missing.append("auth_expires_at")
     if settings.console_path is None:
         missing.append("console_path")
-    if not settings.spaces:
+    # An explicit empty v2+ allowlist is a confirmed removal of all sources.
+    # A missing allowlist remains an incomplete configuration, never a purge.
+    if not settings.spaces and (
+        settings.schema_version < 2 or "spaces" not in settings.model_fields_set
+    ):
         missing.append("spaces allowlist")
     if missing:
         raise ConfluenceConfigError("Confluence sync requires: " + ", ".join(missing))
