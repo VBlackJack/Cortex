@@ -7,6 +7,17 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0906-01 -->
+## 2026.0906.01 - 2026-09-06
+
+- Companion propose un accueil guide et un historique des operations.
+- Ajouter du contenu Confluence en collant un lien de page ou d'espace ; la connexion se fait dans le meme ecran si necessaire.
+- Verifier le nombre de pages avant de confirmer le perimetre. Une annulation ou une erreur d'authentification preserve les sources configurees.
+- La collecte guidee lance l'indexation seulement apres une collecte reussie ; une fraicheur inconnue reste explicite.
+- Les apercus de recherche permettent de copier les extraits et references ; la verification des mises a jour est disponible a la demande.
+
+Mettre Cortex et Companion a jour ensemble avec l'installeur combine. Les essais avec compte Confluence reel, Narrator et DPI physique restent manuels.
+
 <!-- release:2026-0906-00 -->
 ## 2026.0906.00 - 2026-09-06
 

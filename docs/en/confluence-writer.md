@@ -427,3 +427,10 @@ limit are handled before the console starts.
 Only `markdown_paths` belonging to `converted` pages are consumed. Attachments
 left in the console work directory for a `failed` page never enter a published
 generation.
+
+
+## Companion source links (2026.0906.01)
+
+The resolver and scope preview accept `/spaces/KEY`, `/spaces/KEY/overview`, `/spaces/KEY/pages` and `/display/KEY/`, including the configured context path. They resolve the space homepage through REST v1, validate the returned space and numeric page identifier, then use the existing measured page/subtree/whole-space preview. Whole-space scope can include pages outside the homepage tree. Foreign origins and spaces outside the candidate allowlist are rejected before network access. This support requires Cortex and Companion 2026.0906.01 or newer.
+
+REST reference: [Atlassian space API](https://developer.atlassian.com/server/confluence/rest/v9210/api-group-space/).

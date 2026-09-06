@@ -13,6 +13,8 @@ client may still pass requested chunks to its model under its own policy.
 The optional Confluence writer only downloads explicitly allowlisted spaces;
 the generated Markdown, vector index, and lexical index remain local.
 
+Starting with 2026.0906.01, Companion offers a guided home screen, operation history and Confluence setup from one page or space link. Connection and measured scope confirmation stay in the flow; successful collection is followed by indexing. Use the combined installer to keep Cortex and Companion compatible.
+
 ## Installation
 
 ### Windows, no Python (recommended)

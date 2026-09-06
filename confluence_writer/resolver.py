@@ -94,6 +94,8 @@ def _parse_reference(
         raw_space, separator, raw_title = remainder.partition("/")
         space_key = unquote(raw_space)
         title = unquote(raw_title).replace("+", " ")
+        if space_key and not title:
+            return _ParsedReference(kind="space", space_key=space_key)
         if not separator or not space_key or not title:
             raise InvalidPageReferenceError("display URL must contain a space and title.")
         return _ParsedReference(kind="display", space_key=space_key, title=title)
@@ -102,6 +104,8 @@ def _parse_reference(
     if spaces_marker in parsed.path:
         remainder = parsed.path.split(spaces_marker, 1)[1]
         segments = [segment for segment in remainder.split("/") if segment]
+        if len(segments) == 1 or (len(segments) == 2 and segments[1] in {"overview", "pages"}):
+            return _ParsedReference(kind="space", space_key=unquote(segments[0]))
         if len(segments) >= 3 and segments[1] == "pages" and _PAGE_ID.fullmatch(segments[2]):
             return _ParsedReference(kind="id", page_id=segments[2])
         raise InvalidPageReferenceError("spaces URL must point at /pages/<numeric id>.")
@@ -133,7 +137,14 @@ def resolve_page(
         parsed = _parse_reference(redirected, base_url=settings.base_url, allow_tiny=False)
 
     page: RemotePage
-    if parsed.kind == "id":
+    if parsed.kind == "space":
+        if not parsed.space_key or not any(
+            mapping.space_key.casefold() == parsed.space_key.casefold()
+            for mapping in settings.spaces
+        ):
+            raise OutsideAllowlistError("Space belongs outside the allowlist.")
+        page = client.get_space_homepage(parsed.space_key)
+    elif parsed.kind == "id":
         if parsed.page_id is None:
             raise InvalidPageReferenceError("Page id reference carries no page id.")
         page = client.get_page_by_id(parsed.page_id)

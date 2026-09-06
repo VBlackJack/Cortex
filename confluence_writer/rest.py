@@ -357,11 +357,21 @@ class ConfluenceRestClient:
             raise ConfluenceRestError("Confluence returned a different page ID.")
         return page
 
+    def get_space_homepage(self, space_key: str) -> RemotePage:
+        """Resolve an allowlisted space through its declared homepage."""
+        uri = self._api_uri(f"rest/api/space/{quote(space_key, safe='')}?expand=homepage")
+        payload = self._transport.get_json(uri, self._headers)
+        if _string(payload.get("key"), "space.key") != space_key:
+            raise ConfluenceRestError("Confluence returned another space.")
+        homepage = _object(payload.get("homepage"), "homepage")
+        page_id = _string(homepage.get("id"), "homepage.id")
+        if not page_id.isascii() or not page_id.isdigit():
+            raise ConfluenceRestError("Confluence homepage ID must be numeric.")
+        return self.get_page(page_id, space_key)
+
     def ancestor_ids(self, page_id: str) -> tuple[str, ...]:
         """Return the ancestor page IDs of one page, closest root first."""
-        uri = self._api_uri(
-            f"rest/api/content/{quote(page_id, safe='')}?expand=ancestors"
-        )
+        uri = self._api_uri(f"rest/api/content/{quote(page_id, safe='')}?expand=ancestors")
         payload = self._transport.get_json(uri, self._headers)
         return tuple(
             _string(_object(raw, "ancestors[]").get("id"), "ancestors[].id")

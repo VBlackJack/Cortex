@@ -63,6 +63,66 @@ _FAKE_SECRET = "fixture-only-fake-secret-confluence-surface-19a2"
 _NOW = datetime(2026, 8, 5, 10, 0, tzinfo=timezone.utc)
 
 
+@pytest.mark.parametrize(
+    "path", ["/spaces/DOC", "/spaces/DOC/overview", "/spaces/DOC/pages", "/display/DOC/"]
+)
+def test_space_link_resolves_homepage(
+    path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    transport = QueueTransport([{"key": "DOC", "homepage": {"id": "1001"}}, _page()])
+    _prepare_cli(monkeypatch, tmp_path, _settings(), transport)
+    assert (
+        confluence_cli.main(["resolve", "https://kazan.example.test" + path, "--json"]) == EXIT_OK
+    )
+    assert json.loads(capsys.readouterr().out)["page_id"] == "1001"
+    assert transport.json_calls[0].endswith("/rest/api/space/DOC?expand=homepage")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"key": "OTHER", "homepage": {"id": "1001"}},
+        {"key": "DOC"},
+        {"key": "DOC", "homepage": {"id": "../escape"}},
+    ],
+)
+def test_space_homepage_rejects_invalid_response(
+    payload: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    transport = QueueTransport([payload])
+    _prepare_cli(monkeypatch, tmp_path, _settings(), transport)
+    assert (
+        confluence_cli.main(["resolve", "https://kazan.example.test/spaces/DOC", "--json"])
+        == EXIT_REMOTE
+    )
+    assert capsys.readouterr().out == ""
+    assert len(transport.json_calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("reference", "code"),
+    [
+        ("https://kazan.example.test/spaces/OTHER", EXIT_OUTSIDE_ALLOWLIST),
+        ("https://foreign.example.test/spaces/DOC", EXIT_INVALID_INPUT),
+    ],
+)
+def test_space_link_rejects_untrusted_scope_before_network(
+    reference: str,
+    code: int,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    transport = QueueTransport([])
+    _prepare_cli(monkeypatch, tmp_path, _settings(), transport)
+    assert confluence_cli.main(["resolve", reference, "--json"]) == code
+    assert capsys.readouterr().out == ""
+    assert transport.json_calls == []
+
+
 class QueueTransport:
     """Mock transport with explicit JSON and Location queues."""
 
@@ -331,10 +391,10 @@ def test_resolve_reports_a_subtree_root_as_configured_without_asking_for_ancesto
         ),
         pytest.param("not-a-page", [], EXIT_INVALID_INPUT, id="invalid-input"),
         pytest.param(
-            "https://kazan.example.test/spaces/DOC/overview",
+            "https://kazan.example.test/spaces/DOC/settings",
             [],
             EXIT_INVALID_INPUT,
-            id="spaces-overview-is-not-a-page",
+            id="space-settings-is-not-content",
         ),
         pytest.param(
             "https://kazan.example.test/spaces/DOC/pages/not-numeric",

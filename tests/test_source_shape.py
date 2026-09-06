@@ -31,7 +31,9 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MAXIMUM_FUNCTION_LINES = 120
-_SKIPPED_DIRECTORIES = frozenset({".git", ".claude", "__pycache__", "local", "tests", "eval"})
+_SKIPPED_DIRECTORIES = frozenset(
+    {".git", ".claude", "__pycache__", "local", "tests", "eval", "build", "dist"}
+)
 
 # Accepted at the time the guard was introduced. Never add an entry without a
 # recorded reason; prefer extracting the helper the length is asking for.
@@ -60,7 +62,8 @@ def _python_sources() -> list[Path]:
         root = Path(directory)
         # A nested checkout may live anywhere, not only in a tool-owned folder.
         children[:] = [
-            name for name in children
+            name
+            for name in children
             if name not in _SKIPPED_DIRECTORIES and not (root / name / ".git").exists()
         ]
         sources.extend(root / name for name in files if name.endswith(".py"))
@@ -99,7 +102,8 @@ def test_recorded_long_functions_are_still_long() -> None:
 
 
 def test_source_inventory_excludes_nested_checkouts(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(sys.modules[__name__], "_REPO_ROOT", tmp_path)
     (tmp_path / "current.py").write_text("pass\n")

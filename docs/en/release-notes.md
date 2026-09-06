@@ -7,6 +7,17 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0906-01 -->
+## 2026.0906.01 - 2026-09-06
+
+- Companion starts with a guided overview and retained operation history.
+- Add Confluence content by pasting one page or space link; connect in the same screen when needed.
+- Review measured page counts before confirming the collection scope. Cancelling or authentication failure preserves configured sources.
+- Guided collection starts indexing only after a successful collection; unknown freshness stays explicit.
+- Search previews support copying excerpts and references; update checks are available on demand.
+
+Upgrade both Cortex and Companion together using the combined installer. Live Confluence account, Narrator and physical DPI checks remain manual.
+
 <!-- release:2026-0906-00 -->
 ## 2026.0906.00 - 2026-09-06
 

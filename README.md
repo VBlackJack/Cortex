@@ -13,6 +13,8 @@ Le writer Confluence optionnel ne telecharge que les espaces explicitement
 autorises ; le Markdown genere, l'index vectoriel et l'index lexical restent
 locaux.
 
+Depuis 2026.0906.01, Companion propose un accueil guide, un historique et l'ajout Confluence par un seul lien de page ou d'espace. La connexion et le choix du nombre de pages restent dans le parcours ; la collecte reussie est suivie de l'indexation. Utiliser l'installeur combine pour garder Cortex et Companion compatibles.
+
 ## Installation
 
 ### Windows, sans Python (recommande)

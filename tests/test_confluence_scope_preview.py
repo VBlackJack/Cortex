@@ -18,6 +18,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from confluence_writer.config import ConfluenceSettings, SpaceMapping
 from confluence_writer.models import RemotePage
 from confluence_writer.resolver import preview_scope
@@ -49,6 +51,10 @@ class PreviewClient:
         assert page_id == "100"
         return self.root
 
+    def get_space_homepage(self, space_key: str) -> RemotePage:
+        assert space_key == "DOC"
+        return self.root
+
     def enumerate_subtree(self, root_id: str, space_key: str) -> tuple[RemotePage, ...]:
         assert (root_id, space_key) == ("100", "DOC")
         return self.descendants
@@ -58,7 +64,16 @@ class PreviewClient:
         return self.space
 
 
-def test_preview_measures_all_choices_and_recommends_subtree() -> None:
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "100",
+        "https://wiki.example.test/spaces/DOC",
+        "https://wiki.example.test/spaces/DOC/overview",
+        "https://wiki.example.test/display/DOC",
+    ],
+)
+def test_preview_measures_all_choices_and_recommends_subtree(reference: str) -> None:
     settings = ConfluenceSettings(
         schema_version=3,
         base_url="https://wiki.example.test",
@@ -74,7 +89,7 @@ def test_preview_measures_all_choices_and_recommends_subtree() -> None:
     )
 
     preview = preview_scope(
-        "100",
+        reference,
         settings=settings,
         client=PreviewClient(),  # type: ignore[arg-type]
         storage_root=str(Path("C:/state")),

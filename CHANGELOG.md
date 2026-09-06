@@ -5,6 +5,12 @@ available in [French](docs/fr/notes-de-version.md) and
 [English](docs/en/release-notes.md). Cortex versions follow CalVer in the
 `YYYY.MMDD.PATCH` form.
 
+## [2026.0906.01] - 2026-09-06
+
+- Resolve Confluence space links through their verified homepage for Companion's
+  measured scope preview. Validate the origin and allowlisted space before network
+  access, and reject malformed or mismatched homepage responses.
+
 ## [2026.0906.00] - 2026-09-06
 
 ### Added

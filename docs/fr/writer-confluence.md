@@ -440,3 +440,10 @@ avant le lancement de la console.
 Seuls les `markdown_paths` des pages `converted` sont consommes. Les pieces
 jointes laissees dans le repertoire de travail par une page `failed` n'entrent
 jamais dans une generation publiee.
+
+
+## Liens de source Companion (2026.0906.01)
+
+La resolution et la previsualisation acceptent `/spaces/KEY`, `/spaces/KEY/overview`, `/spaces/KEY/pages` et `/display/KEY/`, avec le chemin de contexte configure. Elles resolvent la page d'accueil via REST v1, verifient l'espace et l'identifiant numerique retournes, puis mesurent les perimetres page, arborescence et espace entier. L'espace entier peut inclure des pages hors de l'arborescence d'accueil. Les origines etrangeres et espaces hors liste autorisee sont refuses avant tout acces reseau. Ce support exige Cortex et Companion 2026.0906.01 ou ulterieur.
+
+Reference REST : [API espaces Atlassian](https://developer.atlassian.com/server/confluence/rest/v9210/api-group-space/).
