@@ -15,6 +15,25 @@ locaux.
 
 Depuis 2026.0906.01, Companion propose un accueil guide, un historique et l'ajout Confluence par un seul lien de page ou d'espace. La connexion et le choix du nombre de pages restent dans le parcours ; la collecte reussie est suivie de l'indexation. Utiliser l'installeur combine pour garder Cortex et Companion compatibles.
 
+## Perimetre mesure sans enumerer l'espace (2026.0907.00)
+
+L'ajout d'une source Confluence mesure les perimetres page, sous-arbre et espace
+entier avec un comptage indexe chacun, au lieu de parcourir l'espace page par
+page. Sur un espace de 5916 pages, cette mesure prenait 3 min 19 s, au-dela du
+delai de tout appelant graphique, et Companion n'affichait rien du tout. Elle
+repond desormais en une seconde environ, a contrat inchange.
+
+Deux nombres de l'espace entier varient de un : la page resolue n'est plus
+ajoutee au total de l'espace, et un espace sans page visible affiche zero au lieu
+de un. Un deploiement dont la recherche ne renvoie pas de total ne peut pas
+mesurer un perimetre et le signale comme un echec permanent, non comme un echec
+a reessayer. Voir [les contrats](docs/fr/writer-confluence.md).
+
+Le Companion apparie 2026.0907.00 retablit le contraste de la fenetre de
+perimetre, dont les options s'affichaient dans la couleur de texte du systeme, et
+cesse de presenter un delai depasse comme une panne de connexion ou de conseiller
+une augmentation qui revient en arriere sans le dire.
+
 ## Gestion des sources dans Companion (2026.0906.02)
 
 Ce parcours inclut recherche, arborescence distante, apercu des changements,

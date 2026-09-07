@@ -7,6 +7,16 @@
 Cette page resume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le detail complet.
 
+<!-- release:2026-0907-00 -->
+## 2026.0907.00 - 2026-09-07
+
+- L'ajout d'une source Confluence repond en une seconde environ, quelle que soit la taille de l'espace. La mesure du perimetre ne parcourt plus l'espace page par page, ce qui prenait plus de trois minutes sur un grand espace et n'affichait rien du tout dans Companion.
+- La fenetre de perimetre est de nouveau lisible. Ses trois options s'affichaient dans la couleur de texte du systeme sur le fond sombre.
+- Un delai depasse le dit desormais. Le chargement d'une arborescence n'accuse plus la connexion reseau, et le conseil nomme le delai maximal reellement selectionnable au lieu de suggerer une augmentation qui revient en arriere sans le dire.
+- Les comptages de pages d'un espace entier peuvent varier de un. La page collee n'est plus comptee deux fois, et un espace ou aucune page n'est visible affiche zero au lieu de un.
+
+Mettez Cortex et Companion a jour ensemble avec l'installeur combine. Un deploiement Confluence dont la recherche ne renvoie pas de total ne peut pas mesurer un perimetre, et le dit maintenant au lieu de reessayer.
+
 <!-- release:2026-0906-02 -->
 ## 2026.0906.02 - 2026-09-06
 

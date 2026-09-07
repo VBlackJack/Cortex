@@ -15,6 +15,24 @@ the generated Markdown, vector index, and lexical index remain local.
 
 Starting with 2026.0906.01, Companion offers a guided home screen, operation history and Confluence setup from one page or space link. Connection and measured scope confirmation stay in the flow; successful collection is followed by indexing. Use the combined installer to keep Cortex and Companion compatible.
 
+## Measured scope without enumerating the space (2026.0907.00)
+
+Adding a Confluence source measures its page, subtree and whole-space scopes
+with one indexed count each instead of reading the space page by page. On a
+5916-page space that measurement took 3 min 19 s, past the timeout of every
+graphical caller, so Companion showed nothing at all. It now answers in about a
+second, and the emitted contract is unchanged.
+
+Two whole-space numbers shift by one as a result: the resolved page is no longer
+folded into the space total, and a space with no visible page reports zero rather
+than one. A deployment whose search endpoint returns no total cannot measure a
+scope and reports that as a permanent failure instead of a retryable one. See
+[the contracts](docs/en/confluence-writer.md).
+
+Paired Companion 2026.0907.00 restores the contrast of the scope window, whose
+options were drawn in the system text colour, and stops reporting a timeout as a
+connection failure or advising a delay increase that silently reverts.
+
 ## Source management in Companion (2026.0906.02)
 
 The workflow includes search, remote page trees, impact review, evidence-based

@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0907.00] - 2026-09-07
+
 ### Fixed
 
 - Measure the `preview` subtree and whole-space scopes with one indexed count each

@@ -7,6 +7,16 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+<!-- release:2026-0907-00 -->
+## 2026.0907.00 - 2026-09-07
+
+- Adding a Confluence source answers in about a second, whatever the size of the space. Measuring the scope no longer reads the space page by page, which took more than three minutes on a large one and left Companion showing nothing at all.
+- The scope window is readable again. Its three options were drawn in the system text colour over the dark background.
+- A timeout now says that it is a timeout. Loading a page tree no longer blames the network connection, and the advice names the highest delay you can actually select instead of suggesting an increase that silently reverts.
+- Whole-space page counts can shift by one. The page you paste is no longer counted twice, and a space where you can see no page now reads zero instead of one.
+
+Upgrade Cortex and Companion together with the combined installer. A Confluence deployment whose search does not answer with a total cannot measure a scope, and now says so instead of retrying.
+
 <!-- release:2026-0906-02 -->
 ## 2026.0906.02 - 2026-09-06
 
