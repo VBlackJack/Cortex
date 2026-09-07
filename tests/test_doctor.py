@@ -649,14 +649,17 @@ def test_real_server_handshake_is_read_only_and_self_terminating(tmp_path: Path)
     environ["HOME"] = str(tmp_path / "home")
     before = _snapshot(tmp_path)
 
+    # The ceiling is the one the product uses. A tighter one measured start-up
+    # speed by accident: the child needs three to four seconds idle, and failed
+    # the old ten-second limit whenever the machine was also building.
     check = doctor._default_handshake_probe(
         sys.executable,
         root / "server.py",
         environ,
-        timeout=10,
+        timeout=doctor.DEFAULT_HANDSHAKE_TIMEOUT_SECONDS,
     )
 
-    assert check.status == "OK"
+    assert check.status == "OK", check
     assert check.details["diagnostic_lifespan"] is True
     assert _snapshot(tmp_path) == before
 

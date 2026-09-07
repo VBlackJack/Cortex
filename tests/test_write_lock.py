@@ -118,17 +118,30 @@ def test_respawn_simulation(tmp_path: Path) -> None:
     write. B must fail closed, never touch the DB."""
     db_path = tmp_path / "chroma_db"
     lock_path = tmp_path / "write.lock"
+    ready_file = tmp_path / "a.acquired"
+    release_file = tmp_path / "a.may_release"
 
+    # The same two-way handshake as above: a fixed sleep assumed A had acquired
+    # the lock within half a second, which a loaded machine does not honour,
+    # and B then won the lock instead of being refused.
     proc_a = subprocess.Popen(
-        [sys.executable, str(WORKER), str(db_path), "A", "5", "2.0", "0"],
-        env={**__import__("os").environ, "CORTEX_WRITE_LOCK_PATH": str(lock_path),
-             "CORTEX_WRITE_LOCK_TIMEOUT_SECONDS": "1"},
+        [sys.executable, str(WORKER), str(db_path), "A", "5", "0", "0"],
+        env={**os.environ, "CORTEX_WRITE_LOCK_PATH": str(lock_path),
+             "CORTEX_WRITE_LOCK_TIMEOUT_SECONDS": "1",
+             "CORTEX_TEST_READY_FILE": str(ready_file),
+             "CORTEX_TEST_RELEASE_FILE": str(release_file)},
         stdout=subprocess.PIPE, text=True,
     )
-    time.sleep(0.5)  # A is confirmed mid-write (holding the lock, sleeping) by now
+    deadline = time.perf_counter() + 25
+    while not ready_file.exists() and time.perf_counter() < deadline:
+        if proc_a.poll() is not None:
+            break
+        time.sleep(0.05)
+    assert ready_file.exists(), "writer A never acquired the lock"
 
     result_b = _run_worker(db_path, lock_path, "B", 5, 0, timeout_seconds=1)
-    out_a, _ = proc_a.communicate(timeout=15)
+    release_file.write_text("go", encoding="utf-8")
+    out_a, _ = proc_a.communicate(timeout=30)
 
     assert out_a.strip().splitlines()[-1].startswith("OK")
     assert result_b.stdout.strip().splitlines()[-1].startswith("LOCKED")
