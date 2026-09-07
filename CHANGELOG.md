@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0907.03] - 2026-09-07
+
 ### Added
 - Expose the command lines a desktop client builds to the parsers that run them, without
   running anything. `cli_surface.parse_invocation` parses a complete `cortex` line with the

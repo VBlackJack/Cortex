@@ -10,6 +10,14 @@ This page summarizes user-visible changes. See the
 Interface controls are named as the current version shows them, including in entries
 about earlier versions, so a control quoted here can be found on screen today.
 
+<!-- release:2026-0907-03 -->
+## 2026.0907.03 - 2026-09-07
+
+- Nothing changes on screen. This version carries the checks that keep Cortex and Companion in step: every command line Companion sends to Cortex is now verified against Cortex itself before a release, so a renamed command fails the build instead of the desktop.
+- Two tests that depended on how busy the machine was no longer do.
+
+Upgrade Cortex and Companion together with the combined installer.
+
 <!-- release:2026-0907-02 -->
 ## 2026.0907.02 - 2026-09-07
 

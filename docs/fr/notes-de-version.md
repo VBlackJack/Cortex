@@ -11,6 +11,14 @@ Les commandes de l'interface sont nommées comme la version actuelle les affiche
 compris dans les entrées des versions antérieures, afin qu'une commande citée ici se
 retrouve à l'écran aujourd'hui.
 
+<!-- release:2026-0907-03 -->
+## 2026.0907.03 - 2026-09-07
+
+- Rien ne change à l'écran. Cette version porte les contrôles qui gardent Cortex et Companion en phase : chaque ligne de commande que Companion envoie à Cortex est désormais vérifiée contre Cortex lui-même avant une release, si bien qu'une commande renommée fait échouer la construction plutôt que le bureau.
+- Deux tests qui dépendaient de la charge de la machine n'en dépendent plus.
+
+Mettez Cortex et Companion à jour ensemble avec l'installeur combiné.
+
 <!-- release:2026-0907-02 -->
 ## 2026.0907.02 - 2026-09-07
 
