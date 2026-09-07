@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Protocol, cast, final
@@ -25,6 +26,7 @@ from urllib.parse import quote, urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from confluence_writer.constants import (
+    COUNT_PAGE_LIMIT,
     HTTP_TIMEOUT_SECONDS,
     MAX_JSON_RESPONSE_BYTES,
     MAX_REDIRECTS,
@@ -41,6 +43,11 @@ from ingestion.scheduling import TransientIngestionError
 
 _LOG = logging.getLogger("cortex.confluence_writer.rest")
 _TRANSIENT_HTTP_STATUS = {408, 425, 429, 500, 502, 503, 504}
+# URL encoding is not CQL escaping. A count query interpolates a space key and a
+# page id into the query language itself, so both are matched against the shapes
+# the configuration already guarantees before they are placed there.
+_CQL_SPACE_KEY = re.compile(r"^[A-Za-z0-9._-]+$")
+_CQL_PAGE_ID = re.compile(r"^[0-9]+$")
 _REDIRECT_HTTP_STATUS = range(300, 400)
 
 
@@ -54,6 +61,14 @@ class ConfluenceAuthError(ConfluenceRestError):
 
 class ConfluenceNotFoundError(ConfluenceRestError):
     """Raised when Confluence cannot find a requested page."""
+
+
+class ConfluenceCapabilityError(ConfluenceRestError):
+    """Raised when the deployment cannot answer a query this client depends on.
+
+    This is permanent for a given server, so it must not be reported through the
+    retryable remote path: a caller that retries it will fail identically forever.
+    """
 
 
 class HttpTransport(Protocol):
@@ -326,7 +341,83 @@ class ConfluenceRestClient:
                     raise ConfluenceRestError("Confluence catalogue exceeds the supported size.")
             next_link = _optional_string(_object(payload.get("_links", {}), "_links").get("next"))
             uri = None if next_link is None else self._resolve(next_link, current=uri)
+        _LOG.info(
+            "confluence_catalog_enumerated space_key=%s pages=%d requests=%d",
+            space_key,
+            len(pages),
+            len(visited),
+        )
         return tuple(pages.values())
+
+    @staticmethod
+    def _cql_space_key(space_key: str) -> str:
+        """Return one space key safe to place inside a CQL string literal."""
+        if not _CQL_SPACE_KEY.fullmatch(space_key):
+            raise ConfluenceRestError("Confluence space key is not safe inside a CQL query.")
+        return space_key
+
+    @staticmethod
+    def _cql_page_id(page_id: str) -> str:
+        """Return one page id safe to place inside a CQL clause."""
+        if not _CQL_PAGE_ID.fullmatch(page_id):
+            raise ConfluenceRestError("Confluence page id is not safe inside a CQL query.")
+        return page_id
+
+    def _count(self, cql: str, *, subject: str) -> int:
+        """Read one indexed total without paging through the matching content.
+
+        The query carries no `status` clause: the measured deployment answers one with
+        HTTP 400, because CQL exposes no such field. Whether CQL therefore counts the
+        same set as the `status=current` listing is an assumption, not a measurement.
+        It held for one 41-page space, where a count and a full enumeration agreed.
+        """
+        uri = self._api_uri(
+            f"rest/api/content/search?cql={quote(cql, safe='')}&limit={COUNT_PAGE_LIMIT}"
+        )
+        payload = self._transport.get_json(uri, self._headers)
+        total = payload.get("totalSize")
+        if isinstance(total, bool) or not isinstance(total, int) or total < 0:
+            raise ConfluenceCapabilityError(
+                f"Confluence returned no usable total for {subject}. This deployment does "
+                "not answer the indexed scope count, so the scope cannot be measured."
+            )
+        return total
+
+    def count_pages(self, space_key: str) -> int:
+        """Count the current pages of one space with a single request.
+
+        The scope preview needs the number and never the pages themselves. Paging
+        the whole space to reach it cost minutes on a large space, which is why the
+        preview could not return inside a caller's timeout.
+        """
+        count = self._count(
+            f'space="{self._cql_space_key(space_key)}" and type=page',
+            subject=f"space {space_key}",
+        )
+        _LOG.info("confluence_space_counted space_key=%s pages=%d", space_key, count)
+        return count
+
+    def count_subtree(self, root_id: str, expected_space: str) -> int:
+        """Count the current descendant pages of one root with a single request.
+
+        A count cannot inspect a page, so the cross-space check that reading every
+        descendant performs is unavailable here. The space clause narrows the query
+        instead, which silently excludes a foreign descendant rather than refusing it:
+        the preview can therefore measure a subtree that the sync path, which keeps
+        the enumeration and its refusal, will later decline to collect.
+        """
+        cql = (
+            f"ancestor={self._cql_page_id(root_id)} and type=page "
+            f'and space="{self._cql_space_key(expected_space)}"'
+        )
+        count = self._count(cql, subject=f"the subtree of page {root_id}")
+        _LOG.info(
+            "confluence_subtree_counted root_id=%s space_key=%s pages=%d",
+            root_id,
+            expected_space,
+            count,
+        )
+        return count
 
     def enumerate_pages(self, space_key: str) -> tuple[RemotePage, ...]:
         """Follow every `_links.next` page at the fixed measured cadence."""

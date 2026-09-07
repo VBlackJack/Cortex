@@ -344,6 +344,30 @@ Le contrat `preview` v1 fournit `page_only`, `subtree` et `whole_space`, chacun
 avec `page_count` et `estimated_bytes`, ainsi que `recommended_selection`,
 `storage_root` et `retention_generations`.
 
+Les valeurs `subtree` et `whole_space` sont des comptages lus dans l'index de
+recherche Confluence, une requete chacun. Enumerer un grand espace pour obtenir
+ces deux entiers prenait plusieurs minutes et depassait le delai de tout appelant
+graphique. Trois consequences en decoulent.
+
+- Les comptages viennent de l'index et sont filtres par les permissions, alors
+  que `sync` et `catalog` lisent la liste de contenus. Les deux peuvent diverger
+  apres un import massif, pendant une reindexation, ou quand l'appelant ne voit
+  pas toutes les pages : `last_sync.scope_summaries[].available_page_count` peut
+  donc ne pas correspondre a un preview pris juste avant.
+- `whole_space` n'ajoute plus la racine resolue. Une racine qui n'est pas une
+  page courante de l'espace n'est plus comptee deux fois, et un espace sans page
+  visible mesure desormais zero au lieu de un. `page_only` et `subtree` comptent
+  toujours la racine elle-meme.
+- Le comptage du sous-arbre restreint sa requete a l'espace resolu : un
+  descendant que le serveur rattache a un autre espace est donc exclu en
+  silence, la ou l'enumeration effectuee par `sync` refuse le sous-arbre entier.
+  Un preview peut ainsi mesurer un perimetre qu'une collecte ulterieure refuse.
+
+Un deploiement dont le point d'entree de recherche ne renvoie pas `totalSize` ne
+peut pas repondre a un preview. La commande sort en `1` avec un message nommant
+la requete, plutot que de retomber sur l'enumeration qu'elle existe pour eviter ;
+le code `5` reste reserve aux echecs qu'une nouvelle tentative peut lever.
+
 Lister les espaces configures, les pages explicitement selectionnees, les
 titres connus localement et l'etat global du sync sans reseau ni credential :
 

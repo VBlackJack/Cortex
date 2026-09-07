@@ -28,6 +28,9 @@ DEFAULT_ATTACHMENT_SIZE_MB = 50
 DEFAULT_FAILURE_THRESHOLD = 0.10
 PAGE_LIMIT = 250
 CATALOG_PAGE_LIMIT = 10000
+# A scope count reads one total from the search response, so it never needs a
+# second result and must never page.
+COUNT_PAGE_LIMIT = 1
 
 # Bounded HTTP transport contract. The redirect limit exists so an authenticated
 # request can be replayed a few times without ever becoming an open follow loop.
@@ -41,6 +44,7 @@ MAX_REDIRECTS = 5
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 CLI_CONTRACT_VERSION = 1
 PAGES_CONTRACT_VERSION = 2
+PREVIEW_CONTRACT_VERSION = 1
 
 # Stable process exit contract. Existing values 0, 1, and 3 retain their
 # historical meanings; the unused values distinguish machine-actionable cases.

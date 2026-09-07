@@ -42,7 +42,8 @@ from confluence_writer.constants import (
     SOURCE_KIND,
 )
 from confluence_writer.frontmatter import render_document
-from confluence_writer.models import RemotePage
+from confluence_writer.models import ConfiguredPageContract, RemotePage
+from confluence_writer.resolver import build_pages_contract
 from confluence_writer.rest import ConfluenceRestClient
 from ingestion.config import IngestionSettings
 from ingestion.credentials import CredentialReadError, SecretValue
@@ -324,6 +325,47 @@ def test_resolve_accepts_all_kazan_forms_as_clean_versioned_json(
         assert transport.redirect_calls == [reference]
 
 
+def test_preview_measures_every_scope_as_one_clean_versioned_document(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Pin the whole preview document, and the request count it costs to produce."""
+    transport = QueueTransport(
+        [
+            _page(),
+            {"results": [], "totalSize": 1},
+            {"results": [], "totalSize": 3},
+        ]
+    )
+    _prepare_cli(monkeypatch, tmp_path, _settings(), transport)
+
+    exit_code = confluence_cli.main(["preview", "1001", "--json"])
+    captured = capsys.readouterr()
+
+    assert exit_code == EXIT_OK
+    assert json.loads(captured.out) == {
+        "contract_version": 1,
+        "page_id": "1001",
+        "title": "Run Book",
+        "space_key": "DOC",
+        "recommended_selection": "subtree",
+        "page_only": {"page_count": 1, "estimated_bytes": 393216},
+        "subtree": {"page_count": 2, "estimated_bytes": 786432},
+        "whole_space": {"page_count": 3, "estimated_bytes": 1179648},
+        "storage_root": str((tmp_path / "ingestion").resolve()),
+        "retention_generations": 2,
+    }
+    assert captured.err == ""
+    # One resolve and two indexed counts. The document above is unchanged from the
+    # enumerating implementation, which is what lets this ship without a paired
+    # Companion release; only the cost of producing it changed. The counts must
+    # stay counts, so the request shape is pinned here too.
+    assert len(transport.json_calls) == 3
+    # Pinned by suffix rather than containment: "limit=1" also matches "limit=100".
+    assert all(call.endswith("&limit=1") for call in transport.json_calls[1:])
+
+
 @pytest.mark.parametrize(
     ("configured_pages", "expected"),
     [
@@ -538,6 +580,37 @@ def _prepare_local_pages_cli(
     monkeypatch.setattr(confluence_cli, "WindowsCredentialReader", forbidden_boundary)
     monkeypatch.setattr(confluence_cli, "ConfluenceRestClient", forbidden_boundary)
     monkeypatch.setattr("cortex_logging.configure_logging", lambda: None)
+
+
+def test_pages_reads_only_the_documents_a_selection_actually_names(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Titles are read back for explicitly selected pages only, so a generation of
+    thousands must not be parsed to answer for none of them."""
+    ingestion_settings = _ingestion_settings(tmp_path / "ingestion")
+    storage = IngestionStorage(ingestion_settings.data_root, SOURCE_KIND, 2)
+    _publish_known_page(storage)
+    requested: list[str] = []
+    published = storage.document_path
+
+    def spy(generation_id: str, relative_path: str) -> Path:
+        requested.append(relative_path)
+        return published(generation_id, relative_path)
+
+    monkeypatch.setattr(storage, "document_path", spy)
+
+    unselected = build_pages_contract(_settings(pages=("1001",)), storage)
+
+    assert requested == []
+    assert unselected.spaces[0].pages == (ConfiguredPageContract(page_id="1001", title=None),)
+
+    selected = build_pages_contract(_settings(pages=("2001",)), storage)
+
+    assert requested == ["run/known.md"]
+    assert selected.spaces[0].pages == (
+        ConfiguredPageContract(page_id="2001", title="Known title"),
+    )
 
 
 def test_pages_json_golden_mixed_config_uses_only_local_manifest_and_health(

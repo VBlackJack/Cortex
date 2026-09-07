@@ -42,10 +42,12 @@ def _page(page_id: str, title: str) -> RemotePage:
 
 
 class PreviewClient:
-    def __init__(self) -> None:
+    """Answer the preview with counts, and fail loudly on any enumeration."""
+
+    def __init__(self, *, descendant_count: int = 2, space_count: int = 4) -> None:
         self.root = _page("100", "Root")
-        self.descendants = (_page("101", "Child"), _page("102", "Grandchild"))
-        self.space = (*self.descendants, self.root, _page("200", "Other"))
+        self.descendant_count = descendant_count
+        self.space_count = space_count
 
     def get_page_by_id(self, page_id: str) -> RemotePage:
         assert page_id == "100"
@@ -55,26 +57,23 @@ class PreviewClient:
         assert space_key == "DOC"
         return self.root
 
-    def enumerate_subtree(self, root_id: str, space_key: str) -> tuple[RemotePage, ...]:
+    def count_subtree(self, root_id: str, space_key: str) -> int:
         assert (root_id, space_key) == ("100", "DOC")
-        return self.descendants
+        return self.descendant_count
+
+    def count_pages(self, space_key: str) -> int:
+        assert space_key == "DOC"
+        return self.space_count
+
+    def enumerate_subtree(self, root_id: str, space_key: str) -> tuple[RemotePage, ...]:
+        raise AssertionError("preview must not enumerate the subtree")
 
     def enumerate_pages(self, space_key: str) -> tuple[RemotePage, ...]:
-        assert space_key == "DOC"
-        return self.space
+        raise AssertionError("preview must not enumerate the whole space")
 
 
-@pytest.mark.parametrize(
-    "reference",
-    [
-        "100",
-        "https://wiki.example.test/spaces/DOC",
-        "https://wiki.example.test/spaces/DOC/overview",
-        "https://wiki.example.test/display/DOC",
-    ],
-)
-def test_preview_measures_all_choices_and_recommends_subtree(reference: str) -> None:
-    settings = ConfluenceSettings(
+def _settings() -> ConfluenceSettings:
+    return ConfluenceSettings(
         schema_version=3,
         base_url="https://wiki.example.test",
         spaces=(
@@ -88,9 +87,20 @@ def test_preview_measures_all_choices_and_recommends_subtree(reference: str) -> 
         ),
     )
 
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "100",
+        "https://wiki.example.test/spaces/DOC",
+        "https://wiki.example.test/spaces/DOC/overview",
+        "https://wiki.example.test/display/DOC",
+    ],
+)
+def test_preview_measures_all_choices_and_recommends_subtree(reference: str) -> None:
     preview = preview_scope(
         reference,
-        settings=settings,
+        settings=_settings(),
         client=PreviewClient(),  # type: ignore[arg-type]
         storage_root=str(Path("C:/state")),
         retention_generations=2,
@@ -103,3 +113,34 @@ def test_preview_measures_all_choices_and_recommends_subtree(reference: str) -> 
     assert preview.recommended_selection == "subtree"
     assert preview.subtree.estimated_bytes == 3 * 384 * 1024
     assert preview.retention_generations == 2
+
+
+def test_preview_recommends_pages_when_the_root_has_no_descendant() -> None:
+    preview = preview_scope(
+        "100",
+        settings=_settings(),
+        client=PreviewClient(descendant_count=0, space_count=7),  # type: ignore[arg-type]
+        storage_root=str(Path("C:/state")),
+        retention_generations=2,
+    )
+
+    assert preview.recommended_selection == "pages"
+    assert preview.subtree.page_count == 1
+    assert preview.whole_space.page_count == 7
+
+
+def test_preview_reports_an_empty_space_as_empty() -> None:
+    """Folding the resolved root into the whole-space set gave that number a floor of
+    one. The count has none, so a space the caller can see no page in now measures
+    zero, which is a value no released client has ever been handed."""
+    preview = preview_scope(
+        "100",
+        settings=_settings(),
+        client=PreviewClient(descendant_count=0, space_count=0),  # type: ignore[arg-type]
+        storage_root=str(Path("C:/state")),
+        retention_generations=2,
+    )
+
+    assert preview.whole_space.page_count == 0
+    assert preview.whole_space.estimated_bytes == 0
+    assert preview.page_only.page_count == 1

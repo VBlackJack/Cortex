@@ -29,7 +29,12 @@ import pytest
 import confluence_writer.rest as rest_module
 from confluence_writer.constants import JOB_SCHEMA_SHA256, RESULT_SCHEMA_SHA256
 from confluence_writer.models import RemotePageContent
-from confluence_writer.rest import ConfluenceRestClient, ConfluenceRestError, UrlLibTransport
+from confluence_writer.rest import (
+    ConfluenceCapabilityError,
+    ConfluenceRestClient,
+    ConfluenceRestError,
+    UrlLibTransport,
+)
 from ingestion.credentials import SecretValue
 
 _FAKE_SECRET = "fixture-only-fake-secret-confluence-rest-6d6f"
@@ -129,6 +134,109 @@ def test_subtree_enumeration_uses_the_cql_ancestor_search_and_follows_next_links
     assert "ancestor%3D1001" in transport.json_calls[0]
     assert "descendant/page" not in transport.json_calls[0]
     assert "limit=250" in transport.json_calls[0]
+
+
+# The complete query each count must issue, pinned whole so a widened limit, a lost
+# quote or a reintroduced status clause all fail rather than slipping past a substring.
+SPACE_COUNT_QUERY = "cql=space%3D%22DOC%22%20and%20type%3Dpage&limit=1"
+SUBTREE_COUNT_QUERY = "cql=ancestor%3D1001%20and%20type%3Dpage%20and%20space%3D%22DOC%22&limit=1"
+
+
+def test_scope_counts_read_one_indexed_total_without_paging() -> None:
+    """The preview needs the number, never the pages, and must pay for one request."""
+    transport = QueueTransport([{"results": [], "totalSize": 5916, "_links": {"next": "/next"}}])
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=transport,
+    )
+
+    assert client.count_pages("DOC") == 5916
+
+    assert len(transport.json_calls) == 1
+    request = transport.json_calls[0]
+    assert "rest/api/content/search" in request
+    assert "expand" not in request
+    # Pinned whole, not by substring: "limit=1" is also a prefix of "limit=100", so a
+    # constant that silently started paging would satisfy a containment check. The space
+    # key travels inside a CQL string literal, and the absence of a status clause is
+    # deliberate, since the measured deployment answers one with HTTP 400.
+    assert request.endswith("?" + SPACE_COUNT_QUERY)
+
+
+def test_subtree_count_scopes_the_ancestor_search_to_the_expected_space() -> None:
+    transport = QueueTransport([{"results": [], "totalSize": 8, "_links": {}}])
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=transport,
+    )
+
+    assert client.count_subtree("1001", "DOC") == 8
+
+    assert len(transport.json_calls) == 1
+    request = transport.json_calls[0]
+    assert "expand" not in request
+    assert request.endswith("?" + SUBTREE_COUNT_QUERY)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        pytest.param({"results": []}, id="absent"),
+        pytest.param({"totalSize": None}, id="null"),
+        pytest.param({"totalSize": "5916"}, id="string"),
+        pytest.param({"totalSize": True}, id="boolean"),
+        pytest.param({"totalSize": -1}, id="negative"),
+    ],
+)
+def test_scope_count_fails_closed_when_the_total_is_unusable(payload: dict[str, Any]) -> None:
+    """A missing total must not silently become a zero-page scope in the preview."""
+    transport = QueueTransport([payload])
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=transport,
+    )
+
+    with pytest.raises(ConfluenceCapabilityError, match="no usable total"):
+        client.count_pages("DOC")
+    assert len(transport.json_calls) == 1
+
+
+@pytest.mark.parametrize(
+    "space_key",
+    [
+        pytest.param('DOC" or type=blogpost and space="OTHER', id="quote-break-out"),
+        pytest.param("DOC OTHER", id="whitespace"),
+        pytest.param("", id="empty"),
+    ],
+)
+def test_scope_count_refuses_a_space_key_that_is_unsafe_inside_cql(space_key: str) -> None:
+    """URL encoding is not CQL escaping, so the shape is checked before interpolation."""
+    transport = QueueTransport([])
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=transport,
+    )
+
+    with pytest.raises(ConfluenceRestError, match="not safe inside a CQL query"):
+        client.count_pages(space_key)
+    assert transport.json_calls == []
+
+
+def test_subtree_count_refuses_a_root_id_that_is_unsafe_inside_cql() -> None:
+    transport = QueueTransport([])
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=transport,
+    )
+
+    with pytest.raises(ConfluenceRestError, match="not safe inside a CQL query"):
+        client.count_subtree("1001 or type=blogpost", "DOC")
+    assert transport.json_calls == []
 
 
 def test_subtree_enumeration_fails_closed_on_a_page_from_another_space() -> None:

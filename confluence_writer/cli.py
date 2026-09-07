@@ -55,6 +55,7 @@ from confluence_writer.resolver import (
 )
 from confluence_writer.rest import (
     ConfluenceAuthError,
+    ConfluenceCapabilityError,
     ConfluenceNotFoundError,
     ConfluenceRestClient,
     ConfluenceRestError,
@@ -308,6 +309,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         _LOG.error("confluence_auth_failed error_type=%s", type(exc).__name__)
         sys.stderr.write("Cortex Confluence error: authentication failed.\n")
         return EXIT_AUTH
+    except ConfluenceCapabilityError as exc:
+        # Ahead of the remote clause on purpose: EXIT_REMOTE reads as retryable, and a
+        # deployment that cannot answer the query answers no differently next time.
+        _LOG.error("confluence_capability_missing error_type=%s", type(exc).__name__)
+        sys.stderr.write(f"Cortex Confluence error: {exc}\n")
+        return EXIT_ERROR
     except (TransientIngestionError, ConfluenceRestError) as exc:
         _LOG.error("confluence_remote_failed error_type=%s", type(exc).__name__)
         sys.stderr.write(f"Cortex Confluence error: {exc}\n")

@@ -7,6 +7,25 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Fixed
+
+- Measure the `preview` subtree and whole-space scopes with one indexed count each
+  instead of enumerating the space. On a 5916-page space the command took 3 min 19 s
+  and every graphical caller killed it first, showing the user nothing. The emitted
+  document keeps contract version 1 and its field shape, so no paired release is
+  needed, but two whole-space values change: the resolved root is no longer folded in,
+  and an empty space now measures zero rather than one.
+- Report a deployment that cannot answer the indexed count as a permanent failure
+  (exit `1`) rather than as a retryable remote fault (exit `5`), with a message naming
+  the query that failed.
+
+### Added
+
+- Log a completion record for `catalog` enumeration, matching the space and subtree
+  records, so a run that finishes leaves the same evidence as its two siblings.
+- Pin the whole `preview --json` document and its request cost with a CLI-level test,
+  and name its contract version instead of writing the literal at the construction site.
+
 ## [2026.0906.02] - 2026-09-06
 
 - Add bounded allowlisted `catalog --json` page ancestry for Companion tree editing

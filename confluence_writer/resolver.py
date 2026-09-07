@@ -23,6 +23,7 @@ from confluence_writer.config import ConfluenceSettings, SpaceMapping
 from confluence_writer.constants import (
     CLI_CONTRACT_VERSION,
     PAGES_CONTRACT_VERSION,
+    PREVIEW_CONTRACT_VERSION,
     SOURCE_SYSTEM,
 )
 from confluence_writer.frontmatter import parse_frontmatter
@@ -181,12 +182,22 @@ def preview_scope(
     storage_root: str,
     retention_generations: int,
 ) -> ScopePreviewContract:
-    """Resolve a root and measure all three choices before configuration mutation."""
+    """Resolve a root and measure all three choices before configuration mutation.
+
+    Every measurement is an indexed count. Enumerating the space to reach the same
+    integer took minutes on a large space, and the caller killed the process first.
+
+    Two whole-space values differ from the enumerating implementation, deliberately.
+    The resolved root is no longer folded into that number: reading a page by id
+    applies no type filter, so a root that is not a current page of the space made it
+    one larger than the set a whole-space collection stages. The number also loses its
+    accidental floor of one, so a space the caller can see no page in now measures
+    zero. Both other choices still count the root itself, unchanged, which confines
+    the correction to the one number a whole-space collection determines.
+    """
     resolved = resolve_page(value, settings=settings, client=client)
-    descendants = client.enumerate_subtree(resolved.page_id, resolved.space_key)
-    subtree_ids = {resolved.page_id, *(page.page_id for page in descendants)}
-    whole_space_ids = {page.page_id for page in client.enumerate_pages(resolved.space_key)}
-    whole_space_ids.add(resolved.page_id)
+    descendant_count = client.count_subtree(resolved.page_id, resolved.space_key)
+    whole_space_count = client.count_pages(resolved.space_key)
 
     def choice(page_count: int) -> ScopeChoiceContract:
         return ScopeChoiceContract(
@@ -195,14 +206,14 @@ def preview_scope(
         )
 
     return ScopePreviewContract(
-        contract_version=1,
+        contract_version=PREVIEW_CONTRACT_VERSION,
         page_id=resolved.page_id,
         title=resolved.title,
         space_key=resolved.space_key,
-        recommended_selection="subtree" if len(subtree_ids) > 1 else "pages",
+        recommended_selection="subtree" if descendant_count > 0 else "pages",
         page_only=choice(1),
-        subtree=choice(len(subtree_ids)),
-        whole_space=choice(len(whole_space_ids)),
+        subtree=choice(1 + descendant_count),
+        whole_space=choice(whole_space_count),
         storage_root=storage_root,
         retention_generations=retention_generations,
     )
@@ -235,11 +246,23 @@ def build_pages_contract(
     storage: IngestionStorage,
 ) -> PagesContract:
     """Build a local-only configuration view from public ingestion readers."""
+    # Only explicitly selected pages ever read a title back, so a whole-space mapping
+    # asks for none. Parsing every document of the generation to build a map that a
+    # handful of identifiers consume made the most frequent machine command pay for
+    # the entire collection on every call.
+    wanted: set[str] = {
+        page_id
+        for mapping in settings.spaces
+        if mapping.effective_selection in {"pages", "subtree"}
+        for page_id in mapping.selected_page_ids
+    }
     titles: dict[str, str] = {}
     generation_id = storage.current_generation_id()
     manifest = None if generation_id is None else storage.load_manifest(generation_id)
-    if generation_id is not None and manifest is not None:
+    if generation_id is not None and manifest is not None and wanted:
         for document in manifest.documents:
+            if document.source_uid not in wanted:
+                continue
             try:
                 content = storage.document_path(generation_id, document.path).read_bytes()
                 values = parse_frontmatter(content)

@@ -334,6 +334,30 @@ Preview contract v1 supplies `page_only`, `subtree`, and `whole_space`, each
 with `page_count` and `estimated_bytes`, together with
 `recommended_selection`, `storage_root`, and `retention_generations`.
 
+The subtree and whole-space figures are counts read from the Confluence search
+index, one request each. Enumerating a large space to reach the same two
+integers took minutes and exceeded the timeout of every graphical caller. Three
+consequences follow.
+
+- The counts are index backed and permission filtered, while `sync` and
+  `catalog` read the content listing. The two can disagree after a bulk import,
+  during a reindex, or where the caller cannot see every page, so
+  `last_sync.scope_summaries[].available_page_count` may not match a preview
+  taken moments earlier.
+- `whole_space` no longer folds in the resolved root. A root that is not a
+  current page of the space is no longer counted twice, and a space holding no
+  visible page now measures zero rather than one. `page_only` and `subtree`
+  still count the root itself.
+- The subtree count narrows its query to the resolved space, so a descendant the
+  server reports in another space is silently excluded. The enumeration `sync`
+  performs refuses that subtree instead. A preview can therefore measure a scope
+  that a later collection declines to collect.
+
+A deployment whose search endpoint returns no `totalSize` cannot answer a
+preview. The command exits `1` with a message naming the query, rather than
+falling back to the enumeration it exists to avoid; exit `5` is reserved for
+failures a retry can plausibly clear.
+
 List the configured spaces, explicitly selected pages, locally known titles,
 and global sync state without network or credential access:
 
