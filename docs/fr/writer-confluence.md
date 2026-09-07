@@ -340,6 +340,15 @@ Mesurer le périmètre avant de modifier la configuration :
 cortex confluence preview "https://kazan.example.test/display/DOC/Run+Book" --json
 ```
 
+`cortex confluence catalog <espace> --json` lit l'arborescence complète depuis la
+liste de contenus, jamais depuis l'index de recherche : une page que le sélecteur
+ne montre pas est une page que personne ne peut choisir. Elle coûte une requête
+par tranche de 200 pages et prend environ deux minutes sur un espace de six
+mille, donc elle émet des enregistrements `CORTEX_PROGRESS` sur stderr pour la
+phase `enumeration`, comptés contre une estimation indexée obtenue en une
+requête supplémentaire. Un déploiement incapable de répondre à cette estimation
+obtient quand même son catalogue, en silence et sans progression.
+
 Le contrat `preview` v1 fournit `page_only`, `subtree` et `whole_space`, chacun
 avec `page_count` et `estimated_bytes`, ainsi que `recommended_selection`,
 `storage_root` et `retention_generations`.
@@ -350,10 +359,14 @@ ces deux entiers prenait plusieurs minutes et dépassait le délai de tout appel
 graphique. Trois conséquences en découlent.
 
 - Les comptages viennent de l'index et sont filtrés par les permissions, alors
-  que `sync` et `catalog` lisent la liste de contenus. Les deux peuvent diverger
-  après un import massif, pendant une réindexation, ou quand l'appelant ne voit
-  pas toutes les pages : `last_sync.scope_summaries[].available_page_count` peut
-  donc ne pas correspondre à un preview pris juste avant.
+  que `sync` et `catalog` lisent la liste de contenus. Les deux divergent
+  réellement, et pas seulement après un import massif ou pendant une
+  réindexation : sur le déploiement mesuré, l'index contient 5916 pages d'un
+  espace dont la liste en renvoie 5918, et les deux pages manquantes sont des
+  pages courantes vieilles de plusieurs mois, donc aucune nouvelle tentative n'y
+  changera rien. `last_sync.scope_summaries[].available_page_count` peut donc ne
+  pas correspondre à un preview pris juste avant, d'un petit nombre plutôt que
+  d'un ordre de grandeur.
 - `whole_space` n'ajoute plus la racine résolue. Une racine qui n'est pas une
   page courante de l'espace n'est plus comptée deux fois, et un espace sans page
   visible mesure désormais zéro au lieu de un. `page_only` et `subtree` comptent

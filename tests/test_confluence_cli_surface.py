@@ -325,6 +325,40 @@ def test_resolve_accepts_all_kazan_forms_as_clean_versioned_json(
         assert transport.redirect_calls == [reference]
 
 
+def test_catalog_reports_progress_on_stderr_and_keeps_stdout_a_clean_document(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Reading a whole space takes minutes, so it says how far along it is.
+
+    The records go to the diagnostic stream, never into the JSON a client parses.
+    """
+    catalog_page = _page() | {"ancestors": []}
+    transport = QueueTransport(
+        [
+            {"results": [], "totalSize": 1, "_links": {}},
+            {"results": [catalog_page], "_links": {}},
+        ]
+    )
+    _prepare_cli(monkeypatch, tmp_path, _settings(), transport)
+
+    exit_code = confluence_cli.main(["catalog", "DOC", "--json"])
+    captured = capsys.readouterr()
+
+    assert exit_code == EXIT_OK
+    assert json.loads(captured.out) == {
+        "contract_version": 1,
+        "space_key": "DOC",
+        "pages": [{"page_id": "1001", "title": "Run Book", "ancestor_ids": []}],
+    }
+    records = [line for line in captured.err.splitlines() if line]
+    assert records == [
+        'CORTEX_PROGRESS {"contract_version":1,"current":1,"phase":"enumeration","total":1}',
+        'CORTEX_PROGRESS {"contract_version":1,"current":1,"phase":"enumeration","total":1}',
+    ]
+
+
 def test_preview_measures_every_scope_as_one_clean_versioned_document(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

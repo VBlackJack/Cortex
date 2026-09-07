@@ -514,7 +514,77 @@ def test_catalog_paginates_titles_and_ancestor_chains() -> None:
     pages = client.page_catalog("DOC")
     assert [page.page_id for page in pages] == ["1", "2"]
     assert pages[1].ancestor_ids == ("1",)
-    assert "expand=space,ancestors" in transport.json_calls[0]
+    # The space expansion is deliberately absent: the query already filters on the space,
+    # and the server clamps a page of results from 250 to 200 whenever one is requested.
+    assert "expand=ancestors" in transport.json_calls[0]
+    assert "expand=space" not in transport.json_calls[0]
+    # No caller asked to be told how far along the read is, so nothing was counted for it.
+    assert not any("content/search" in call for call in transport.json_calls)
+
+
+def test_catalog_reports_progress_against_an_indexed_total() -> None:
+    """A caller told how far along a long read is need not kill it at a fixed delay."""
+    first = _page("1", "2026-08-01T10:00:00Z") | {"ancestors": []}
+    child = _page("2", "2026-08-01T10:00:00Z") | {"ancestors": [{"id": "1"}]}
+    transport = QueueTransport(
+        [
+            {"results": [], "totalSize": 2, "_links": {}},
+            {"results": [first], "_links": {"next": "/rest/api/content?start=250"}},
+            {"results": [child], "_links": {}},
+        ]
+    )
+    client = ConfluenceRestClient(
+        "https://confluence.example.test", SecretValue(_FAKE_SECRET), transport=transport
+    )
+    reported: list[tuple[int, int]] = []
+
+    pages = client.page_catalog("DOC", on_progress=lambda c, t: reported.append((c, t)))
+
+    assert [page.page_id for page in pages] == ["1", "2"]
+    assert "content/search" in transport.json_calls[0]
+    assert reported == [(1, 2), (2, 2), (2, 2)]
+
+
+def test_catalog_progress_states_the_real_total_when_the_index_undercounts() -> None:
+    """The listing returns pages the index does not hold, so the count is only an estimate."""
+    pages_payload = [
+        _page(str(number), "2026-08-01T10:00:00Z") | {"ancestors": []} for number in (1, 2, 3)
+    ]
+    transport = QueueTransport(
+        [
+            {"results": [], "totalSize": 2, "_links": {}},
+            {"results": pages_payload, "_links": {}},
+        ]
+    )
+    client = ConfluenceRestClient(
+        "https://confluence.example.test", SecretValue(_FAKE_SECRET), transport=transport
+    )
+    reported: list[tuple[int, int]] = []
+
+    client.page_catalog("DOC", on_progress=lambda c, t: reported.append((c, t)))
+
+    assert reported[-1] == (3, 3)
+    assert all(current <= total for current, total in reported)
+
+
+def test_catalog_survives_a_deployment_that_cannot_count() -> None:
+    """Progress is a convenience; a catalogue that cannot be counted must still be read."""
+    page = _page("1", "2026-08-01T10:00:00Z") | {"ancestors": []}
+    transport = QueueTransport(
+        [
+            {"results": []},
+            {"results": [page], "_links": {}},
+        ]
+    )
+    client = ConfluenceRestClient(
+        "https://confluence.example.test", SecretValue(_FAKE_SECRET), transport=transport
+    )
+    reported: list[tuple[int, int]] = []
+
+    pages = client.page_catalog("DOC", on_progress=lambda c, t: reported.append((c, t)))
+
+    assert [entry.page_id for entry in pages] == ["1"]
+    assert reported == []
 
 
 @pytest.mark.parametrize(

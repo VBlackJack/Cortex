@@ -224,7 +224,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             client = ConfluenceRestClient(settings.base_url, secret)
             _write_json(
                 SourceCatalogContract(
-                    space_key=mapping.space_key, pages=client.page_catalog(mapping.space_key)
+                    space_key=mapping.space_key,
+                    pages=client.page_catalog(
+                        mapping.space_key,
+                        on_progress=lambda current, total: emit_progress(
+                            "enumeration", current, total
+                        ),
+                    ),
                 )
             )
             return EXIT_OK

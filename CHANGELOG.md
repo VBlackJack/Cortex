@@ -7,6 +7,18 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Changed
+
+- Read the catalogue without the space expansion and report its progress. The query
+  already filters on the space, so the expansion only fed an assertion that could never
+  fire, while the server clamps a page of results from 250 to 200 as soon as any
+  expansion is present. Measured on a 5918 page space, a full read drops from 123 to 112
+  seconds over the same thirty requests. That is a real saving and it is not a fix: the
+  read still outlasts every timeout the desktop client offers, which is why it now emits
+  CORTEX_PROGRESS records for the enumeration phase, counted against an indexed estimate
+  obtained in one extra request. A deployment that cannot answer that estimate still gets
+  its catalogue, without progress.
+
 ### Added
 
 - Synchronize the documented Companion labels from the Companion resources themselves.

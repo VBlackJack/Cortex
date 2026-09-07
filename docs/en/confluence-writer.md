@@ -329,6 +329,14 @@ Measure scope before changing configuration:
 cortex confluence preview "https://kazan.example.test/display/DOC/Run+Book" --json
 ```
 
+`cortex confluence catalog <space> --json` reads the complete page tree from the
+content listing, never from the search index, because a tree the picker cannot
+show is a page nobody can select. It costs one request per 200 pages and takes
+about two minutes on a space of six thousand, so it emits `CORTEX_PROGRESS`
+records on stderr for the `enumeration` phase, counted against an indexed
+estimate obtained in one extra request. A deployment that cannot answer that
+estimate still gets its catalogue, silently and without progress.
+
 Preview contract v1 supplies `page_only`, `subtree`, and `whole_space`, each
 with `page_count` and `estimated_bytes`, together with
 `recommended_selection`, `storage_root`, and `retention_generations`.
@@ -339,10 +347,12 @@ integers took minutes and exceeded the timeout of every graphical caller. Three
 consequences follow.
 
 - The counts are index backed and permission filtered, while `sync` and
-  `catalog` read the content listing. The two can disagree after a bulk import,
-  during a reindex, or where the caller cannot see every page, so
-  `last_sync.scope_summaries[].available_page_count` may not match a preview
-  taken moments earlier.
+  `catalog` read the content listing. The two do disagree, and not only after a
+  bulk import or during a reindex: on the measured deployment the index holds
+  5916 pages of a space whose listing returns 5918, and the two missing pages are
+  current pages several months old, so no retry settles it. Expect
+  `last_sync.scope_summaries[].available_page_count` to differ from a preview
+  taken moments earlier, by a small number rather than by a category.
 - `whole_space` no longer folds in the resolved root. A root that is not a
   current page of the space is no longer counted twice, and a space holding no
   visible page now measures zero rather than one. `page_only` and `subtree`
