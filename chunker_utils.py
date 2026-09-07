@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from config import EXCLUDE_FILES, EXCLUDED_DIRS, INCLUDED_SECTIONS, METADATA_SCHEMA_VERSION
+from index_contract import SOURCE_KINDS
 
 METADATA_CONTRACT_FIELDS = (
     "schema_version",
@@ -43,7 +44,6 @@ METADATA_CONTRACT_FIELDS = (
     "content_hash",
     "chunk_index",
 )
-SOURCE_KINDS = frozenset({"note", "doc", "message"})
 
 ChunkStatus = Literal[
     "ok",

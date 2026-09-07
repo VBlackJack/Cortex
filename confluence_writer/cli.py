@@ -145,8 +145,8 @@ def _write_json(model: BaseModel) -> None:
     sys.stdout.write(payload + "\n")
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """Store a PAT interactively or run the scheduled Confluence adapter."""
+def build_parser() -> argparse.ArgumentParser:
+    """Build the Confluence command line the desktop client and the proofs share."""
     parser = argparse.ArgumentParser(
         prog="cortex confluence",
         description="Store the Confluence PAT, or run and inspect the allowlisted writer.",
@@ -201,7 +201,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "source-status", help="Read local selection publication evidence"
     )
     status_parser.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
-    namespace = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Store a PAT interactively or run the scheduled Confluence adapter."""
+    namespace = build_parser().parse_args(argv)
 
     try:
         from cortex_logging import configure_logging
@@ -361,4 +366,4 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ["main"]
+__all__ = ["build_parser", "main"]

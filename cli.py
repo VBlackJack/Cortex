@@ -106,8 +106,12 @@ def _handle_sync_configuration_error(
     return EXIT_INVALID_INPUT
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """Dispatch a Cortex subcommand without duplicating domain logic."""
+def build_parser() -> argparse.ArgumentParser:
+    """Build the root parser: the version flag and one bare entry per subcommand.
+
+    The subcommands carry no options here; each one parses its own arguments,
+    which is why callers use `parse_known_args` and forward the remainder.
+    """
     parser = argparse.ArgumentParser(
         prog="cortex",
         description="Local multi-client RAG server over the Model Context Protocol.",
@@ -121,7 +125,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     for name, summary in _COMMANDS:
         subparsers.add_parser(name, add_help=False, help=summary)
-    namespace, arguments = parser.parse_known_args(argv)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Dispatch a Cortex subcommand without duplicating domain logic."""
+    namespace, arguments = build_parser().parse_known_args(argv)
     try:
         return _dispatch(namespace, arguments)
     except KeyboardInterrupt:

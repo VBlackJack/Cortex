@@ -20,7 +20,6 @@ Usage:
   python indexer.py --search "query" [--section Zabbix] [--top-k 5]
 """
 
-import argparse
 import logging
 import os
 import sqlite3
@@ -68,7 +67,6 @@ from fastembed import TextEmbedding  # noqa: E402
 
 from chroma_client import create_persistent_client  # noqa: E402
 from chunker_utils import (  # noqa: E402
-    SOURCE_KINDS,
     discover_out_of_policy_dirs,
     normalize_rfc3339,
     timestamp_epoch_ms,
@@ -85,6 +83,7 @@ from embedding_fingerprint import (  # noqa: E402
     EmbeddingFingerprintMismatchError,
     get_validated_collection,
 )
+from index_contract import SOURCE_KINDS  # noqa: E402
 from ingestion.config import (  # noqa: E402
     IngestionConfigError,
     IngestionSettings,
@@ -883,33 +882,11 @@ def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
     return report, _sync_report_exit_code(report)
 
 
-_DEFAULT_TOP_K = 5
-
-
 def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int:
     """Run sync or search from the clone-compatible command line."""
-    parser = argparse.ArgumentParser(prog=prog, description="Cortex indexer")
-    parser.add_argument(
-        "section", nargs="?", default=None, help="Section to sync (default: all)"
-    )
-    parser.add_argument(
-        "--search",
-        metavar="QUERY",
-        default=None,
-        help="Deprecated alias of `cortex search QUERY`: search instead of syncing",
-    )
-    parser.add_argument(
-        "--top-k",
-        type=int,
-        default=_DEFAULT_TOP_K,
-        help=f"Number of results for --search (default: {_DEFAULT_TOP_K})",
-    )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Emit the machine-readable sync report on stdout (Companion contract)",
-    )
-    args = parser.parse_args(argv)
+    from sync_command import build_parser
+
+    args = build_parser(prog).parse_args(argv)
 
     # Configure logging only once the arguments are known to be actionable:
     # --help and a usage error exit inside parse_args, and neither should
@@ -955,29 +932,11 @@ def search_main(
     prog: str = "cortex search",
 ) -> int:
     """Run one console search: the debugging twin of the cortex_search tool."""
-    parser = argparse.ArgumentParser(
-        prog=prog,
-        description="Search the Cortex index from the console.",
-    )
-    parser.add_argument("query", help="Natural-language query, French or English")
-    parser.add_argument(
-        "--section",
-        default=None,
-        help="Restrict the search to one section (default: all)",
-    )
-    parser.add_argument(
-        "--top-k",
-        type=int,
-        default=_DEFAULT_TOP_K,
-        help=f"Number of results (default: {_DEFAULT_TOP_K})",
-    )
-    parser.add_argument("--json", action="store_true",
-                        help="Return the desktop search JSON contract")
-    parser.add_argument("--source-kind", choices=sorted(SOURCE_KINDS), help="Restrict source kind")
-    args = parser.parse_args(argv)
-
     from cortex_logging import configure_logging
-    from search_command import QUERY_LIMIT, emit_search
+    from search_command import QUERY_LIMIT, build_parser, emit_search
+
+    parser = build_parser(prog)
+    args = parser.parse_args(argv)
 
     if not args.query.strip() or len(args.query) > QUERY_LIMIT:
         parser.error(f"query must contain between 1 and {QUERY_LIMIT} characters")

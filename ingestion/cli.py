@@ -276,8 +276,8 @@ def _canonical_source_kind(value: str) -> str:
         ) from exc
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """Report generic ingestion health or whether startup catch-up is due."""
+def build_parser() -> argparse.ArgumentParser:
+    """Build the ingestion command line the desktop client and the proofs share."""
     parser = argparse.ArgumentParser(
         prog="cortex ingestion",
         description="Report the health of an ingestion source and its catch-up state.",
@@ -299,7 +299,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             type=_canonical_source_kind,
             help="doc, or its alias confluence",
         )
-    namespace = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Report generic ingestion health or whether startup catch-up is due."""
+    namespace = build_parser().parse_args(argv)
 
     from cortex_logging import configure_logging
 
@@ -332,4 +337,4 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ["execute_scheduled_attempt", "main"]
+__all__ = ["build_parser", "execute_scheduled_attempt", "main"]

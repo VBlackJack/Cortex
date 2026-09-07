@@ -27,6 +27,11 @@ CHUNKING_CONTRACT_VERSION = "v3"
 METADATA_SCHEMA_VERSION = 2
 LEXICAL_INDEX_CONTRACT_VERSION = "v2"
 
+# The source kinds a chunk may carry. They live here, not next to the chunker,
+# because the search command line offers them as choices and must be buildable
+# without loading the user configuration the chunker depends on.
+SOURCE_KINDS = frozenset({"note", "doc", "message"})
+
 
 def build_embedding_fingerprint(fastembed_version: str) -> dict[str, str]:
     """Build the runtime vector-space fingerprint without loading user configuration."""
@@ -47,5 +52,6 @@ __all__ = [
     "LEGACY_INDEX_FASTEMBED_VERSION",
     "LEXICAL_INDEX_CONTRACT_VERSION",
     "METADATA_SCHEMA_VERSION",
+    "SOURCE_KINDS",
     "build_embedding_fingerprint",
 ]

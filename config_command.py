@@ -221,7 +221,8 @@ _JSON_HELP = (
 )
 
 
-def _parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
+    """Build the configuration command line the desktop client and the proofs share."""
     parser = argparse.ArgumentParser(
         prog="cortex config",
         description="Read or change the per-user configuration through the atomic "
@@ -258,7 +259,7 @@ def main(
     environ: Mapping[str, str] | None = None,
 ) -> int:
     """Read or mutate the user configuration through a versioned JSON contract."""
-    namespace = _parser().parse_args(argv)
+    namespace = build_parser().parse_args(argv)
     values = os.environ if environ is None else environ
     if namespace.operation == "get":
         return _get(values)

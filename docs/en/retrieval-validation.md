@@ -80,8 +80,9 @@ not a claim that every storage or remote-service failure has been reproduced.
 
 Both repositories expose a manual `release-pair` workflow. Supply full lowercase
 `cortex_sha` and `companion_sha` values. It verifies both checked-out identities,
-then runs the shared byte-lock, TOML v1/v2/v3 and desktop JSON contract proofs.
-The job summary identifies the exact tested pair. Ordinary `interoperability`
+then runs the shared byte-lock, TOML v1/v2/v3 and desktop JSON contract proofs,
+and parses every command line the desktop builds with the Cortex parser that runs
+it. The job summary identifies the exact tested pair. Ordinary `interoperability`
 continues testing the peer's `main` by default.
 
 This gate certifies source interoperability, not the bytes of an installer or a

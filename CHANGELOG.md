@@ -7,6 +7,25 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Added
+- Expose the command lines a desktop client builds to the parsers that run them, without
+  running anything. `cli_surface.parse_invocation` parses a complete `cortex` line with the
+  root parser and then the real parser of the selected command, and reports a command that
+  has no machine contract as unsupported rather than as a usage error. The Companion
+  interoperability proof captures the sixteen lines the desktop builds and parses each one
+  here; until now the JSON answers were proved against their consumer while the questions
+  were proved against nothing, so a renamed subcommand or a parent option moved after its
+  subcommand stayed green on both sides and broke the desktop at run time.
+
+### Changed
+- Build each machine command line in a function of its own. The `sync` and `search` parsers
+  lived inside the indexer, which loads the user configuration when it is imported, so
+  neither parser could be reached on a machine without one; they now live in
+  `sync_command` and `search_command`, and the Confluence, ingestion, configuration and root
+  parsers are exposed as `build_parser` next to the `main` that uses them. `SOURCE_KINDS`
+  moves to the index contract for the same reason, and stays importable from the chunker.
+  Tests hold every `main` to its exposed builder, so the seam cannot drift back.
+
 ## [2026.0907.02] - 2026-09-07
 
 ### Added

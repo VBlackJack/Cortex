@@ -4,16 +4,49 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from index_contract import SOURCE_KINDS
+
 CONTRACT_VERSION = 1
 EXCERPT_LIMIT = 1200
 QUERY_LIMIT = 2000
+DEFAULT_TOP_K = 5
 DOCUMENT_EXTENSIONS = frozenset({".md", ".pdf", ".txt"})
+
+
+def build_parser(prog: str = "cortex search") -> argparse.ArgumentParser:
+    """Build the search command line without loading the index or the configuration.
+
+    The desktop client builds this exact line; keeping the parser importable on
+    its own lets the interoperability proof parse what the client builds.
+    """
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        description="Search the Cortex index from the console.",
+    )
+    parser.add_argument("query", help="Natural-language query, French or English")
+    parser.add_argument(
+        "--section",
+        default=None,
+        help="Restrict the search to one section (default: all)",
+    )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=DEFAULT_TOP_K,
+        help=f"Number of results (default: {DEFAULT_TOP_K})",
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Return the desktop search JSON contract"
+    )
+    parser.add_argument("--source-kind", choices=sorted(SOURCE_KINDS), help="Restrict source kind")
+    return parser
 
 
 def safe_document_path(root: Path | None, relative: str) -> str | None:

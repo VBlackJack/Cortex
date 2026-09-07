@@ -88,8 +88,9 @@ partielle. Ils ne simulent pas toutes les défaillances possibles du stockage.
 Le workflow manuel `release-pair`, présent dans les deux dépôts, exige les deux
 SHA complets en minuscules : `cortex_sha` et `companion_sha`. Il contrôle les
 révisions réellement récupérées, puis vérifie le verrou partagé, le TOML v1/v2/v3
-et le JSON de recherche. Son résumé identifie le couple testé. Le workflow courant
-`interoperability` utilise toujours `main` du partenaire par défaut.
+et le JSON de recherche, et analyse chaque ligne de commande que le bureau construit
+avec le parseur Cortex qui l'exécute. Son résumé identifie le couple testé. Le
+workflow courant `interoperability` utilise toujours `main` du partenaire par défaut.
 
 Cette validation porte sur l'interopérabilité des sources. Elle ne certifie ni
 les octets d'un installeur ni une signature de release.
