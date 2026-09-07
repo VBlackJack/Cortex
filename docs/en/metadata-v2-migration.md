@@ -1,6 +1,6 @@
 # Metadata schema v2 and corpus migration
 
-[Francais](../fr/metadata-v2-migration.md) | **English**
+[Français](../fr/metadata-v2-migration.md) | **English**
 
 [Back to table of contents](index.md)
 

@@ -1,6 +1,6 @@
 # User guide
 
-[Francais](../fr/user-guide.md) | **English**
+[Français](../fr/user-guide.md) | **English**
 
 [Back to table of contents](index.md)
 

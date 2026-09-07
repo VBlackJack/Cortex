@@ -264,9 +264,9 @@ def test_novice_local_sync_docs_use_the_exact_companion_labels() -> None:
 
 def test_unsigned_installer_docs_verify_sha256_before_smartscreen_bypass() -> None:
     expectations = {
-        ROOT / "README.fr.md": "`Executer quand meme`",
+        ROOT / "README.fr.md": "`Exécuter quand même`",
         ROOT / "README.md": "`Run anyway`",
-        FR_WINDOWS_INSTALL: "`Executer quand meme`",
+        FR_WINDOWS_INSTALL: "`Exécuter quand même`",
         EN_WINDOWS_INSTALL: "`Run anyway`",
     }
 

@@ -1,6 +1,6 @@
 # Cortex - Public MCP Server and Index Contract
 
-[Francais](../fr/spec.md) | **English**
+[Français](../fr/spec.md) | **English**
 
 > **Status**: Spec v2.1 - normative, synchronized with `main`
 > **Author**: Julien Bombled

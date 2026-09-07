@@ -21,7 +21,7 @@ limitations under the License.
 
 # Confluence writer
 
-[Francais](../fr/writer-confluence.md) | **English**
+[Français](../fr/writer-confluence.md) | **English**
 
 [Back to table of contents](index.md)
 

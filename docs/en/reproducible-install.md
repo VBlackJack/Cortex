@@ -1,6 +1,6 @@
 # Reproducible install
 
-[Francais](../fr/install-reproductible.md) | **English**
+[Français](../fr/install-reproductible.md) | **English**
 
 [Back to table of contents](index.md)
 

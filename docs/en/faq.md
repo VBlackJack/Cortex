@@ -1,6 +1,6 @@
 # Frequently asked questions
 
-[Francais](../fr/faq.md) | **English**
+[Français](../fr/faq.md) | **English**
 
 [Back to table of contents](index.md)
 

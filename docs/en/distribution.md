@@ -1,6 +1,6 @@
 # Standalone distribution
 
-[Francais](../fr/distribution.md) | **English**
+[Français](../fr/distribution.md) | **English**
 
 [Back to table of contents](index.md)
 

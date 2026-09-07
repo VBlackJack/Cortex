@@ -1,6 +1,6 @@
 # Architecture
 
-[Francais](../fr/architecture.md) | **English**
+[Français](../fr/architecture.md) | **English**
 
 [Back to table of contents](index.md)
 

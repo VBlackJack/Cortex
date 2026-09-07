@@ -19,8 +19,8 @@ configure les clients MCP pris en charge.
    `SHA256SUMS`.
 3. Double-cliquer seulement après cette vérification. Tant que le binaire
    n'est pas signé, SmartScreen peut encore afficher un avertissement d'éditeur
-   inconnu ; choisir alors `Informations complementaires`, puis
-   `Executer quand meme`.
+   inconnu ; choisir alors `Informations complémentaires`, puis
+   `Exécuter quand même`.
 4. Choisir le dossier de base de connaissances. Le défaut est
    `%USERPROFILE%\Documents\Cortex-KB`; il peut rester vide au départ.
 5. Garder `Tout indexer dans ce dossier` pour que les documents posés à la

@@ -1,6 +1,6 @@
 # Security
 
-[Francais](../fr/security.md) | **English**
+[Français](../fr/security.md) | **English**
 
 [Back to table of contents](index.md)
 

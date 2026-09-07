@@ -1,6 +1,6 @@
 # Setup
 
-[Francais](../fr/setup.md) | **English**
+[Français](../fr/setup.md) | **English**
 
 [Back to table of contents](index.md)
 

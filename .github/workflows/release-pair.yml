@@ -71,6 +71,9 @@ jobs:
       - name: Verify the desktop search contract
         working-directory: CortexCompanion
         run: python tests/interop/search_contract_proof.py
+      - name: Verify the Confluence desktop contracts
+        working-directory: CortexCompanion
+        run: python tests/interop/confluence_contract_proof.py
       - name: Record the verified pair
         shell: pwsh
         env:
@@ -79,4 +82,4 @@ jobs:
         run: |
           "Verified Cortex commit: $env:CORTEX_SHA" >> $env:GITHUB_STEP_SUMMARY
           "Verified Companion commit: $env:COMPANION_SHA" >> $env:GITHUB_STEP_SUMMARY
-          "Checks: shared byte lock, canonical TOML v1/v2/v3, desktop search JSON and the documented Companion interface labels. This does not certify installer payload bytes." >> $env:GITHUB_STEP_SUMMARY
+          "Checks: shared byte lock, canonical TOML v1/v2/v3, desktop search JSON, the resolve, preview, pages and catalog documents, and the documented Companion interface labels. This does not certify installer payload bytes." >> $env:GITHUB_STEP_SUMMARY

@@ -1,6 +1,6 @@
 # Release notes
 
-[Francais](../fr/notes-de-version.md) | **English**
+[Français](../fr/notes-de-version.md) | **English**
 
 [Back to the table of contents](index.md)
 
@@ -9,6 +9,15 @@ This page summarizes user-visible changes. See the
 
 Interface controls are named as the current version shows them, including in entries
 about earlier versions, so a control quoted here can be found on screen today.
+
+<!-- release:2026-0907-02 -->
+## 2026.0907.02 - 2026-09-07
+
+- Loading the page tree of a large space finishes instead of stopping partway. Reading a whole space takes about two minutes on six thousand pages, well past the default delay and with only seconds to spare under the highest one, so that read now has its own allowance; if it still runs out of time, the message says how many pages it had read.
+- The scope window says when a page is already tracked, so the choice is made knowing it rather than refused afterwards.
+- Companion refuses a Cortex older than the one it ships with, and says so, instead of failing later without an explanation.
+
+Upgrade Cortex and Companion together with the combined installer.
 
 <!-- release:2026-0907-01 -->
 ## 2026.0907.01 - 2026-09-07

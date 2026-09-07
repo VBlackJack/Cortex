@@ -1,6 +1,6 @@
 # Windows installation
 
-[Francais](../fr/installation-windows.md) | **English**
+[Français](../fr/installation-windows.md) | **English**
 
 [Back to table of contents](index.md)
 

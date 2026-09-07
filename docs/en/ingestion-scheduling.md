@@ -16,7 +16,7 @@ limitations under the License.
 
 # Scheduling ingestion on Windows
 
-[Francais](../fr/ingestion-scheduling.md) | **English**
+[Français](../fr/ingestion-scheduling.md) | **English**
 
 [Back to table of contents](index.md)
 

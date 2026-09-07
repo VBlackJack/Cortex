@@ -1,6 +1,6 @@
 # Configuration
 
-[Francais](../fr/configuration.md) | **English**
+[Français](../fr/configuration.md) | **English**
 
 [Back to table of contents](index.md)
 

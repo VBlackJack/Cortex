@@ -70,8 +70,8 @@ runtime .NET n'est à installer séparément.
    vérifier qu'elle correspond exactement à la ligne `Cortex-Setup.exe` de
    `SHA256SUMS`.
 3. Double-cliquer seulement après cette vérification. Si SmartScreen affiche
-   encore un avertissement, choisir `Informations complementaires`, puis
-   `Executer quand meme`.
+   encore un avertissement, choisir `Informations complémentaires`, puis
+   `Exécuter quand même`.
 4. Choisir le dossier de vos documents, laisser `Tout indexer dans ce dossier`
    et terminer. Cortex Companion s'ouvre à la fin de l'installation.
 5. Dans Companion, ouvrir `Réglages` pour vérifier le dossier de la base de

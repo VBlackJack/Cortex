@@ -11,6 +11,15 @@ Les commandes de l'interface sont nommées comme la version actuelle les affiche
 compris dans les entrées des versions antérieures, afin qu'une commande citée ici se
 retrouve à l'écran aujourd'hui.
 
+<!-- release:2026-0907-02 -->
+## 2026.0907.02 - 2026-09-07
+
+- Le chargement de l'arborescence d'un grand espace va maintenant jusqu'au bout au lieu de s'arrêter en chemin. Lire un espace entier demande environ deux minutes pour six mille pages, bien au-delà du délai par défaut et à quelques secondes près sous le plus élevé : cette lecture dispose donc de son propre budget, et si elle manque quand même de temps, le message indique combien de pages avaient été lues.
+- La fenêtre de périmètre signale qu'une page est déjà suivie, pour que le choix se fasse en le sachant plutôt que d'être refusé ensuite.
+- Companion refuse un Cortex plus ancien que celui qu'il embarque, et le dit, au lieu d'échouer plus tard sans explication.
+
+Mettez Cortex et Companion à jour ensemble avec l'installeur combiné.
+
 <!-- release:2026-0907-01 -->
 ## 2026.0907.01 - 2026-09-07
 

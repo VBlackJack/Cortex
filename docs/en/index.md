@@ -1,6 +1,6 @@
 # Cortex documentation
 
-[Francais](../fr/index.md) | **English**
+[Français](../fr/index.md) | **English**
 
 Cortex is an MCP (Model Context Protocol) server that exposes hybrid search
 over a local knowledge base and current generated document generations. It lets

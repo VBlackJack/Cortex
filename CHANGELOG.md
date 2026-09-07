@@ -7,19 +7,15 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
-### Changed
-
-- Read the catalogue without the space expansion and report its progress. The query
-  already filters on the space, so the expansion only fed an assertion that could never
-  fire, while the server clamps a page of results from 250 to 200 as soon as any
-  expansion is present. Measured on a 5918 page space, a full read drops from 123 to 112
-  seconds over the same thirty requests. That is a real saving and it is not a fix: the
-  read still outlasts every timeout the desktop client offers, which is why it now emits
-  CORTEX_PROGRESS records for the enumeration phase, counted against an indexed estimate
-  obtained in one extra request. A deployment that cannot answer that estimate still gets
-  its catalogue, without progress.
+## [2026.0907.02] - 2026-09-07
 
 ### Added
+- Prove the resolve, preview, pages and catalog documents against the desktop consumer
+  that actually parses them. Each is produced here and piped through the shipped C#
+  records, which refuse an unmapped member and pin the contract version; the proof was
+  verified to reject an added field, a renamed field and a bumped version. Both
+  interoperability workflows and the paired release gate run it.
+
 
 - Synchronize the documented Companion labels from the Companion resources themselves.
   The documentation guard reads an extract of those resources that lives here, so a label
@@ -29,6 +25,22 @@ available in [French](docs/fr/notes-de-version.md) and
   paired release gate run it in check mode, so drift fails in whichever repository caused
   it rather than waiting for someone to notice. It fails closed on unreadable or empty
   resources, since an empty extract would silently disarm the guard it feeds.
+
+### Fixed
+- Quote the Windows SmartScreen button with its accents, and spell the link to the French
+  documentation the way the French pages spell their own name.
+
+### Changed
+- Read the catalogue without the space expansion and report its progress. The query
+  already filters on the space, so the expansion only fed an assertion that could never
+  fire, while the server clamps a page of results from 250 to 200 as soon as any
+  expansion is present. Measured on a 5918 page space, a full read drops from 123 to 112
+  seconds over the same thirty requests. That is a real saving and it is not a fix: the
+  read still passes the desktop client's default timeout and leaves eight seconds under its
+  highest one, which is why it now emits
+  CORTEX_PROGRESS records for the enumeration phase, counted against an indexed estimate
+  obtained in one extra request. A deployment that cannot answer that estimate still gets
+  its catalogue, without progress.
 
 ## [2026.0907.01] - 2026-09-07
 
