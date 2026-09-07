@@ -7,6 +7,17 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Added
+
+- Synchronize the documented Companion labels from the Companion resources themselves.
+  The documentation guard reads an extract of those resources that lives here, so a label
+  renamed next door left the guard checking a name nobody ships and the pages quoting it.
+  `scripts/sync_companion_labels.py` regenerates the extract, and answers non-zero with the
+  exact keys that moved when it no longer matches. Both interoperability workflows and the
+  paired release gate run it in check mode, so drift fails in whichever repository caused
+  it rather than waiting for someone to notice. It fails closed on unreadable or empty
+  resources, since an empty extract would silently disarm the guard it feeds.
+
 ## [2026.0907.01] - 2026-09-07
 
 ### Changed

@@ -41,6 +41,9 @@ jobs:
           dotnet-version: 10.0.x
       - name: Install locked Python dependencies
         run: python -m pip install --require-hashes -r Cortex/requirements.lock
+      - name: Verify the documented Companion labels
+        working-directory: Cortex
+        run: python scripts/sync_companion_labels.py --check --companion ../CortexCompanion
       - name: Restore locked Companion dependencies
         run: dotnet restore CortexCompanion/CortexCompanion.sln --locked-mode
       - name: Build the cross-process probe
