@@ -1,42 +1,42 @@
 # Notes de version
 
-**Francais** | [English](../en/release-notes.md)
+**Français** | [English](../en/release-notes.md)
 
 [Retour au sommaire](index.md)
 
-Cette page resume les changements visibles pour les utilisateurs. Le
-[journal technique](../../CHANGELOG.md) contient le detail complet.
+Cette page résume les changements visibles pour les utilisateurs. Le
+[journal technique](../../CHANGELOG.md) contient le détail complet.
 
 <!-- release:2026-0907-00 -->
 ## 2026.0907.00 - 2026-09-07
 
-- L'ajout d'une source Confluence repond en une seconde environ, quelle que soit la taille de l'espace. La mesure du perimetre ne parcourt plus l'espace page par page, ce qui prenait plus de trois minutes sur un grand espace et n'affichait rien du tout dans Companion.
-- La fenetre de perimetre est de nouveau lisible. Ses trois options s'affichaient dans la couleur de texte du systeme sur le fond sombre.
-- Un delai depasse le dit desormais. Le chargement d'une arborescence n'accuse plus la connexion reseau, et le conseil nomme le delai maximal reellement selectionnable au lieu de suggerer une augmentation qui revient en arriere sans le dire.
-- Les comptages de pages d'un espace entier peuvent varier de un. La page collee n'est plus comptee deux fois, et un espace ou aucune page n'est visible affiche zero au lieu de un.
+- L'ajout d'une source Confluence répond en une seconde environ, quelle que soit la taille de l'espace. La mesure du périmètre ne parcourt plus l'espace page par page, ce qui prenait plus de trois minutes sur un grand espace et n'affichait rien du tout dans Companion.
+- La fenêtre de périmètre est de nouveau lisible. Ses trois options s'affichaient dans la couleur de texte du système sur le fond sombre.
+- Un délai dépassé le dit désormais. Le chargement d'une arborescence n'accuse plus la connexion réseau, et le conseil nomme le délai maximal réellement sélectionnable au lieu de suggérer une augmentation qui revient en arrière sans le dire.
+- Les comptages de pages d'un espace entier peuvent varier de un. La page collée n'est plus comptée deux fois, et un espace où aucune page n'est visible affiche zéro au lieu de un.
 
-Mettez Cortex et Companion a jour ensemble avec l'installeur combine. Un deploiement Confluence dont la recherche ne renvoie pas de total ne peut pas mesurer un perimetre, et le dit maintenant au lieu de reessayer.
+Mettez Cortex et Companion à jour ensemble avec l'installeur combiné. Un déploiement Confluence dont la recherche ne renvoie pas de total ne peut pas mesurer un périmètre, et le dit maintenant au lieu de réessayer.
 
 <!-- release:2026-0906-02 -->
 ## 2026.0906.02 - 2026-09-06
 
 - Retrouvez et modifiez vos sources depuis Mes sources, avec recherche et arborescence.
-- Verifiez les pages et sous-pages concernees avant d'enregistrer ; mettez la recherche a jour maintenant ou plus tard.
-- Annulez le dernier retrait pendant la session si la configuration est inchangee. Aucun original Confluence n'est supprime.
-- Suivez la disponibilite et reprenez une erreur avec Reessayer ou Reconnecter Confluence.
+- Vérifiez les pages et sous-pages concernées avant d'enregistrer ; mettez la recherche à jour maintenant ou plus tard.
+- Annulez le dernier retrait pendant la session si la configuration est inchangée. Aucun original Confluence n'est supprimé.
+- Suivez la disponibilité et reprenez une erreur avec Réessayer ou Reconnecter Confluence.
 
-Mettez Cortex et Companion a jour ensemble avec l'installeur combine. La recette utilisateur et les controles d'accessibilite natifs restent manuels.
+Mettez Cortex et Companion à jour ensemble avec l'installeur combiné. La recette utilisateur et les contrôles d'accessibilité natifs restent manuels.
 
 <!-- release:2026-0906-01 -->
 ## 2026.0906.01 - 2026-09-06
 
-- Companion propose un accueil guide et un historique des operations.
-- Ajouter du contenu Confluence en collant un lien de page ou d'espace ; la connexion se fait dans le meme ecran si necessaire.
-- Verifier le nombre de pages avant de confirmer le perimetre. Une annulation ou une erreur d'authentification preserve les sources configurees.
-- La collecte guidee lance l'indexation seulement apres une collecte reussie ; une fraicheur inconnue reste explicite.
-- Les apercus de recherche permettent de copier les extraits et references ; la verification des mises a jour est disponible a la demande.
+- Companion propose un accueil guidé et un historique des opérations.
+- Ajouter du contenu Confluence en collant un lien de page ou d'espace ; la connexion se fait dans le même écran si nécessaire.
+- Vérifier le nombre de pages avant de confirmer le périmètre. Une annulation ou une erreur d'authentification préserve les sources configurées.
+- La collecte guidée lance l'indexation seulement après une collecte réussie ; une fraîcheur inconnue reste explicite.
+- Les aperçus de recherche permettent de copier les extraits et références ; la vérification des mises à jour est disponible à la demande.
 
-Mettre Cortex et Companion a jour ensemble avec l'installeur combine. Les essais avec compte Confluence reel, Narrator et DPI physique restent manuels.
+Mettre Cortex et Companion à jour ensemble avec l'installeur combiné. Les essais avec compte Confluence réel, Narrator et DPI physique restent manuels.
 
 <!-- release:2026-0906-00 -->
 ## 2026.0906.00 - 2026-09-06
@@ -62,324 +62,324 @@ les limites, notamment l'absence de validation manuelle Narrator/multi-écran.
 <!-- release:2026-0904-03 -->
 ## 2026.0904.03 - 2026-09-04
 
-- Lancer la suite de tests de Cortex sur un poste de developpement n'ecrit plus
+- Lancer la suite de tests de Cortex sur un poste de développement n'écrit plus
   dans le vrai journal de Cortex, donc `cortex doctor` sur ce poste ne liste
   plus d'erreurs venues des fixtures de test.
-- Cortex Companion : les deux preuves d'interoperabilite conservees sous
-  `tests/interop` sont decrites dans le README, avec ce qu'elles verifient et
+- Cortex Companion : les deux preuves d'interopérabilité conservées sous
+  `tests/interop` sont décrites dans le README, avec ce qu'elles vérifient et
   comment les lancer.
 
 <!-- release:2026-0904-02 -->
 ## 2026.0904.02 - 2026-09-04
 
-- `cortex sync` lance depuis une console ou depuis `sync.bat` rend le meme code
-  de sortie que le mode `--json` : un sync partiel ou en echec ne se termine
-  plus par `0` sans rien dire, et Ctrl+C arrete proprement avec le code `130`.
+- `cortex sync` lancé depuis une console ou depuis `sync.bat` rend le même code
+  de sortie que le mode `--json` : un sync partiel ou en échec ne se termine
+  plus par `0` sans rien dire, et Ctrl+C arrête proprement avec le code `130`.
 - Nouvelle commande `cortex search "votre question"` pour interroger l'index
   depuis la console, avec `--section` et `--top-k`. L'ancienne forme
-  `cortex sync --search` reste acceptee.
-- Chaque option de la ligne de commande est expliquee dans `--help`, et le
-  message affiche quand aucun dossier n'est configure renvoie vers
+  `cortex sync --search` reste acceptée.
+- Chaque option de la ligne de commande est expliquée dans `--help`, et le
+  message affiché quand aucun dossier n'est configuré renvoie vers
   `cortex setup`.
 - Cortex Companion affiche un compteur de fichiers pendant la synchronisation
-  locale au lieu d'une barre indeterminee ; il faut ce Cortex pour le voir.
-- Companion : le PAT Confluence s'enregistre uniquement dans Reglages, les
-  libelles de navigation et de boutons sont harmonises, Entree valide le champ
-  en cours de saisie, un ecran bloque indique quel ecran ouvrir, et un succes de
-  programmation n'est plus affiche comme un avertissement.
-- Les pages francaises de l'installeur retrouvent leurs accents.
+  locale au lieu d'une barre indéterminée ; il faut ce Cortex pour le voir.
+- Companion : le PAT Confluence s'enregistre uniquement dans Réglages, les
+  libellés de navigation et de boutons sont harmonisés, Entrée valide le champ
+  en cours de saisie, un écran bloqué indique quel écran ouvrir, et un succès de
+  programmation n'est plus affiché comme un avertissement.
+- Les pages françaises de l'installeur retrouvent leurs accents.
 
 <!-- release:2026-0904-01 -->
 ## 2026.0904.01 - 2026-09-04
 
-- Le fichier de configuration Confluence ecrit desormais les identifiants de
-  page d'une seule facon. Ce sont des tables `[[spaces.pages]]`, et un espace
-  configure sans aucune page omet simplement la clef au lieu d'ecrire une liste
-  vide en ligne. Les fichiers ecrits avant cette version continuent de
+- Le fichier de configuration Confluence écrit désormais les identifiants de
+  page d'une seule façon. Ce sont des tables `[[spaces.pages]]`, et un espace
+  configuré sans aucune page omet simplement la clef au lieu d'écrire une liste
+  vide en ligne. Les fichiers écrits avant cette version continuent de
   fonctionner tels quels ; seul `selection = "subtree"` porte encore
   `pages = []`, parce que la clef y est obligatoire et que TOML ne sait pas
-  ecrire une liste de tables vide.
+  écrire une liste de tables vide.
 
 <!-- release:2026-0904-00 -->
 ## 2026.0904.00 - 2026-09-04
 
-- Un espace Confluence qui ne collecte rien n'a plus l'air en bonne sante. Un
-  espace dont la selection de pages est vide est nomme dans le journal, compte
-  a part des espaces qui ont produit des pages, et fait passer la sante de la
-  source en degradee. Auparavant il n'enumerait rien, ne journalisait rien,
-  comptait comme un succes et laissait la sante a `ok` : un espace pouvait
-  rester non indexe pendant des heures alors que tous les signaux disaient que
-  la synchronisation s'etait bien passee.
-- Cortex Companion ne laisse plus un espace autorise sans rien a collecter sans
-  vous le dire. Autoriser un espace et ajouter sa page sont desormais un seul
-  geste : si la page n'est pas ajoutee, Companion demande s'il faut garder un
+- Un espace Confluence qui ne collecte rien n'a plus l'air en bonne santé. Un
+  espace dont la sélection de pages est vide est nommé dans le journal, compte
+  à part des espaces qui ont produit des pages, et fait passer la santé de la
+  source en dégradée. Auparavant il n'énumérait rien, ne journalisait rien,
+  comptait comme un succès et laissait la santé à `ok` : un espace pouvait
+  rester non indexé pendant des heures alors que tous les signaux disaient que
+  la synchronisation s'était bien passée.
+- Cortex Companion ne laisse plus un espace autorisé sans rien à collecter sans
+  vous le dire. Autoriser un espace et ajouter sa page sont désormais un seul
+  geste : si la page n'est pas ajoutée, Companion demande s'il faut garder un
   espace qui ne collectera rien, et le retire si vous refusez. Le premier
-  lancement pose la meme question, et retirer la derniere page d'une selection
+  lancement pose la même question, et retirer la dernière page d'une sélection
   aussi.
-- Chaque carte d'espace indique ce que la derniere collecte a couvert : un
-  espace a zero page se lit comme tel, sans ouvrir un journal ni un fichier de
+- Chaque carte d'espace indique ce que la dernière collecte a couvert : un
+  espace à zéro page se lit comme tel, sans ouvrir un journal ni un fichier de
   configuration.
 
 <!-- release:2026-0903-02 -->
 ## 2026.0903.02 - 2026-09-03
 
-- Cortex Companion sait autoriser un nouvel espace Confluence depuis l'ecran
+- Cortex Companion sait autoriser un nouvel espace Confluence depuis l'écran
   `Pages`. Collez l'URL de n'importe quelle page de l'espace, choisissez sa
-  classification, confirmez : modifier `confluence.toml` a la main n'est plus
-  le seul chemin. Seul l'ecran de premier lancement en etait capable, et il
-  disparait des que le fichier existe.
-- Ajouter une page d'un espace pas encore autorise ne s'arrete plus sur une
-  erreur. La carte est preremplie avec l'URL que vous venez de coller, elle
-  nomme l'espace concerne, et la confirmer ajoute votre page dans la foulee.
-- Les messages d'erreur ne se terminent plus par les lignes de journal ecrites
-  par Cortex pendant son travail. Seule la phrase qui vous est destinee reste.
+  classification, confirmez : modifier `confluence.toml` à la main n'est plus
+  le seul chemin. Seul l'écran de premier lancement en était capable, et il
+  disparaît dès que le fichier existe.
+- Ajouter une page d'un espace pas encore autorisé ne s'arrête plus sur une
+  erreur. La carte est préremplie avec l'URL que vous venez de coller, elle
+  nomme l'espace concerné, et la confirmer ajoute votre page dans la foulée.
+- Les messages d'erreur ne se terminent plus par les lignes de journal écrites
+  par Cortex pendant son travail. Seule la phrase qui vous est destinée reste.
 
 <!-- release:2026-0903-01 -->
 ## 2026.0903.01 - 2026-09-03
 
-- Le rapport de synchronisation compte desormais les documents sans corps
+- Le rapport de synchronisation compte désormais les documents sans corps
   indexable. Une page qui ne porte qu'une macro enfants de Confluence, ou aucun
-  texte, etait comptee comme ignoree avec les fichiers inchanges et n'etait
-  journalisee nulle part. Elle a maintenant son propre compteur et sa propre
+  texte, était comptée comme ignorée avec les fichiers inchangés et n'était
+  journalisée nulle part. Elle a maintenant son propre compteur et sa propre
   ligne de journal, donc elle est retrouvable.
-- Cortex Companion arrete de suivre une synchronisation quand l'ecran qui la
-  suit est remplace. L'ecran abandonne continuait a lire l'etat local en
-  arriere-plan.
-- Cortex Companion renomme trois couleurs de theme pour que chacune porte le
+- Cortex Companion arrête de suivre une synchronisation quand l'écran qui la
+  suit est remplacé. L'écran abandonné continuait à lire l'état local en
+  arrière-plan.
+- Cortex Companion renomme trois couleurs de thème pour que chacune porte le
   nom du pinceau qui la lit. Aucun changement visible.
 
 <!-- release:2026-0903-00 -->
 ## 2026.0903.00 - 2026-09-03
 
 - Une erreur d'usage de la ligne de commande, par exemple une option mal
-  tapee, sort desormais avec le code entree invalide (6). Elle sortait avec 2,
-  que Cortex Companion lit comme "une autre operation tient l'index".
-- `cortex sync --search` ne s'arrete plus sur une console Windows incapable
-  d'afficher un caractere de vos notes, par exemple un emoji. Le caractere est
-  ecrit sous forme de sequence d'echappement et la suite de la liste s'affiche.
-- Cortex Companion retire neuf textes d'interface qu'aucun ecran n'affichait.
+  tapée, sort désormais avec le code entrée invalide (6). Elle sortait avec 2,
+  que Cortex Companion lit comme "une autre opération tient l'index".
+- `cortex sync --search` ne s'arrête plus sur une console Windows incapable
+  d'afficher un caractère de vos notes, par exemple un emoji. Le caractère est
+  écrit sous forme de séquence d'échappement et la suite de la liste s'affiche.
+- Cortex Companion retire neuf textes d'interface qu'aucun écran n'affichait.
   Aucun changement visible.
 
 <!-- release:2026-0902-01 -->
 ## 2026.0902.01 - 2026-09-02
 
 - Cortex Companion s'ouvre de nouveau normalement. La version `2026.0902.00`
-  pouvait s'arreter avant d'afficher sa fenetre a cause d'une liaison invalide
+  pouvait s'arrêter avant d'afficher sa fenêtre à cause d'une liaison invalide
   sur la barre de progression.
-- En cas d'echec de demarrage inattendu, la boite de dialogue indique maintenant
+- En cas d'échec de démarrage inattendu, la boîte de dialogue indique maintenant
   le type et le message de l'exception, en plus du dossier local des journaux.
-- La barriere de release ouvre desormais la fenetre Companion complete afin de
-  detecter cette categorie d'echec WPF avant publication.
+- La barrière de release ouvre désormais la fenêtre Companion complète afin de
+  détecter cette catégorie d'échec WPF avant publication.
 
 <!-- release:2026-0902-00 -->
 ## 2026.0902.00 - 2026-09-02
 
 - Le jeton Confluence ne peut plus quitter l'instance que vous avez choisie. Une
-  redirection HTTP vers un autre hote est desormais refusee au lieu d'etre suivie
-  avec l'en-tete d'authentification.
-- L'adresse Confluence doit maintenant etre en `https`, sauf pour une instance
-  locale de test. Une adresse en clair exposait le jeton sur le reseau. Companion
-  le signale des que vous collez l'URL de la premiere page.
+  redirection HTTP vers un autre hôte est désormais refusée au lieu d'être suivie
+  avec l'en-tête d'authentification.
+- L'adresse Confluence doit maintenant être en `https`, sauf pour une instance
+  locale de test. Une adresse en clair exposait le jeton sur le réseau. Companion
+  le signale dès que vous collez l'URL de la première page.
 - Companion permet enfin d'interrompre une collecte en cours. Le bouton
-  `Interrompre` demande confirmation, annonce ce qui va se passer, puis arrete
-  l'operation. La generation deja publiee reste intacte.
-- Fermer Companion pendant une operation demande maintenant confirmation, et
-  rappelle que l'operation continue en arriere-plan.
-- `Collecter Confluence` est remonte sur la carte principale de `Base locale`,
-  a cote de la synchronisation locale, au lieu d'etre cache sous les options
-  avancees.
-- `F5` recharge l'ecran courant et `Ctrl+S` enregistre depuis les Reglages. Le
-  raccourci est rappele dans l'infobulle du bouton.
+  `Interrompre` demande confirmation, annonce ce qui va se passer, puis arrête
+  l'opération. La génération déjà publiée reste intacte.
+- Fermer Companion pendant une opération demande maintenant confirmation, et
+  rappelle que l'opération continue en arrière-plan.
+- `Collecter Confluence` est remonté sur la carte principale de `Base locale`,
+  à côté de la synchronisation locale, au lieu d'être caché sous les options
+  avancées.
+- `F5` recharge l'écran courant et `Ctrl+S` enregistre depuis les Réglages. Le
+  raccourci est rappelé dans l'infobulle du bouton.
 - Les bordures de Companion sont plus lisibles : leur contraste passait sous le
-  seuil d'accessibilite sur les lignes mises en avant.
-- `cortex --help` decrit maintenant chaque sous-commande, et `cortex sync --help`
+  seuil d'accessibilité sur les lignes mises en avant.
+- `cortex --help` décrit maintenant chaque sous-commande, et `cortex sync --help`
   affiche une ligne d'usage que vous pouvez recopier telle quelle.
-- `cortex setup --kb-path` permet une installation sans invite sans avoir a
-  definir une variable d'environnement au prealable.
+- `cortex setup --kb-path` permet une installation sans invite sans avoir à
+  définir une variable d'environnement au préalable.
 
 <!-- release:2026-0901-05 -->
 ## 2026.0901.05 - 2026-09-01
 
 - Quand vous collez une URL de page, Companion compte maintenant la page seule,
   son arborescence et l'espace entier avant d'enregistrer le choix. Si la page a
-  des descendants, l'arborescence est selectionnee et recommandee par defaut.
+  des descendants, l'arborescence est sélectionnée et recommandée par défaut.
 - Chaque choix affiche le nombre de pages, une estimation du stockage, son
-  emplacement physique et la retention configuree. Le champ `target` est
-  clairement presente comme un prefixe logique, avec un bouton pour ouvrir la
-  generation courante.
-- Une collecte manuelle demarre toujours immediatement. Une modification du
-  perimetre invalide aussi la cadence des executions automatisees.
+  emplacement physique et la rétention configurée. Le champ `target` est
+  clairement présenté comme un préfixe logique, avec un bouton pour ouvrir la
+  génération courante.
+- Une collecte manuelle démarre toujours immédiatement. Une modification du
+  périmètre invalide aussi la cadence des exécutions automatisées.
 - Pendant une collecte longue, Companion affiche la phase et la progression
-  chiffree. Apres la collecte, un perimetre trop etroit signale les descendants
-  exclus et propose de passer a l'arborescence en un clic.
+  chiffrée. Après la collecte, un périmètre trop étroit signale les descendants
+  exclus et propose de passer à l'arborescence en un clic.
 - Un rejet par `failure_threshold` explique maintenant le nombre et le taux
-  d'echecs, le seuil applique et les actions possibles. Les anciens dossiers
-  temporaires Confluence orphelins sont nettoyes prudemment au demarrage.
+  d'échecs, le seuil appliqué et les actions possibles. Les anciens dossiers
+  temporaires Confluence orphelins sont nettoyés prudemment au démarrage.
 
 <!-- release:2026-0901-04 -->
 ## 2026.0901.04 - 2026-09-01
 
 - Cette version de remplacement publie les correctifs Confluence de
-  `2026.0901.03`, dont la construction avait ete bloquee avant publication.
+  `2026.0901.03`, dont la construction avait été bloquée avant publication.
 - L'installeur fournit automatiquement le convertisseur console et Companion
-  repare les configurations existantes sans demander de chemin a l'utilisateur.
-- La fabrication verifie maintenant localement la source, les tests et la
-  capacite `--probe` du convertisseur avant de l'inclure dans l'installeur.
+  répare les configurations existantes sans demander de chemin à l'utilisateur.
+- La fabrication vérifie maintenant localement la source, les tests et la
+  capacité `--probe` du convertisseur avant de l'inclure dans l'installeur.
 
 <!-- release:2026-0901-03 -->
 ## 2026.0901.03 - 2026-09-01
 
 - L'installeur fournit maintenant le vrai convertisseur Confluence console.
   Une installation standard ne demande plus aucun chemin de convertisseur.
-- Companion verifie le convertisseur en moins de cinq secondes avant de
-  l'enregistrer. L'application graphique `ConfluenceRAGBuilder.exe` est refusee
-  immediatement au lieu d'ouvrir une fenetre puis d'attendre sans resultat.
-- Les fichiers `confluence.toml` schema v2 crees sans `console_path` sont
-  repares automatiquement et atomiquement au premier chargement.
-- Les echecs indiquent le chemin effectif du convertisseur dans les journaux,
-  et les dossiers temporaires `cortex-confluence-*` sont supprimes sur tous les
+- Companion vérifie le convertisseur en moins de cinq secondes avant de
+  l'enregistrer. L'application graphique `ConfluenceRAGBuilder.exe` est refusée
+  immédiatement au lieu d'ouvrir une fenêtre puis d'attendre sans résultat.
+- Les fichiers `confluence.toml` schema v2 créés sans `console_path` sont
+  réparés automatiquement et atomiquement au premier chargement.
+- Les échecs indiquent le chemin effectif du convertisseur dans les journaux,
+  et les dossiers temporaires `cortex-confluence-*` sont supprimés sur tous les
   chemins de sortie.
 
 <!-- release:2026-0901-02 -->
 ## 2026.0901.02 - 2026-09-01
 
-- Le delai choisi dans `Réglages` s'applique maintenant a toutes les commandes
-  courtes lancees par Companion : connexion, lecture de la configuration Cortex
+- Le délai choisi dans `Réglages` s'applique maintenant à toutes les commandes
+  courtes lancées par Companion : connexion, lecture de la configuration Cortex
   et gestion des pages Confluence.
 - Sur un poste lent, choisir 60 ou 120 secondes puis `Enregistrer et connecter`
-  empeche Companion d'interrompre `cortex.exe` pendant son demarrage.
-- Un vrai depassement de delai est maintenant annonce clairement avec l'action
-  a effectuer. Il n'est plus masque par le message trompeur `Le CLI a refuse la
+  empêche Companion d'interrompre `cortex.exe` pendant son démarrage.
+- Un vrai dépassement de délai est maintenant annoncé clairement avec l'action
+  à effectuer. Il n'est plus masqué par le message trompeur `Le CLI a refuse la
   lecture`.
-- Les reglages existants sont repris automatiquement ; aucun TOML ni PAT ne doit
-  etre ressaisi apres la mise a jour.
+- Les réglages existants sont repris automatiquement ; aucun TOML ni PAT ne doit
+  être ressaisi après la mise à jour.
 
 <!-- release:2026-0901-01 -->
 ## 2026.0901.01 - 2026-09-01
 
-- La premiere configuration Confluence se fait maintenant directement dans
+- La première configuration Confluence se fait maintenant directement dans
   `Pages Confluence`. Collez l'URL d'une page, choisissez la date d'expiration
   du PAT et la classification, puis cliquez sur `Initialiser et ajouter la page`.
-- Companion detecte l'adresse de l'instance et la cle d'espace dans les URL qui
+- Companion détecte l'adresse de l'instance et la clé d'espace dans les URL qui
   les exposent. Les anciennes URL `viewpage.action` et les liens courts restent
-  acceptes ; il suffit alors de saisir la cle d'espace affichee dans Confluence.
-- Le fichier `confluence.toml` est cree de facon verrouillee, validee et atomique.
-  Le PAT reste uniquement dans le Gestionnaire d'identifiants Windows protege
-  par DPAPI ; il n'est jamais ecrit dans ce fichier.
-- Le convertisseur externe peut etre selectionne dans le meme ecran. Il est
-  facultatif pour gerer les pages, mais reste requis pour lancer leur collecte.
+  acceptés ; il suffit alors de saisir la clé d'espace affichée dans Confluence.
+- Le fichier `confluence.toml` est créé de façon verrouillée, validée et atomique.
+  Le PAT reste uniquement dans le Gestionnaire d'identifiants Windows protégé
+  par DPAPI ; il n'est jamais écrit dans ce fichier.
+- Le convertisseur externe peut être sélectionné dans le même écran. Il est
+  facultatif pour gérer les pages, mais reste requis pour lancer leur collecte.
 
 <!-- release:2026-0901-00 -->
 ## 2026.0901.00 - 2026-09-01
 
-- Le PAT Confluence peut maintenant etre enregistre des la premiere ouverture,
-  meme avant la creation de `confluence.toml`. Companion utilise alors la meme
-  cible Windows par defaut que Cortex : `cortex-spike`.
-- Tant que `confluence.toml` n'existe pas, l'ajout de pages reste desactive et
-  l'ecran indique le prerequis au lieu de lancer une commande vouee a echouer.
-  Une actualisation suffit a reactiver l'action apres creation du fichier.
-- Une configuration incomplete est maintenant signalee comme invalide avec le
-  detail utile (`base_url` ou `auth_expires_at` manquant), au lieu du message
-  generique `La CLI a refuse la lecture`.
+- Le PAT Confluence peut maintenant être enregistré dès la première ouverture,
+  même avant la création de `confluence.toml`. Companion utilise alors la même
+  cible Windows par défaut que Cortex : `cortex-spike`.
+- Tant que `confluence.toml` n'existe pas, l'ajout de pages reste désactivé et
+  l'écran indique le prérequis au lieu de lancer une commande vouée à échouer.
+  Une actualisation suffit à réactiver l'action après création du fichier.
+- Une configuration incomplète est maintenant signalée comme invalide avec le
+  détail utile (`base_url` ou `auth_expires_at` manquant), au lieu du message
+  générique `La CLI a refuse la lecture`.
 
 <!-- release:2026-0831-01 -->
 ## 2026.0831.01 - 2026-08-31
 
-- `Reglages > Authentification Confluence` propose maintenant un champ masque
+- `Reglages > Authentification Confluence` propose maintenant un champ masqué
   pour le Personal Access Token (PAT). Configurez d'abord Confluence, puis
-  enregistrez le PAT avant la premiere collecte ou lors de son renouvellement.
-- Companion lit le `credential_target` configure et stocke le PAT pour le
-  compte Windows courant dans le Gestionnaire d'identifiants Windows, protege
-  par DPAPI. Le secret n'est jamais ecrit dans les reglages Companion, le
+  enregistrez le PAT avant la première collecte ou lors de son renouvellement.
+- Companion lit le `credential_target` configuré et stocke le PAT pour le
+  compte Windows courant dans le Gestionnaire d'identifiants Windows, protégé
+  par DPAPI. Le secret n'est jamais écrit dans les réglages Companion, le
   fichier TOML Confluence ou les journaux.
 - La commande `cortex confluence store-credential` reste disponible pour
-  l'administration en ligne de commande et utilise la meme entree securisee.
+  l'administration en ligne de commande et utilise la même entrée sécurisée.
 
 <!-- release:2026-0831-00 -->
 ## 2026.0831.00 - 2026-08-31
 
 - Sur un ordinateur lent, `Réglages` permet maintenant de choisir combien de
-  temps Companion attend le demarrage de Cortex : 15, 30, 60 ou 120 secondes.
-  La valeur par defaut est 30 secondes.
-- La verification de version de Cortex ne charge plus les modeles hors ligne.
-  La connexion initiale est donc plus rapide, meme si un delai plus long reste
-  disponible pour les postes ou Cortex met davantage de temps a demarrer.
-- Si Cortex ne repond toujours pas avant la limite choisie, Companion reste en
-  lecture seule et l'ecran Pages ne lance pas Cortex une seconde fois.
+  temps Companion attend le démarrage de Cortex : 15, 30, 60 ou 120 secondes.
+  La valeur par défaut est 30 secondes.
+- La vérification de version de Cortex ne charge plus les modèles hors ligne.
+  La connexion initiale est donc plus rapide, même si un délai plus long reste
+  disponible pour les postes où Cortex met davantage de temps à démarrer.
+- Si Cortex ne répond toujours pas avant la limite choisie, Companion reste en
+  lecture seule et l'écran Pages ne lance pas Cortex une seconde fois.
 
 <!-- release:2026-0827-03 -->
 ## 2026.0827.03 - 2026-08-27
 
-- Correction : l'ecran Pages affichait une erreur de reponse invalide des qu'un
-  espace passait en mode sous-arbre. Ses racines n'etaient pas transmises a
-  l'interface. Mettez a jour avant d'utiliser le mode sous-arbre introduit en
+- Correction : l'écran Pages affichait une erreur de réponse invalide dès qu'un
+  espace passait en mode sous-arbre. Ses racines n'étaient pas transmises à
+  l'interface. Mettez à jour avant d'utiliser le mode sous-arbre introduit en
   2026.0827.02.
 
 <!-- release:2026-0827-02 -->
 ## 2026.0827.02 - 2026-08-27
 
-- Un troisieme mode de collecte arrive : le sous-arbre. Chaque page listee
+- Un troisième mode de collecte arrive : le sous-arbre. Chaque page listée
   devient une racine, et Cortex collecte aussi toutes ses pages descendantes.
-  Utile quand vous voulez une branche entiere d'un espace sans prendre l'espace
+  Utile quand vous voulez une branche entière d'un espace sans prendre l'espace
   complet.
-- L'arborescence est resolue a chaque collecte, pas figee dans le fichier : les
-  pages ajoutees plus tard sous une racine sont reprises automatiquement.
+- L'arborescence est résolue à chaque collecte, pas figée dans le fichier : les
+  pages ajoutées plus tard sous une racine sont reprises automatiquement.
 - Dans Companion, le bouton de changement de mode fait maintenant le tour des
   trois modes : espace entier, puis pages explicites, puis sous-arbre. En
-  passant de pages a sous-arbre, vos pages deja listees deviennent les racines.
+  passant de pages à sous-arbre, vos pages déjà listées deviennent les racines.
 - Une racine de sous-arbre se retire comme n'importe quelle page explicite.
 
 <!-- release:2026-0827-01 -->
 ## 2026.0827.01 - 2026-08-27
 
-- Une case "Forcer la collecte" permet desormais de lancer une collecte
-  Confluence sans attendre l'echeance planifiee par Cortex. Auparavant, une
-  collecte deja reussie dans l'intervalle bloquait le bouton jusqu'a
-  l'echeance, sans recours depuis l'interface.
-- Le message affiche dans ce cas explique ce qui se passe et indique la case a
-  cocher, au lieu de presenter un code de sortie brut a cote des vraies
+- Une case "Forcer la collecte" permet désormais de lancer une collecte
+  Confluence sans attendre l'échéance planifiée par Cortex. Auparavant, une
+  collecte déjà réussie dans l'intervalle bloquait le bouton jusqu'à
+  l'échéance, sans recours depuis l'interface.
+- Le message affiché dans ce cas explique ce qui se passe et indique la case à
+  cocher, au lieu de présenter un code de sortie brut à côté des vraies
   erreurs.
 
 <!-- release:2026-0827-00 -->
 ## 2026.0827.00 - 2026-08-27
 
 - Ajouter une page Confluence accepte maintenant l'adresse que le navigateur
-  affiche sur les versions recentes de Confluence, de la forme
-  `/spaces/ESPACE/pages/ID/Titre`. Il n'est plus necessaire de retrouver l'ID
-  numerique a la main. Les autres formes deja reconnues continuent de
+  affiche sur les versions récentes de Confluence, de la forme
+  `/spaces/ESPACE/pages/ID/Titre`. Il n'est plus nécessaire de retrouver l'ID
+  numérique à la main. Les autres formes déjà reconnues continuent de
   fonctionner.
-- Coller l'adresse d'un accueil d'espace, et non d'une page, indique desormais
+- Coller l'adresse d'un accueil d'espace, et non d'une page, indique désormais
   ce qui est attendu au lieu d'un simple refus.
-- Quand la page appartient a un espace absent du fichier de configuration,
-  Companion explique que l'espace doit d'abord y etre declare, et qu'il ne le
-  cree pas lui-meme.
+- Quand la page appartient à un espace absent du fichier de configuration,
+  Companion explique que l'espace doit d'abord y être déclaré, et qu'il ne le
+  crée pas lui-même.
 
 <!-- release:2026-0808-00 -->
 ## 2026.0808.00 - 2026-08-08
 
-- Un seul installeur Windows fournit maintenant Cortex, les modeles hors ligne
-  et Cortex Companion. Aucun Python ni runtime .NET separe n'est requis.
-- Companion devient le parcours recommande sans terminal : `Réglages` detecte
+- Un seul installeur Windows fournit maintenant Cortex, les modèles hors ligne
+  et Cortex Companion. Aucun Python ni runtime .NET séparé n'est requis.
+- Companion devient le parcours recommandé sans terminal : `Réglages` détecte
   Cortex et permet de choisir le dossier documentaire ; `Base locale` puis
   `Synchroniser les documents locaux` lancent et suivent une synchronisation.
-- L'export, l'import et le retour arriere des bases sont reportes hors de cette
-  release. L'index local peut etre reconstruit depuis le Vault et les sources
-  configurees en relancant une synchronisation.
-- Les utilisateurs Python avances peuvent installer le paquet public
-  `cortex-local-rag` depuis PyPI. Les releases publient aussi la declaration du
+- L'export, l'import et le retour arrière des bases sont reportés hors de cette
+  release. L'index local peut être reconstruit depuis le Vault et les sources
+  configurées en relançant une synchronisation.
+- Les utilisateurs Python avancés peuvent installer le paquet public
+  `cortex-local-rag` depuis PyPI. Les releases publient aussi la déclaration du
   serveur dans le registre MCP.
-- La chaine de release construit et teste l'installeur unifie avant de publier
+- La chaîne de release construit et teste l'installeur unifié avant de publier
   les paquets et artefacts.
 
 <!-- release:notice-2026-08-06 -->
-## Avis du 2026-08-06 - historique publie reecrit
+## Avis du 2026-08-06 - historique publié réécrit
 
-L'historique publie de Cortex a ete reecrit le 2026-08-06. Sept commits d'avril
+L'historique publié de Cortex a été réécrit le 2026-08-06. Sept commits d'avril
 exposaient une adresse email personnelle dans les champs auteur et committer,
 et six trailers exposaient une seconde adresse. Les adresses ne sont pas
 reproduites ici.
 
-Tous les identifiants de commit ont change. Un clone cree avant le 2026-08-06
+Tous les identifiants de commit ont changé. Un clone créé avant le 2026-08-06
 diverge maintenant de `origin/main`. Le moyen le plus simple est de refaire un
 clone. Sinon :
 
@@ -388,63 +388,63 @@ git fetch origin
 git reset --hard origin/main
 ```
 
-Attention : `git reset --hard` detruit les modifications locales. Sauvegardez
-d'abord tout travail a conserver.
+Attention : `git reset --hard` détruit les modifications locales. Sauvegardez
+d'abord tout travail à conserver.
 
-Aucun octet de contenu n'a change et cette reecriture ne modifie aucun
-comportement. Les 121 arbres sont byte-identiques dans le meme ordre, les dates
-auteur et committer sont inchangees, et `git fsck` a rendu le code 0. Les cinq
-tags ont ete repointes. Les cinq Releases GitHub et leurs artefacts restent
-telechargeables.
+Aucun octet de contenu n'a changé et cette réécriture ne modifie aucun
+comportement. Les 121 arbres sont byte-identiques dans le même ordre, les dates
+auteur et committer sont inchangées, et `git fsck` a rendu le code 0. Les cinq
+tags ont été repointés. Les cinq Releases GitHub et leurs artefacts restent
+téléchargeables.
 
 <!-- release:2026-0805-00 -->
 ## 2026.0805.00 - 2026-08-05
 
-- Cortex peut maintenant produire des generations documentaires atomiques,
-  suivre leur fraicheur et indexer les documents de la generation publiee.
+- Cortex peut maintenant produire des générations documentaires atomiques,
+  suivre leur fraîcheur et indexer les documents de la génération publiée.
 - Le writer Confluence optionnel collecte seulement les espaces ou pages
-  autorises, conserve les artefacts source et publie le Markdown par generation.
-- Le writer gere les pages vides, nettoie les noms de pieces jointes et regroupe
+  autorisés, conserve les artefacts source et publie le Markdown par génération.
+- Le writer gère les pages vides, nettoie les noms de pièces jointes et regroupe
   les conversions en lots.
-- La selection de pages, les mutations atomiques de configuration et une
+- La sélection de pages, les mutations atomiques de configuration et une
   surface CLI lisible par une interface externe sont disponibles.
-- Les metadonnees de recherche v2 ajoutent des filtres structures et une
-  migration reversible avec sauvegarde et restauration.
-- Antigravity et LM Studio rejoignent les clients MCP detectes par le setup.
+- Les métadonnées de recherche v2 ajoutent des filtres structurés et une
+  migration réversible avec sauvegarde et restauration.
+- Antigravity et LM Studio rejoignent les clients MCP détectés par le setup.
 - L'installeur ferme l'application avant remplacement et refuse de continuer si
-  sa compilation echoue. Les invites du setup expliquent mieux leurs effets.
-- Les dependances MCP corrigent CVE-2026-52869, CVE-2026-52870 et
+  sa compilation échoue. Les invites du setup expliquent mieux leurs effets.
+- Les dépendances MCP corrigent CVE-2026-52869, CVE-2026-52870 et
   CVE-2026-59950. Les releases fournissent des checksums et une attestation de
   provenance.
-- Une FAQ, une specification publique et les guides FR/EN couvrent ces nouveaux
+- Une FAQ, une spécification publique et les guides FR/EN couvrent ces nouveaux
   parcours.
 
 <!-- release:2026-0716-01 -->
 ## 2026.0716.01 - 2026-07-16
 
-- L'installeur Windows embarque un modele hors ligne epingle.
-- Le runtime verifie le manifeste du modele avant de le charger.
+- L'installeur Windows embarque un modèle hors ligne épinglé.
+- Le runtime vérifie le manifeste du modèle avant de le charger.
 
 <!-- release:2026-0716-00 -->
 ## 2026.0716.00 - 2026-07-16
 
 - La documentation met en avant l'installeur Windows et les binaires autonomes.
-- Le setup enregistre les clients MCP avant l'indexation initiale. Un echec de
+- Le setup enregistre les clients MCP avant l'indexation initiale. Un échec de
   cette indexation n'annule plus l'enregistrement des clients.
-- Le runtime package utilise le magasin de certificats du systeme, notamment
-  pour les autorites d'entreprise.
+- Le runtime package utilise le magasin de certificats du système, notamment
+  pour les autorités d'entreprise.
 
 <!-- release:2026-0715-01 -->
 ## 2026.0715.01 - 2026-07-15
 
 - Un installeur Windows Inno Setup est disponible.
-- L'indexation de tout le dossier devient le choix par defaut.
-- Une reinstallation peut conserver ou reinitialiser l'etat Cortex.
-- `cortex unregister` retire les entrees Cortex des clients MCP.
+- L'indexation de tout le dossier devient le choix par défaut.
+- Une réinstallation peut conserver ou réinitialiser l'état Cortex.
+- `cortex unregister` retire les entrées Cortex des clients MCP.
 
 <!-- release:2026-0715-00 -->
 ## 2026.0715.00 - 2026-07-15
 
-Premiere version publique : recherche locale multilingue, indexation hybride
-vectorielle et lexicale, synchronisation incrementale, outils MCP, setup et
+Première version publique : recherche locale multilingue, indexation hybride
+vectorielle et lexicale, synchronisation incrémentale, outils MCP, setup et
 diagnostic, documentation FR/EN et binaires autonomes.

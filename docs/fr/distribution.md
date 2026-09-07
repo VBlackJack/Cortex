@@ -1,17 +1,17 @@
 # Distribution autonome
 
-**Francais** | [English](../en/distribution.md)
+**Français** | [English](../en/distribution.md)
 
 [Retour au sommaire](index.md)
 
-Cortex peut etre livre sous la forme d'une archive ZIP autonome. Elle contient
-un executable unique qui fournit a la fois le CLI et le serveur MCP stdio,
-ainsi que les licences exactes de ses dependances embarquees. L'executable
+Cortex peut être livré sous la forme d'une archive ZIP autonome. Elle contient
+un exécutable unique qui fournit à la fois le CLI et le serveur MCP stdio,
+ainsi que les licences exactes de ses dépendances embarquées. L'exécutable
 n'exige pas Python sur le poste cible.
 
-## Modele de commandes
+## Modèle de commandes
 
-Le meme binaire expose toute la surface de commandes :
+Le même binaire expose toute la surface de commandes :
 
 ```text
 cortex setup
@@ -21,46 +21,46 @@ cortex doctor
 cortex serve
 ```
 
-`cortex serve` est le point d'entree du serveur MCP. Il n'est normalement pas
-lance a la main : quand `cortex setup` s'execute depuis le binaire autonome, il
-enregistre l'executable courant avec l'argument `serve` dans chaque client
-selectionne.
+`cortex serve` est le point d'entrée du serveur MCP. Il n'est normalement pas
+lancé à la main : quand `cortex setup` s'exécute depuis le binaire autonome, il
+enregistre l'exécutable courant avec l'argument `serve` dans chaque client
+sélectionné.
 
 L'installation Python reste prise en charge. Dans ce mode, le setup continue
-d'enregistrer l'interpreteur Python courant avec `server.py` ; les workflows de
-developpement et pip existants ne changent pas.
+d'enregistrer l'interpréteur Python courant avec `server.py` ; les workflows de
+développement et pip existants ne changent pas.
 
 ## Installer sous Windows
 
-Pour un utilisateur non technique, telecharger `Cortex-Setup.exe` depuis la
+Pour un utilisateur non technique, télécharger `Cortex-Setup.exe` depuis la
 release. L'assistant installe Cortex sans droits administrateur, collecte le
 dossier de documents, ajoute le binaire au PATH et enregistre les clients MCP.
 Voir le [guide d'installation Windows](installation-windows.md).
 
 L'archive `cortex-windows-x64.zip` reste disponible pour un usage portable ou
-avance.
+avancé.
 
-## Installer une archive autonome publiee
+## Installer une archive autonome publiée
 
-1. Telecharger l'archive de son systeme et `SHA256SUMS` depuis la GitHub Release
-   correspondante, puis verifier son empreinte SHA-256.
-2. Extraire toute l'archive dans un emplacement stable qui ne sera ni renomme
-   ni supprime. Conserver le dossier `licenses` avec le binaire.
-3. Sous Linux ou macOS, rendre le binaire executable avec `chmod +x cortex`.
-4. Lancer `cortex setup` depuis ce binaire, puis redemarrer les clients MCP
-   enregistres.
+1. Télécharger l'archive de son système et `SHA256SUMS` depuis la GitHub Release
+   correspondante, puis vérifier son empreinte SHA-256.
+2. Extraire toute l'archive dans un emplacement stable qui ne sera ni renommé
+   ni supprimé. Conserver le dossier `licenses` avec le binaire.
+3. Sous Linux ou macOS, rendre le binaire exécutable avec `chmod +x cortex`.
+4. Lancer `cortex setup` depuis ce binaire, puis redémarrer les clients MCP
+   enregistrés.
 
 Le setup est au scope utilisateur. L'enregistrement MCP au scope projet est
 volontairement exclu de Cortex.
 
-La premiere indexation ou le premier demarrage du serveur peut telecharger les
-modeles d'embedding et de reranking configures dans le cache FastEmbed. Un acces
-reseau est donc necessaire une fois si le cache de modeles est vide. Le contenu
+La première indexation ou le premier démarrage du serveur peut télécharger les
+modèles d'embedding et de reranking configurés dans le cache FastEmbed. Un accès
+réseau est donc nécessaire une fois si le cache de modèles est vide. Le contenu
 de la base de connaissance et l'index produit restent locaux.
 
 ## Construire localement
 
-Installer Cortex avec la dependance de build optionnelle :
+Installer Cortex avec la dépendance de build optionnelle :
 
 ```powershell
 python -m pip install -e ".[build]"
@@ -78,22 +78,22 @@ Sous Linux ou macOS :
 ./scripts/build_installer.sh --clean
 ```
 
-Les deux scripts creent un executable PyInstaller one-file et un inventaire de
-licences verifie sous `dist/`. Le binaire embarque ChromaDB, FastEmbed, ONNX
+Les deux scripts créent un exécutable PyInstaller one-file et un inventaire de
+licences vérifié sous `dist/`. Le binaire embarque ChromaDB, FastEmbed, ONNX
 Runtime, Tokenizers et les modules Cortex ; il est donc nettement plus lourd
-qu'un simple CLI Python. Les fichiers des modeles ne sont pas embarques.
+qu'un simple CLI Python. Les fichiers des modèles ne sont pas embarqués.
 
 ## Workflow de release
 
-Le push d'un tag `v*` demarre `.github/workflows/release.yml`. Le workflow build
+Le push d'un tag `v*` démarre `.github/workflows/release.yml`. Le workflow build
 sous Windows x64, macOS arm64 et Linux x64, smoke-teste le CLI et les imports du
-serveur, puis attache trois archives ZIP avec leurs licences a la GitHub Release.
-Le leg Windows compile aussi `Cortex-Setup.exe` avec Inno Setup et l'attache a
-la release. Cette version Windows n'est pas signee ; son empreinte doit etre
-comparee a `SHA256SUMS` avant execution. Le job de publication genere les
+serveur, puis attache trois archives ZIP avec leurs licences à la GitHub Release.
+Le leg Windows compile aussi `Cortex-Setup.exe` avec Inno Setup et l'attache à
+la release. Cette version Windows n'est pas signée ; son empreinte doit être
+comparée à `SHA256SUMS` avant exécution. Le job de publication génère les
 empreintes de tous les artefacts et produit une attestation de provenance
 GitHub avant de publier la release en une fois. `workflow_dispatch` peut
-construire les memes artefacts sans publier de release.
+construire les mêmes artefacts sans publier de release.
 
 Le job de release ne doit jamais publier l'archive d'une plateforme dont le
-build, l'inventaire de licences ou le smoke-test a echoue.
+build, l'inventaire de licences ou le smoke-test a échoué.

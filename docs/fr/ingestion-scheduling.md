@@ -16,35 +16,35 @@ limitations under the License.
 
 # Planifier l'ingestion sous Windows
 
-**Francais** | [English](../en/ingestion-scheduling.md)
+**Français** | [English](../en/ingestion-scheduling.md)
 
 [Retour au sommaire](index.md)
 
-Le package d'ingestion gere la detection d'une fenetre manquee, les reprises
-transitoires bornees, les controles d'expiration des credentials et le verrou de
-chevauchement propre a la source. Le Planificateur de taches Windows doit
-uniquement lancer le CLI Cortex installe selon la cadence voulue.
+Le package d'ingestion gère la détection d'une fenêtre manquée, les reprises
+transitoires bornées, les contrôles d'expiration des credentials et le verrou de
+chevauchement propre à la source. Le Planificateur de tâches Windows doit
+uniquement lancer le CLI Cortex installé selon la cadence voulue.
 
-Utiliser `cortex ingestion due SOURCE_KIND` a l'ouverture de session. Le code de
-sortie `0` signifie que l'intervalle configure est ecoule et que la commande de
-source doit s'executer. Le code `3` signifie qu'aucun rattrapage n'est requis.
+Utiliser `cortex ingestion due SOURCE_KIND` à l'ouverture de session. Le code de
+sortie `0` signifie que l'intervalle configuré est écoulé et que la commande de
+source doit s'exécuter. Le code `3` signifie qu'aucun rattrapage n'est requis.
 Utiliser `cortex ingestion status SOURCE_KIND` pour lire le dernier snapshot de
-sante atomique. Une erreur de configuration ou de stockage renvoie le code `1`.
+santé atomique. Une erreur de configuration ou de stockage renvoie le code `1`.
 Pour Confluence, le nom convivial `confluence` et le nom canonique `doc`
-consultent le meme snapshot ; toute autre valeur est refusee avant l'acces au
+consultent le même snapshot ; toute autre valeur est refusée avant l'accès au
 stockage.
 
 Les adaptateurs de sources appellent `ingestion.cli.execute_scheduled_attempt`
-depuis leur point d'entree CLI. Les regles de reprise, rattrapage, verrouillage
-et duree de vie des credentials restent ainsi hors des definitions du
-Planificateur de taches.
+depuis leur point d'entrée CLI. Les règles de reprise, rattrapage, verrouillage
+et durée de vie des credentials restent ainsi hors des définitions du
+Planificateur de tâches.
 
-Le fichier de reglages d'ingestion optionnel est
-`%APPDATA%\Cortex\ingestion.toml`. Les variables prefixees par
-`CORTEX_INGESTION_` priment sur TOML, qui prime sur les valeurs par defaut du
-package. Aucun secret n'est accepte par ce fichier, les variables
-d'environnement ou les arguments CLI. L'operateur cree ou renouvelle les
-credentials generiques interactivement dans Windows Credential Manager.
+Le fichier de réglages d'ingestion optionnel est
+`%APPDATA%\Cortex\ingestion.toml`. Les variables préfixées par
+`CORTEX_INGESTION_` priment sur TOML, qui prime sur les valeurs par défaut du
+package. Aucun secret n'est accepté par ce fichier, les variables
+d'environnement ou les arguments CLI. L'opérateur crée ou renouvelle les
+credentials génériques interactivement dans Windows Credential Manager.
 
 ```toml
 schema_version = 1
@@ -60,23 +60,23 @@ backoff_jitter_ratio = 0.2
 schedule_interval_seconds = 86400
 ```
 
-Chaque cle ci-dessus est optionnelle ; le fichier lui-meme peut etre absent. La
-valeur par defaut de `data_root` est `%LOCALAPPDATA%\Cortex\ingestion`.
+Chaque clé ci-dessus est optionnelle ; le fichier lui-même peut être absent. La
+valeur par défaut de `data_root` est `%LOCALAPPDATA%\Cortex\ingestion`.
 L'option globale `--config` permet d'inspecter un autre fichier sans changer le
-defaut :
+défaut :
 
 ```powershell
 cortex ingestion --config <INGESTION_CONFIG> status doc
 cortex ingestion --config <INGESTION_CONFIG> due doc
 ```
 
-Le compte de tache doit avoir les droits de lecture et d'ecriture sur la racine
-d'ingestion configuree et le droit de lire son entree Windows Credential
-Manager. Le contenu publie est selectionne par un pointeur de generation
-remplace atomiquement ; l'operateur ne doit jamais modifier manuellement les
-repertoires de generations.
+Le compte de tâche doit avoir les droits de lecture et d'écriture sur la racine
+d'ingestion configurée et le droit de lire son entrée Windows Credential
+Manager. Le contenu publié est sélectionné par un pointeur de génération
+remplacé atomiquement ; l'opérateur ne doit jamais modifier manuellement les
+répertoires de générations.
 
-Pour l'adaptateur Confluence courant, le Planificateur de taches peut lancer
-`cortex confluence sync` ; l'adaptateur effectue lui-meme le controle de
-cadence. `cortex confluence sync --force` est reserve a une execution
-explicitement demandee par un operateur.
+Pour l'adaptateur Confluence courant, le Planificateur de tâches peut lancer
+`cortex confluence sync` ; l'adaptateur effectue lui-même le contrôle de
+cadence. `cortex confluence sync --force` est réservé à une exécution
+explicitement demandée par un opérateur.

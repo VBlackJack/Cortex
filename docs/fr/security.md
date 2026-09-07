@@ -1,104 +1,104 @@
-# Securite
+# Sécurité
 
-**Francais** | [English](../en/security.md)
+**Français** | [English](../en/security.md)
 
 [Retour au sommaire](index.md)
 
-## Runtime local et acces reseau bornes
+## Runtime local et accès réseau bornés
 
 Tous les clients Chroma sont construits avec
-`Settings(anonymized_telemetry=False)` : aucune telemetrie Chroma/PostHog n'est
-emise. Cortex n'envoie pas le contenu de la base pendant l'indexation ou la
+`Settings(anonymized_telemetry=False)` : aucune télémétrie Chroma/PostHog n'est
+émise. Cortex n'envoie pas le contenu de la base pendant l'indexation ou la
 recherche. Le writer Confluence optionnel effectue uniquement des lectures HTTPS
-authentifiees vers l'origine configuree et la liste blanche explicite d'espaces.
-L'installeur Windows verifie embarque les modeles et fonctionne hors ligne ; une
+authentifiées vers l'origine configurée et la liste blanche explicite d'espaces.
+L'installeur Windows vérifié embarque les modèles et fonctionne hors ligne ; une
 installation depuis les sources ou un binaire autonome peut joindre Hugging
-Face si un modele manque dans le cache local. Les clients MCP restent des
-produits distincts : selon leur politique, ils peuvent transmettre au modele
-les resultats d'outils qu'ils ont demandes.
+Face si un modèle manque dans le cache local. Les clients MCP restent des
+produits distincts : selon leur politique, ils peuvent transmettre au modèle
+les résultats d'outils qu'ils ont demandés.
 
-## Frontiere du credential Confluence
+## Frontière du credential Confluence
 
-Le PAT Confluence est saisi par `getpass` et stocke comme credential Windows
-generique pour le compte de tache courant. Il n'est jamais accepte comme
+Le PAT Confluence est saisi par `getpass` et stocké comme credential Windows
+générique pour le compte de tâche courant. Il n'est jamais accepté comme
 argument CLI, variable d'environnement ou valeur TOML. Les wrappers de secret
-redactent leurs representations texte et les logs ne contiennent que les noms
+rédactent leurs représentations texte et les logs ne contiennent que les noms
 de cible et les types d'erreur.
 
-Cortex controle `auth_expires_at` avant une tentative planifiee. Un credential
-expire ou illisible empeche la publication et preserve la generation
-precedente. La revocation distante reste un contrat du serveur Confluence :
-Cortex observe le rejet lors de la prochaine requete authentifiee et ne garde
+Cortex contrôle `auth_expires_at` avant une tentative planifiée. Un credential
+expiré ou illisible empêche la publication et préserve la génération
+précédente. La révocation distante reste un contrat du serveur Confluence :
+Cortex observe le rejet lors de la prochaine requête authentifiée et ne garde
 pas de second cache du token.
 
 ## Transport du PAT Confluence
 
-Le PAT voyage en en-tete `Authorization: Bearer` sur chaque requete, donc deux
-regles encadrent le transport.
+Le PAT voyage en en-tête `Authorization: Bearer` sur chaque requête, donc deux
+règles encadrent le transport.
 
-`base_url` doit etre en `https`. Une origine `http` distante est refusee a la
-validation de la configuration, du cote Cortex comme du cote Companion, parce
-qu'elle publierait le jeton en clair sur le reseau. Les hotes de bouclage
-(`localhost`, `127.0.0.1`, `::1`) restent acceptes en `http` : aucun paquet ne
+`base_url` doit être en `https`. Une origine `http` distante est refusée à la
+validation de la configuration, du côté Cortex comme du côté Companion, parce
+qu'elle publierait le jeton en clair sur le réseau. Les hôtes de bouclage
+(`localhost`, `127.0.0.1`, `::1`) restent acceptés en `http` : aucun paquet ne
 quitte la machine.
 
-Aucune redirection HTTP ne sort de l'origine choisie. L'opener urllib par defaut
-rejoue tous les en-tetes de requete, `Authorization` compris, vers l'hote nomme
-par une redirection, quel qu'il soit. Le transport Cortex resout donc lui-meme
-les redirections : il compare l'origine de chaque saut a celle de la requete
-initiale, refuse le saut si elle differe, et borne le nombre de sauts. Une
-instance Confluence compromise ou un intermediaire ne peuvent pas faire suivre
+Aucune redirection HTTP ne sort de l'origine choisie. L'opener urllib par défaut
+rejoue tous les en-têtes de requête, `Authorization` compris, vers l'hôte nommé
+par une redirection, quel qu'il soit. Le transport Cortex résout donc lui-même
+les redirections : il compare l'origine de chaque saut à celle de la requête
+initiale, refuse le saut si elle diffère, et borne le nombre de sauts. Une
+instance Confluence compromise ou un intermédiaire ne peuvent pas faire suivre
 le jeton vers une origine tierce.
 
-## Vulnerabilite ChromaDB ignoree (PYSEC-2026-311)
+## Vulnérabilité ChromaDB ignorée (PYSEC-2026-311)
 
-L'audit CI ignore explicitement une vulnerabilite : `PYSEC-2026-311`
-(CVE-2026-45829), une RCE pre-authentification du serveur HTTP de ChromaDB via
+L'audit CI ignore explicitement une vulnérabilité : `PYSEC-2026-311`
+(CVE-2026-45829), une RCE pré-authentification du serveur HTTP de ChromaDB via
 son API REST avec `trust_remote_code=true`. Elle n'est pas exploitable dans
-Cortex : Cortex utilise un `PersistentClient` embarque, jamais le serveur HTTP
-ChromaDB, et le modele ONNX est fixe localement via fastembed, donc le chemin
-`trust_remote_code` n'est jamais emprunte. Un scan confirme l'absence de tout
-`HttpClient` dans les sources. L'ignore est documente dans le workflow CI et
-doit etre retire des qu'une version corrigee de ChromaDB est publiee (bump du
+Cortex : Cortex utilise un `PersistentClient` embarqué, jamais le serveur HTTP
+ChromaDB, et le modèle ONNX est fixé localement via fastembed, donc le chemin
+`trust_remote_code` n'est jamais emprunté. Un scan confirme l'absence de tout
+`HttpClient` dans les sources. L'ignore est documenté dans le workflow CI et
+doit être retiré dès qu'une version corrigée de ChromaDB est publiée (bump du
 pin).
 
-## Ecriture single-writer (write lock)
+## Écriture single-writer (write lock)
 
-ChromaDB (backend SQLite) n'accepte qu'un seul ecrivain a la fois. Deux
-incidents de corruption de l'index (segfault, puis desync HNSW/metadonnees) ont
-eu la meme cause racine : deux ecritures concurrentes sur la meme DB
-(typiquement `server.py` respawne par Claude Desktop pendant qu'un sync tournait
-deja).
+ChromaDB (backend SQLite) n'accepte qu'un seul écrivain à la fois. Deux
+incidents de corruption de l'index (segfault, puis desync HNSW/métadonnées) ont
+eu la même cause racine : deux écritures concurrentes sur la même DB
+(typiquement `server.py` respawné par Claude Desktop pendant qu'un sync tournait
+déjà).
 
-Chaque point d'ecriture Chroma acquiert maintenant un verrou inter-processus
-exclusif (`filelock`, niveau OS, auto-libere si le process qui le detient meurt,
+Chaque point d'écriture Chroma acquiert maintenant un verrou inter-processus
+exclusif (`filelock`, niveau OS, auto-libéré si le process qui le détient meurt,
 que ce soit crash, kill ou respawn) avant de toucher la DB. Si un second
-ecrivain tente d'ecrire pendant qu'un premier detient le verrou, il echoue
-proprement (`CortexWriteLockedError`, timeout borne, jamais d'attente infinie).
-`cortex_sync` renvoie alors un message "locked, reessayer plus tard" plutot
+écrivain tente d'écrire pendant qu'un premier détient le verrou, il échoue
+proprement (`CortexWriteLockedError`, timeout borné, jamais d'attente infinie).
+`cortex_sync` renvoie alors un message "locked, réessayer plus tard" plutôt
 qu'une erreur brute. La lecture (`cortex_search`, `cortex_freshness`) n'est
-jamais bloquee : Chroma autorise les lectures concurrentes, seule l'ecriture est
+jamais bloquée : Chroma autorise les lectures concurrentes, seule l'écriture est
 single-writer.
 
-Preuve (voir `tests/test_write_lock.py`, 4 tests, processus reels et DB isolee) :
-deux ecrivains concurrents produisent exactement un succes et un echec propre,
-integrite DB preservee ; scenario respawn-pendant-sync reproduit et bloque ;
-lecture non bloquee pendant qu'un ecrivain detient le verrou ; ecrivain tue
-brutalement (crash simule) donne un verrou libere automatiquement, sans deadlock
+Preuve (voir `tests/test_write_lock.py`, 4 tests, processus réels et DB isolée) :
+deux écrivains concurrents produisent exactement un succès et un échec propre,
+intégrité DB préservée ; scénario respawn-pendant-sync reproduit et bloqué ;
+lecture non bloquée pendant qu'un écrivain détient le verrou ; écrivain tué
+brutalement (crash simulé) donne un verrou libéré automatiquement, sans deadlock
 permanent. Configurable via `CORTEX_WRITE_LOCK_PATH` et
-`CORTEX_WRITE_LOCK_TIMEOUT_SECONDS` (`config.toml`, 30 s par defaut).
+`CORTEX_WRITE_LOCK_TIMEOUT_SECONDS` (`config.toml`, 30 s par défaut).
 
 ## Logs sans contenu sensible
 
 Les logs locaux (`%LOCALAPPDATA%\Cortex\logs\cortex.log`, rotation 5 Mo x 5) ne
 contiennent jamais le texte des documents ou des chunks : uniquement chemins,
-statuts, erreurs et compteurs operationnels. Les fichiers TOML utilisateur,
+statuts, erreurs et compteurs opérationnels. Les fichiers TOML utilisateur,
 ingestion et Confluence ne contiennent jamais de secret.
 
-## Portee et limites
+## Portée et limites
 
-Cortex protege la disponibilite et l'integrite de son index local. Il ne
-chiffre pas la base au repos : sur un poste ou la confidentialite l'exige, la
-copie locale doit etre protegee par le chiffrement disque (BitLocker ou
-equivalent). Cortex ne gere pas non plus l'authentification des clients MCP :
-c'est la responsabilite de chaque client.
+Cortex protège la disponibilité et l'intégrité de son index local. Il ne
+chiffre pas la base au repos : sur un poste où la confidentialité l'exige, la
+copie locale doit être protégée par le chiffrement disque (BitLocker ou
+équivalent). Cortex ne gère pas non plus l'authentification des clients MCP :
+c'est la responsabilité de chaque client.

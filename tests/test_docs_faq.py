@@ -129,9 +129,9 @@ def test_spec_has_strict_fr_en_structural_parity() -> None:
 
 def test_spec_is_linked_from_both_indexes_and_readmes() -> None:
     expected_links = {
-        ROOT / "docs" / "fr" / "index.md": "[Specification publique](spec.md)",
+        ROOT / "docs" / "fr" / "index.md": "[Spécification publique](spec.md)",
         ROOT / "docs" / "en" / "index.md": "[Public specification](spec.md)",
-        ROOT / "README.fr.md": "[Specification publique](docs/fr/spec.md)",
+        ROOT / "README.fr.md": "[Spécification publique](docs/fr/spec.md)",
         ROOT / "README.md": "[Public specification](docs/en/spec.md)",
     }
 

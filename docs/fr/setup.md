@@ -1,20 +1,20 @@
 # Installation
 
-**Francais** | [English](../en/setup.md)
+**Français** | [English](../en/setup.md)
 
 [Retour au sommaire](index.md)
 
-## Prerequis
+## Prérequis
 
 | Outil | Version minimale |
 |---|---|
 | Runtime | Binaire Cortex autonome, ou Python 3.10+ |
 | Client | Claude Desktop/Code, Codex ou Gemini avec support MCP |
-| Espace disque | ~500 Mo (modele + index) |
+| Espace disque | ~500 Mo (modèle + index) |
 
-Pour un poste cible sans Python, utiliser un binaire autonome publie et voir la
+Pour un poste cible sans Python, utiliser un binaire autonome publié et voir la
 [distribution autonome](distribution.md). Les chemins `install.bat` depuis le
-clone et pip ci-dessous restent les options de developpement et d'installation
+clone et pip ci-dessous restent les options de développement et d'installation
 depuis les sources.
 
 ## Installation en un clic
@@ -25,21 +25,21 @@ install.bat
 ```
 
 Le script est portable : il fonctionne quel que soit l'emplacement du clone
-(`%~dp0` interne). Il enchaine automatiquement :
+(`%~dp0` interne). Il enchaîne automatiquement :
 
-1. Detection de Python 3 dans le PATH.
-2. Initialisation de `%APPDATA%\Cortex\config.toml` sans ecraser une
+1. Détection de Python 3 dans le PATH.
+2. Initialisation de `%APPDATA%\Cortex\config.toml` sans écraser une
    configuration existante.
-3. Installation ou mise a jour des dependances pip.
-4. Proposition d'enregistrer Cortex dans les clients MCP detectes.
-5. Proposition de vider la base vectorielle (utile si le modele change).
+3. Installation ou mise à jour des dépendances pip.
+4. Proposition d'enregistrer Cortex dans les clients MCP détectés.
+5. Proposition de vider la base vectorielle (utile si le modèle change).
 6. Validation de l'installation.
 
-Apres l'installation : redemarrer les clients enregistres.
+Après l'installation : redémarrer les clients enregistrés.
 
 ## Installation comme outil utilisateur
 
-Pour installer Cortex comme paquet, sans dependre du dossier du clone :
+Pour installer Cortex comme paquet, sans dépendre du dossier du clone :
 
 ```powershell
 python -m pip install -e .
@@ -47,13 +47,13 @@ cortex doctor
 ```
 
 Les scripts `.bat` restent pleinement pris en charge et `install.bat` ne
-requiert pas que le paquet Cortex soit installe. Pour une installation
-verrouillee par hash (chaines identiques a l'octet pres), voir
+requiert pas que le paquet Cortex soit installé. Pour une installation
+verrouillée par hash (chaînes identiques à l'octet près), voir
 [Installation reproductible](install-reproductible.md).
 
 ### Setup en une commande
 
-Une fois le paquet installe, `cortex setup` enchaine les trois etapes en un seul
+Une fois le paquet installé, `cortex setup` enchaîne les trois étapes en un seul
 appel : initialisation de la config, construction de l'index, puis enregistrement
 des clients MCP.
 
@@ -74,46 +74,46 @@ cortex setup --reset --yes
 cortex setup --clients claude-desktop,codex
 ```
 
-`--clients` accepte `all` (defaut), `none`, ou une liste. La construction de
-l'index se fait en un seul process (pic RAM superieur a `sync.bat` section par
-section) ; `--no-index` permet de lancer `sync.bat` separement ensuite. Un echec
-d'enregistrement client est signale en avertissement sans interrompre le reste.
+`--clients` accepte `all` (défaut), `none`, ou une liste. La construction de
+l'index se fait en un seul process (pic RAM supérieur à `sync.bat` section par
+section) ; `--no-index` permet de lancer `sync.bat` séparément ensuite. Un échec
+d'enregistrement client est signalé en avertissement sans interrompre le reste.
 
 ### Sources d'ingestion optionnelles
 
 `cortex setup` configure le dossier documentaire choisi et les clients MCP. Il
-ne cree pas de liste blanche Confluence, ne stocke pas de PAT et n'enregistre
-pas de tache dans le Planificateur de taches Windows. Sous Windows, Companion
-guide la creation de la liste blanche depuis `Pages Confluence`. Ces surfaces
-detenues par l'operateur se configurent separement :
+ne crée pas de liste blanche Confluence, ne stocke pas de PAT et n'enregistre
+pas de tâche dans le Planificateur de tâches Windows. Sous Windows, Companion
+guide la création de la liste blanche depuis `Pages Confluence`. Ces surfaces
+détenues par l'opérateur se configurent séparément :
 
 - [Planification de l'ingestion](ingestion-scheduling.md) pour la cadence, les
-  reprises, la sante et la racine de donnees d'ingestion.
+  reprises, la santé et la racine de données d'ingestion.
 - [Writer Confluence](writer-confluence.md) pour la liste blanche d'espaces,
-  l'entree Credential Manager et la console de conversion.
+  l'entrée Credential Manager et la console de conversion.
 
-Quand cette commande tourne depuis l'executable autonome, elle enregistre cet
-executable avec `serve` comme argument MCP. Depuis une installation pip ou les
-sources, elle conserve l'entree Python avec `server.py`.
+Quand cette commande tourne depuis l'exécutable autonome, elle enregistre cet
+exécutable avec `serve` comme argument MCP. Depuis une installation pip ou les
+sources, elle conserve l'entrée Python avec `server.py`.
 
-L'installeur transmet `CORTEX_INDEX_MODE=whole` lors de la creation d'une
-nouvelle configuration. Le mode avance utilise `CORTEX_INDEX_MODE=sections` et
-`CORTEX_INDEX_SECTIONS=knowledge,projects,notes` ; Cortex cree alors ces
-sous-dossiers. Ces variables d'onboarding ne remplacent jamais un choix deja
-persiste dans `config.toml`.
+L'installeur transmet `CORTEX_INDEX_MODE=whole` lors de la création d'une
+nouvelle configuration. Le mode avancé utilise `CORTEX_INDEX_MODE=sections` et
+`CORTEX_INDEX_SECTIONS=knowledge,projects,notes` ; Cortex crée alors ces
+sous-dossiers. Ces variables d'onboarding ne remplacent jamais un choix déjà
+persisté dans `config.toml`.
 
 ## Connecter Claude, Codex et Gemini
 
-`setup_config.py` detecte les clients installes, affiche un recapitulatif puis
+`setup_config.py` détecte les clients installés, affiche un récapitulatif puis
 enregistre le serveur MCP `cortex`. Une configuration JSON ou TOML invalide
-fait echouer l'operation avant toute ecriture. Chaque fichier modifie recoit
-une sauvegarde horodatee et est remplace atomiquement ; les autres reglages et
-serveurs MCP sont conserves.
+fait échouer l'opération avant toute écriture. Chaque fichier modifié reçoit
+une sauvegarde horodatée et est remplacé atomiquement ; les autres réglages et
+serveurs MCP sont conservés.
 
-| Client | Configuration utilisateur | Entree Cortex |
+| Client | Configuration utilisateur | Entrée Cortex |
 |---|---|---|
 | Claude Desktop | `%APPDATA%\Claude\claude_desktop_config.json` | `mcpServers.cortex` |
-| Claude Code | Geree par `claude mcp add --scope user` | jamais ecrite directement par Cortex |
+| Claude Code | Gérée par `claude mcp add --scope user` | jamais écrite directement par Cortex |
 | Codex CLI et extension IDE | `~/.codex/config.toml` | `[mcp_servers.cortex]` |
 | Gemini CLI et Gemini Code Assist (mode agent VS Code) | `~/.gemini/settings.json` | `mcpServers.cortex` |
 | Antigravity | `~/.gemini/config/mcp_config.json` | `mcpServers.cortex` |
@@ -123,11 +123,11 @@ serveurs MCP sont conserves.
 | VS Code | `%APPDATA%\Code\User\mcp.json` | `servers.cortex` (avec `type: stdio`) |
 
 L'enregistrement se fait au scope user pour les neuf clients. Antigravity,
-LM Studio, Cursor et Windsurf utilisent la meme cle `mcpServers` que Claude ;
-VS Code utilise la cle `servers` avec un champ `type: stdio` (format MCP natif
-de VS Code). Antigravity est detecte par son repertoire de profil actif
+LM Studio, Cursor et Windsurf utilisent la même clé `mcpServers` que Claude ;
+VS Code utilise la clé `servers` avec un champ `type: stdio` (format MCP natif
+de VS Code). Antigravity est détecté par son répertoire de profil actif
 (`~/.gemini/antigravity`) : une installation Gemini CLI seule n'est jamais
-enregistree comme Antigravity.
+enregistrée comme Antigravity.
 
 Ces emplacements et formats suivent les documentations officielles de
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/mcp),
@@ -152,15 +152,15 @@ python setup_config.py --check --clients all
 python setup_config.py --yes --clients all
 ```
 
-Le mode `--yes` ne pose aucune question : il n'invite jamais a saisir un chemin
-(`--init --yes` exige alors `CORTEX_KB_PATH`) et ne deplace jamais un index
+Le mode `--yes` ne pose aucune question : il n'invite jamais à saisir un chemin
+(`--init --yes` exige alors `CORTEX_KB_PATH`) et ne déplace jamais un index
 existant (la migration reste explicite via `--migrate-data`).
 
 Chaque client lance son propre processus serveur : `cortex serve` pour une
 installation autonome, ou `python server.py` pour une installation depuis les
-sources ou pip. Les lectures simultanees sont sures. Toutes les ecritures sur
-l'index sont serialisees entre processus par le write lock Cortex deja teste en
-conditions multi-processus (voir [Securite](security.md)).
+sources ou pip. Les lectures simultanées sont sûres. Toutes les écritures sur
+l'index sont sérialisées entre processus par le write lock Cortex déjà testé en
+conditions multi-processus (voir [Sécurité](security.md)).
 
 ## Validation post-installation
 
@@ -168,9 +168,9 @@ conditions multi-processus (voir [Securite](security.md)).
 python setup_config.py --check
 ```
 
-Verifie : dependances runtime, configuration utilisateur, emplacement d'index
-unique ou migration requise, presence de l'entree `cortex` pour chaque client
-selectionne, commande serveur et arguments enregistres. La sortie est qualifiee
+Vérifie : dépendances runtime, configuration utilisateur, emplacement d'index
+unique ou migration requise, présence de l'entrée `cortex` pour chaque client
+sélectionné, commande serveur et arguments enregistrés. La sortie est qualifiée
 par client avec `[OK]`, `[SKIP not installed]` ou `[FAIL]`.
 
 Pour un diagnostic support complet, lancer ensuite le

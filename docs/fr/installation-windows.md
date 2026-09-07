@@ -1,142 +1,142 @@
 # Installation Windows
 
-**Francais** | [English](../en/windows-install.md)
+**Français** | [English](../en/windows-install.md)
 
 [Retour au sommaire](index.md)
 
-L'installeur Windows est la voie recommandee pour utiliser Cortex sans Python
-et sans terminal. Le meme fichier installe la CLI Cortex, les modeles hors
+L'installeur Windows est la voie recommandée pour utiliser Cortex sans Python
+et sans terminal. Le même fichier installe la CLI Cortex, les modèles hors
 ligne et Cortex Companion, l'interface graphique. Il ajoute Cortex au PATH et
 configure les clients MCP pris en charge.
 
-## Installation guidee
+## Installation guidée
 
-1. Telecharger `Cortex-Setup.exe` et `SHA256SUMS` depuis la
-   [GitHub Release](https://github.com/VBlackJack/Cortex/releases) souhaitee.
-2. Dans PowerShell, executer
-   `Get-FileHash .\Cortex-Setup.exe -Algorithm SHA256`, puis verifier que
-   l'empreinte correspond exactement a la ligne `Cortex-Setup.exe` de
+1. Télécharger `Cortex-Setup.exe` et `SHA256SUMS` depuis la
+   [GitHub Release](https://github.com/VBlackJack/Cortex/releases) souhaitée.
+2. Dans PowerShell, exécuter
+   `Get-FileHash .\Cortex-Setup.exe -Algorithm SHA256`, puis vérifier que
+   l'empreinte correspond exactement à la ligne `Cortex-Setup.exe` de
    `SHA256SUMS`.
-3. Double-cliquer seulement apres cette verification. Tant que le binaire
-   n'est pas signe, SmartScreen peut encore afficher un avertissement d'editeur
+3. Double-cliquer seulement après cette vérification. Tant que le binaire
+   n'est pas signé, SmartScreen peut encore afficher un avertissement d'éditeur
    inconnu ; choisir alors `Informations complementaires`, puis
    `Executer quand meme`.
-4. Choisir le dossier de base de connaissances. Le defaut est
-   `%USERPROFILE%\Documents\Cortex-KB`; il peut rester vide au depart.
-5. Garder `Tout indexer dans ce dossier` pour que les documents poses a la
+4. Choisir le dossier de base de connaissances. Le défaut est
+   `%USERPROFILE%\Documents\Cortex-KB`; il peut rester vide au départ.
+5. Garder `Tout indexer dans ce dossier` pour que les documents posés à la
    racine ou dans n'importe quel sous-dossier soient cherchables. Le mode
-   avance `Organiser en sections` limite l'indexation aux dossiers indiques ;
-   les defauts sont `knowledge` (reference), `projects` (travail) et `notes`
+   avancé `Organiser en sections` limite l'indexation aux dossiers indiqués ;
+   les défauts sont `knowledge` (référence), `projects` (travail) et `notes`
    (notes libres).
-6. Laisser `Indexer ce dossier maintenant` coche pour une premiere indexation,
-   ou le decocher pour terminer plus vite et synchroniser plus tard.
-7. A la fin, laisser `Lancer Cortex Companion` coche. Redemarrer ensuite les
-   applications IA enregistrees.
+6. Laisser `Indexer ce dossier maintenant` coché pour une première indexation,
+   ou le décocher pour terminer plus vite et synchroniser plus tard.
+7. À la fin, laisser `Lancer Cortex Companion` coché. Redémarrer ensuite les
+   applications IA enregistrées.
 
-L'installation ne demande pas de droits administrateur. Cortex est installe
-dans `%LOCALAPPDATA%\Programs\Cortex`. Les nouveaux terminaux ouverts apres
+L'installation ne demande pas de droits administrateur. Cortex est installé
+dans `%LOCALAPPDATA%\Programs\Cortex`. Les nouveaux terminaux ouverts après
 l'installation voient la commande `cortex` dans le PATH.
 
 L'installeur embarque Cortex Companion, le convertisseur Confluence console et
-les modeles FastEmbed/ONNX verifies par manifeste. La premiere synchronisation
-fonctionne donc hors ligne et ne telecharge aucun modele. Le corpus et l'index
+les modèles FastEmbed/ONNX vérifiés par manifeste. La première synchronisation
+fonctionne donc hors ligne et ne télécharge aucun modèle. Le corpus et l'index
 restent locaux.
 
-### Premiere configuration Confluence
+### Première configuration Confluence
 
-Apres la connexion de Companion a Cortex :
+Après la connexion de Companion à Cortex :
 
-1. Dans `Reglages`, enregistrer le PAT Confluence masque.
-2. Dans `Pages Confluence`, coller l'URL complete d'une page.
-3. Choisir l'expiration du PAT et la classification, puis verifier la cle
-   d'espace detectee.
+1. Dans `Reglages`, enregistrer le PAT Confluence masqué.
+2. Dans `Pages Confluence`, coller l'URL complète d'une page.
+3. Choisir l'expiration du PAT et la classification, puis vérifier la clé
+   d'espace détectée.
 4. Cliquer sur `Initialiser et ajouter la page`, puis confirmer la page.
 
-Companion cree et valide `%APPDATA%\Cortex\confluence.toml`. Aucune edition
-manuelle n'est necessaire. Le PAT reste dans le Gestionnaire d'identifiants
-Windows protege par DPAPI et n'est pas copie dans le TOML.
-Le convertisseur livre est selectionne et valide automatiquement. Les options
-avancees permettent uniquement aux developpeurs de tester un autre binaire.
+Companion crée et valide `%APPDATA%\Cortex\confluence.toml`. Aucune édition
+manuelle n'est nécessaire. Le PAT reste dans le Gestionnaire d'identifiants
+Windows protégé par DPAPI et n'est pas copié dans le TOML.
+Le convertisseur livré est sélectionné et validé automatiquement. Les options
+avancées permettent uniquement aux développeurs de tester un autre binaire.
 
 ## Utilisation sans terminal
 
-Cortex Companion est ajoute au menu Demarrer et s'ouvre apres l'installation
-guidee. Pour le premier usage :
+Cortex Companion est ajouté au menu Démarrer et s'ouvre après l'installation
+guidée. Pour le premier usage :
 
-1. Ouvrir `Réglages`. Companion detecte normalement le `cortex.exe` installe
-   dans le dossier parent de la meme installation Cortex. Si le chemin doit
-   etre corrige, choisir
+1. Ouvrir `Réglages`. Companion détecte normalement le `cortex.exe` installé
+   dans le dossier parent de la même installation Cortex. Si le chemin doit
+   être corrigé, choisir
    `%LOCALAPPDATA%\Programs\Cortex\cortex.exe`, puis `Enregistrer et connecter`.
-   Sur un poste lent, choisir aussi un delai maximal des commandes Cortex de
-   15, 30, 60 ou 120 secondes ; le defaut est 30 secondes. Depuis
-   `2026.0901.02`, cette valeur s'applique a la verification de compatibilite,
-   a la lecture des reglages Cortex et aux commandes `Pages Confluence`. Si le
-   delai est depasse, Companion garde les mutations desactivees et indique de
+   Sur un poste lent, choisir aussi un délai maximal des commandes Cortex de
+   15, 30, 60 ou 120 secondes ; le défaut est 30 secondes. Depuis
+   `2026.0901.02`, cette valeur s'applique à la vérification de compatibilité,
+   à la lecture des réglages Cortex et aux commandes `Pages Confluence`. Si le
+   délai est dépassé, Companion garde les mutations désactivées et indique de
    revenir dans `Réglages` pour augmenter la valeur.
-2. Verifier le `Dossier de la base de connaissances`. Pour le changer, choisir
+2. Vérifier le `Dossier de la base de connaissances`. Pour le changer, choisir
    un dossier existant, puis `Enregistrer le dossier`.
 3. Ajouter les documents dans ce dossier.
 4. Ouvrir `Base locale`, puis choisir `Synchroniser les documents locaux`.
-   L'ecran reste utilisable pour
-   suivre le resultat et consulter les details en cas d'echec.
+   L'écran reste utilisable pour
+   suivre le résultat et consulter les détails en cas d'échec.
 
-Deux raccourcis techniques restent disponibles dans le menu Demarrer :
+Deux raccourcis techniques restent disponibles dans le menu Démarrer :
 
 - `Cortex Sync` indexe les nouveaux documents et garde la console ouverte pour
-  afficher le resultat.
-- `Cortex Doctor` verifie l'installation et garde egalement le resultat visible.
+  afficher le résultat.
+- `Cortex Doctor` vérifie l'installation et garde également le résultat visible.
 
 ## Installation silencieuse
 
-Pour un deploiement automatise par utilisateur :
+Pour un déploiement automatisé par utilisateur :
 
 ```powershell
 Cortex-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB"
 ```
 
-Le mode silencieux cree le dossier si necessaire, installe Cortex et Companion,
+Le mode silencieux crée le dossier si nécessaire, installe Cortex et Companion,
 et enregistre les clients, mais ne lance pas Companion et n'indexe pas
-immediatement. Ajouter `/INDEX` pour forcer la premiere indexation pendant le
-deploiement :
+immédiatement. Ajouter `/INDEX` pour forcer la première indexation pendant le
+déploiement :
 
 ```powershell
 Cortex-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB" /INDEX
 ```
 
-Le defaut silencieux est `/INDEXMODE=whole`. Pour le mode avance :
+Le défaut silencieux est `/INDEXMODE=whole`. Pour le mode avancé :
 
 ```powershell
 Cortex-Setup.exe /VERYSILENT /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE=sections /SECTIONS="knowledge,projects,notes"
 ```
 
-Le processus retourne un code non nul si la configuration automatique echoue.
+Le processus retourne un code non nul si la configuration automatique échoue.
 
-## Reinstallation et remise a zero
+## Réinstallation et remise à zéro
 
-Si `%APPDATA%\Cortex\config.toml` existe deja, l'assistant propose deux choix :
+Si `%APPDATA%\Cortex\config.toml` existe déjà, l'assistant propose deux choix :
 
-- `Garder ma configuration` est le defaut prudent. Le dossier, le mode et
-  l'index existants sont conserves ; Cortex reindexe et reenregistre les clients.
-- `Reinitialiser` supprime uniquement la configuration Cortex et les donnees
-  generees sous `%LOCALAPPDATA%\Cortex`, puis applique le dossier et le mode
-  choisis dans l'assistant. Le dossier de documents n'est jamais supprime.
+- `Garder ma configuration` est le défaut prudent. Le dossier, le mode et
+  l'index existants sont conservés ; Cortex réindexe et réenregistre les clients.
+- `Reinitialiser` supprime uniquement la configuration Cortex et les données
+  générées sous `%LOCALAPPDATA%\Cortex`, puis applique le dossier et le mode
+  choisis dans l'assistant. Le dossier de documents n'est jamais supprimé.
 
-Fermer les applications IA avant une reinitialisation : un serveur actif peut
-tenir l'index ouvert et faire echouer proprement l'operation. En silencieux,
-le defaut reste Keep ; `/RESETCONFIG` demande explicitement le reset :
+Fermer les applications IA avant une réinitialisation : un serveur actif peut
+tenir l'index ouvert et faire échouer proprement l'opération. En silencieux,
+le défaut reste Keep ; `/RESETCONFIG` demande explicitement le reset :
 
 ```powershell
 Cortex-Setup.exe /VERYSILENT /RESETCONFIG /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE=whole /INDEX
 ```
 
-## Desinstallation
+## Désinstallation
 
-Desinstaller Cortex depuis `Parametres > Applications`. Le desinstalleur lance
+Désinstaller Cortex depuis `Parametres > Applications`. Le désinstalleur lance
 `cortex unregister --yes --clients all` avant de supprimer le binaire, puis
-retire uniquement son entree du PATH utilisateur. Companion supprime aussi sa
-tache planifiee seulement si son jeton d'appartenance correspond ; une tache
-absente ou etrangere n'est jamais supprimee.
+retire uniquement son entrée du PATH utilisateur. Companion supprime aussi sa
+tâche planifiée seulement si son jeton d'appartenance correspond ; une tâche
+absente ou étrangère n'est jamais supprimée.
 
-La configuration Cortex, les reglages locaux de Companion, l'index et le
-dossier de documents sont conserves afin de ne jamais detruire des donnees
-utilisateur pendant une desinstallation.
+La configuration Cortex, les réglages locaux de Companion, l'index et le
+dossier de documents sont conservés afin de ne jamais détruire des données
+utilisateur pendant une désinstallation.
