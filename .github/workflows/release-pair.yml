@@ -74,6 +74,9 @@ jobs:
       - name: Verify the Confluence desktop contracts
         working-directory: CortexCompanion
         run: python tests/interop/confluence_contract_proof.py
+      - name: Verify the desktop command lines
+        working-directory: CortexCompanion
+        run: python tests/interop/cli_surface_proof.py
       - name: Record the verified pair
         shell: pwsh
         env:
