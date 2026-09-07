@@ -90,11 +90,11 @@ the current generation ID, and disk-to-index status. The dedicated
 The generic ingestion CLI reports the latest atomic source health and whether a
 missed-window catch-up is due. The Confluence adapter stores its PAT
 interactively and runs through the same locking, retry, expiry, and generation
-engine. The PAT can be saved without a terminal from `Settings > Confluence
-authentication` in Companion, even before the file exists by using the default
-`cortex-spike` target. Then open `Pages Confluence`: the guided card creates the
-configuration from a page URL, the PAT expiry, the space, and the classification.
-The command-line path remains available:
+engine. The PAT can be saved without a terminal from
+`Settings > Confluence authentication` in Companion, even before the file exists
+by using the default `cortex-spike` target. Then open `Confluence pages`: the
+guided card creates the configuration from a page URL, the PAT expiry, the
+space, and the classification. The command-line path remains available:
 
 ```powershell
 cortex ingestion status doc

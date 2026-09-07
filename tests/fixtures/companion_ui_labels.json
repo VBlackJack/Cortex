@@ -1,0 +1,1461 @@
+{
+  "source": "CortexCompanion src/CortexCompanion/Localization/UiStrings.resx and UiStrings.fr.resx",
+  "note": "Multi-word labels only, at least eight characters, and only where the two languages differ. Shorter or single-word labels collide with configuration keys and machine contract values such as ok, mode and classification.",
+  "labels": [
+    {
+      "key": "CliFileDialogTitle",
+      "fr": "Choisir cortex.exe",
+      "en": "Choose cortex.exe"
+    },
+    {
+      "key": "CloseDuringRunTitle",
+      "fr": "Une opération est en cours",
+      "en": "An operation is in progress"
+    },
+    {
+      "key": "ConfigOriginUnavailable",
+      "fr": "non configurée",
+      "en": "not configured"
+    },
+    {
+      "key": "ConfigPathLabel",
+      "fr": "Configuration TOML",
+      "en": "TOML configuration"
+    },
+    {
+      "key": "ConfirmAddSpaceTitle",
+      "fr": "Autoriser un espace",
+      "en": "Allow a space"
+    },
+    {
+      "key": "ConfirmAddTitle",
+      "fr": "Confirmer l'ajout",
+      "en": "Confirm addition"
+    },
+    {
+      "key": "ConfirmKeepEmptySpaceTitle",
+      "fr": "Espace sans aucune page",
+      "en": "Space with no pages"
+    },
+    {
+      "key": "ConfirmModeInputLabel",
+      "fr": "Clé d'espace à saisir",
+      "en": "Space key to type"
+    },
+    {
+      "key": "ConfirmModeTitle",
+      "fr": "Confirmation typée du mode",
+      "en": "Typed mode confirmation"
+    },
+    {
+      "key": "ConfirmRemoveTitle",
+      "fr": "Confirmer le retrait",
+      "en": "Confirm removal"
+    },
+    {
+      "key": "ConfluenceConverterFileDialogTitle",
+      "fr": "Choisir le convertisseur Confluence",
+      "en": "Choose the Confluence converter"
+    },
+    {
+      "key": "ConfluenceSetupExpiredAuthentication",
+      "fr": "La date d'expiration du PAT doit être dans le futur.",
+      "en": "The PAT expiry date must be in the future."
+    },
+    {
+      "key": "ConfluenceSetupInvalidClassification",
+      "fr": "La classification sélectionnée n'est pas prise en charge.",
+      "en": "The selected classification is not supported."
+    },
+    {
+      "key": "ConfluenceSyncAdvancedTitle",
+      "fr": "Intégration Confluence avancée",
+      "en": "Advanced Confluence integration"
+    },
+    {
+      "key": "ConfluenceSyncNow",
+      "fr": "Collecter Confluence",
+      "en": "Collect Confluence"
+    },
+    {
+      "key": "ConfluenceSyncRunTitle",
+      "fr": "Dernière collecte Confluence",
+      "en": "Last Confluence collection"
+    },
+    {
+      "key": "CurrentGenerationUnavailable",
+      "fr": "Aucune génération courante lisible n'est disponible.",
+      "en": "No readable current generation is available."
+    },
+    {
+      "key": "EnvironmentOverridesTitle",
+      "fr": "Champs verrouillés par l'environnement",
+      "en": "Fields locked by the environment"
+    },
+    {
+      "key": "ExpandToSubtree",
+      "fr": "Élargir à l'arborescence",
+      "en": "Expand to subtree"
+    },
+    {
+      "key": "FlowAdvanced",
+      "fr": "Détails techniques et options avancées",
+      "en": "Technical details and advanced options"
+    },
+    {
+      "key": "FlowCollect",
+      "fr": "Collecter maintenant",
+      "en": "Collect now"
+    },
+    {
+      "key": "FlowCollecting",
+      "fr": "Application des sources - collecte des documents en cours.",
+      "en": "Applying the sources - document collection in progress."
+    },
+    {
+      "key": "FlowConnect",
+      "fr": "Enregistrer le jeton et continuer",
+      "en": "Save the token and continue"
+    },
+    {
+      "key": "FlowIndex",
+      "fr": "2. Indexer les documents collectés",
+      "en": "2. Index the collected documents"
+    },
+    {
+      "key": "FlowIndexing",
+      "fr": "Documents collectés - indexation en cours.",
+      "en": "Documents collected - indexing in progress."
+    },
+    {
+      "key": "FlowInspect",
+      "fr": "Voir les documents à ajouter",
+      "en": "View the documents to add"
+    },
+    {
+      "key": "FlowInspecting",
+      "fr": "Recherche de la page et mesure des périmètres...",
+      "en": "Looking up the page and measuring the scopes..."
+    },
+    {
+      "key": "FlowLink",
+      "fr": "Lien Confluence",
+      "en": "Confluence link"
+    },
+    {
+      "key": "FlowNextTitle",
+      "fr": "Rendre les documents disponibles",
+      "en": "Make the documents available"
+    },
+    {
+      "key": "FlowSearch",
+      "fr": "3. Rechercher un document",
+      "en": "3. Search for a document"
+    },
+    {
+      "key": "FlowSources",
+      "fr": "Mes sources",
+      "en": "My sources"
+    },
+    {
+      "key": "FlowSpaceHomepage",
+      "fr": "Le lien d'espace est présenté à partir de sa page d'accueil.",
+      "en": "The space link is presented from its homepage."
+    },
+    {
+      "key": "FlowTitle",
+      "fr": "Ajouter depuis Confluence",
+      "en": "Add from Confluence"
+    },
+    {
+      "key": "FlowToken",
+      "fr": "Jeton d'accès personnel Confluence",
+      "en": "Confluence personal access token"
+    },
+    {
+      "key": "FlowTokenHelp",
+      "fr": "Où trouver mon jeton ?",
+      "en": "Where do I find my token?"
+    },
+    {
+      "key": "FreshnessIndexed",
+      "fr": "Génération indexée confirmée",
+      "en": "Confirmed indexed generation"
+    },
+    {
+      "key": "FreshnessLastIndex",
+      "fr": "Dernière indexation réussie observée",
+      "en": "Last observed successful indexing"
+    },
+    {
+      "key": "FreshnessPublished",
+      "fr": "Génération publiée",
+      "en": "Published generation"
+    },
+    {
+      "key": "GuideConfigure",
+      "fr": "Choisir et enregistrer mes documents",
+      "en": "Choose and save my documents"
+    },
+    {
+      "key": "GuideConfluence",
+      "fr": "2. Connecter Confluence (facultatif)",
+      "en": "2. Connect Confluence (optional)"
+    },
+    {
+      "key": "GuideDocuments",
+      "fr": "1. Choisir les documents",
+      "en": "1. Choose the documents"
+    },
+    {
+      "key": "GuideDone",
+      "fr": "Étape vérifiée",
+      "en": "Step verified"
+    },
+    {
+      "key": "GuideIndex",
+      "fr": "3. Synchroniser",
+      "en": "3. Synchronize"
+    },
+    {
+      "key": "GuideObserve",
+      "fr": "Suivre l'opération en cours",
+      "en": "Follow the operation in progress"
+    },
+    {
+      "key": "GuidePending",
+      "fr": "À vérifier",
+      "en": "To verify"
+    },
+    {
+      "key": "GuideSearch",
+      "fr": "Rechercher dans mes documents",
+      "en": "Search my documents"
+    },
+    {
+      "key": "GuideSync",
+      "fr": "Synchroniser mes documents",
+      "en": "Synchronize my documents"
+    },
+    {
+      "key": "GuideTitle",
+      "fr": "Premiers pas",
+      "en": "Getting started"
+    },
+    {
+      "key": "GuideTry",
+      "fr": "4. Essayer une recherche",
+      "en": "4. Try a search"
+    },
+    {
+      "key": "HandshakeLaunchFailed",
+      "fr": "CLI : lancement impossible - lecture seule",
+      "en": "CLI: could not be started - read-only"
+    },
+    {
+      "key": "HandshakeNonZeroExit",
+      "fr": "CLI : commande en échec - lecture seule",
+      "en": "CLI: command failed - read-only"
+    },
+    {
+      "key": "HandshakeNotConfigured",
+      "fr": "CLI : non configuré - lecture seule",
+      "en": "CLI: not configured - read-only"
+    },
+    {
+      "key": "HandshakePending",
+      "fr": "CLI : vérification en cours - lecture seule",
+      "en": "CLI: check in progress - read-only"
+    },
+    {
+      "key": "HandshakeTimedOut",
+      "fr": "CLI : délai dépassé - lecture seule",
+      "en": "CLI: timed out - read-only"
+    },
+    {
+      "key": "HandshakeUnparseable",
+      "fr": "CLI : version non reconnue - lecture seule",
+      "en": "CLI: version not recognized - read-only"
+    },
+    {
+      "key": "HistoryConfluence",
+      "fr": "Collecte Confluence",
+      "en": "Confluence collection"
+    },
+    {
+      "key": "HistoryDetails",
+      "fr": "Détails des erreurs",
+      "en": "Error details"
+    },
+    {
+      "key": "HistoryErrorsTruncated",
+      "fr": "La liste des erreurs est partielle.",
+      "en": "The error list is partial."
+    },
+    {
+      "key": "HistoryLoading",
+      "fr": "Chargement de l'historique...",
+      "en": "Loading history..."
+    },
+    {
+      "key": "HistoryLocal",
+      "fr": "Documents locaux",
+      "en": "Local documents"
+    },
+    {
+      "key": "HistoryLocked",
+      "fr": "Une autre opération détient le verrou",
+      "en": "Another operation holds the lock"
+    },
+    {
+      "key": "HistoryManual",
+      "fr": "Opération manuelle",
+      "en": "Manual operation"
+    },
+    {
+      "key": "HistoryNoAction",
+      "fr": "Aucune action requise pour cette opération.",
+      "en": "No action is required for this operation."
+    },
+    {
+      "key": "HistoryNoCounters",
+      "fr": "Compteurs détaillés non disponibles pour cette opération.",
+      "en": "Detailed counters are not available for this operation."
+    },
+    {
+      "key": "HistoryOpen",
+      "fr": "Consulter l'état actuel",
+      "en": "View current status"
+    },
+    {
+      "key": "HistoryPartial",
+      "fr": "Résultat partiel",
+      "en": "Partial result"
+    },
+    {
+      "key": "HistoryReadFailed",
+      "fr": "Impossible de lire l'historique. Actualisez pour réessayer.",
+      "en": "The history could not be read. Refresh to try again."
+    },
+    {
+      "key": "HistoryRefresh",
+      "fr": "Actualiser l'historique",
+      "en": "Refresh history"
+    },
+    {
+      "key": "HistoryScheduled",
+      "fr": "Collecte planifiée",
+      "en": "Scheduled collection"
+    },
+    {
+      "key": "HistoryUnreadable",
+      "fr": "Données illisibles",
+      "en": "Unreadable data"
+    },
+    {
+      "key": "HomeActivity",
+      "fr": "Opération en cours ou dernier résultat",
+      "en": "Operation in progress or last result"
+    },
+    {
+      "key": "HomeCollection",
+      "fr": "Dernière collecte Confluence réussie",
+      "en": "Last successful Confluence collection"
+    },
+    {
+      "key": "HomeIndex",
+      "fr": "Dernière indexation observée",
+      "en": "Last observed indexing"
+    },
+    {
+      "key": "HomeIntro",
+      "fr": "Retrouvez vos documents et voyez la prochaine action utile.",
+      "en": "Find your documents and see the next useful action."
+    },
+    {
+      "key": "HomeNext",
+      "fr": "Prochaine collecte planifiée",
+      "en": "Next scheduled collection"
+    },
+    {
+      "key": "HomeRefresh",
+      "fr": "Actualiser l'accueil",
+      "en": "Refresh Home"
+    },
+    {
+      "key": "HomeTitle",
+      "fr": "Votre base de connaissances",
+      "en": "Your knowledge base"
+    },
+    {
+      "key": "IngestionStorageTitle",
+      "fr": "Stockage des générations Confluence",
+      "en": "Confluence generation storage"
+    },
+    {
+      "key": "KnowledgeBaseFolderDialogTitle",
+      "fr": "Choisir la base de connaissances Cortex",
+      "en": "Choose the Cortex knowledge base"
+    },
+    {
+      "key": "LocalSyncRunTitle",
+      "fr": "Dernière synchronisation locale",
+      "en": "Last local synchronization"
+    },
+    {
+      "key": "ManageEdit",
+      "fr": "Modifier la sélection",
+      "en": "Edit selection"
+    },
+    {
+      "key": "ManageOpen",
+      "fr": "Ouvrir dans Confluence",
+      "en": "Open in Confluence"
+    },
+    {
+      "key": "ManagePages",
+      "fr": "Les pages cochées uniquement",
+      "en": "The checked pages only"
+    },
+    {
+      "key": "ManageRefresh",
+      "fr": "Actualiser mes sources",
+      "en": "Refresh my sources"
+    },
+    {
+      "key": "ManageRemaining",
+      "fr": "Pages suivies directement :",
+      "en": "Directly tracked pages:"
+    },
+    {
+      "key": "ManageRemove",
+      "fr": "Retirer de Cortex",
+      "en": "Remove from Cortex"
+    },
+    {
+      "key": "ManageReview",
+      "fr": "Vérifier les changements",
+      "en": "Review changes"
+    },
+    {
+      "key": "ManageReviewTitle",
+      "fr": "Confirmer la nouvelle sélection",
+      "en": "Confirm the new selection"
+    },
+    {
+      "key": "ManageSubtree",
+      "fr": "Les pages cochées et leurs sous-pages",
+      "en": "The checked pages and their child pages"
+    },
+    {
+      "key": "ManageWhole",
+      "fr": "Tout l'espace",
+      "en": "The whole space"
+    },
+    {
+      "key": "NavigationLabel",
+      "fr": "Navigation principale",
+      "en": "Main navigation"
+    },
+    {
+      "key": "OpenCurrentGeneration",
+      "fr": "Ouvrir la génération courante",
+      "en": "Open the current generation"
+    },
+    {
+      "key": "PageTitleUnknown",
+      "fr": "Titre inconnu",
+      "en": "Unknown title"
+    },
+    {
+      "key": "PageTitleUnknownUntilSync",
+      "fr": "Titre inconnu jusqu'au prochain sync.",
+      "en": "Title unknown until the next synchronization."
+    },
+    {
+      "key": "PagesAddReferenceHint",
+      "fr": "Collez une URL Confluence ou un ID numérique",
+      "en": "Paste a Confluence URL or a numeric ID"
+    },
+    {
+      "key": "PagesAddReferenceLabel",
+      "fr": "URL ou ID de page",
+      "en": "Page URL or ID"
+    },
+    {
+      "key": "PagesAddSpaceButton",
+      "fr": "Autoriser l'espace",
+      "en": "Allow this space"
+    },
+    {
+      "key": "PagesAddSpaceClassificationLabel",
+      "fr": "Classification de l'espace",
+      "en": "Space classification"
+    },
+    {
+      "key": "PagesAddSpaceNoInferredKey",
+      "fr": "Aucun espace n'a pu être déduit de cette URL.",
+      "en": "No space could be derived from this URL."
+    },
+    {
+      "key": "PagesAddSpaceReferenceLabel",
+      "fr": "URL d'une page de l'espace",
+      "en": "URL of a page in the space"
+    },
+    {
+      "key": "PagesAddSpaceTitle",
+      "fr": "Autoriser un nouvel espace",
+      "en": "Allow a new space"
+    },
+    {
+      "key": "PagesCliAuth",
+      "fr": "L'authentification Confluence est indisponible.",
+      "en": "Confluence authentication is unavailable."
+    },
+    {
+      "key": "PagesCliInvalidJson",
+      "fr": "La réponse JSON du CLI est invalide.",
+      "en": "The JSON response from the CLI is invalid."
+    },
+    {
+      "key": "PagesCliLaunchFailed",
+      "fr": "Le CLI n'a pas pu être lancé.",
+      "en": "The CLI could not be started."
+    },
+    {
+      "key": "PagesCliLocked",
+      "fr": "Le CLI signale un verrou actif.",
+      "en": "The CLI reports an active lock."
+    },
+    {
+      "key": "PagesCliNotDue",
+      "fr": "La commande n'est pas due.",
+      "en": "The command is not due."
+    },
+    {
+      "key": "PagesCliNotFound",
+      "fr": "La page n'existe pas.",
+      "en": "The page does not exist."
+    },
+    {
+      "key": "PagesCliOutsideAllowlist",
+      "fr": "La page appartient à un espace hors allowlist.",
+      "en": "The page belongs to a space outside the allowlist."
+    },
+    {
+      "key": "PagesCliRemote",
+      "fr": "Le service Confluence distant est indisponible.",
+      "en": "The remote Confluence service is unavailable."
+    },
+    {
+      "key": "PagesEmptySelection",
+      "fr": "Liste vide : ZERO page sera collectée.",
+      "en": "Empty list: ZERO pages will be collected."
+    },
+    {
+      "key": "PagesLoading",
+      "fr": "Chargement local des espaces...",
+      "en": "Loading spaces locally..."
+    },
+    {
+      "key": "PagesModeDescription",
+      "fr": "Seules les pages listées sont collectées.",
+      "en": "Only the listed pages are collected."
+    },
+    {
+      "key": "PagesModeName",
+      "fr": "Cette page seule",
+      "en": "This page only"
+    },
+    {
+      "key": "PagesMutationCancelled",
+      "fr": "Opération annulée ; aucune écriture.",
+      "en": "Operation canceled; nothing was written."
+    },
+    {
+      "key": "PagesMutationCommitted",
+      "fr": "Configuration mise à jour.",
+      "en": "Configuration updated."
+    },
+    {
+      "key": "PagesNavigation",
+      "fr": "Pages Confluence",
+      "en": "Confluence pages"
+    },
+    {
+      "key": "PagesNoSpaces",
+      "fr": "Aucun espace Confluence n'est configuré.",
+      "en": "No Confluence space is configured."
+    },
+    {
+      "key": "PagesReadOnly",
+      "fr": "Lecture seule : les mutations sont désactivées.",
+      "en": "Read-only: changes are disabled."
+    },
+    {
+      "key": "PagesReady",
+      "fr": "Configuration Pages chargée.",
+      "en": "Confluence pages configuration loaded."
+    },
+    {
+      "key": "PagesRejectPageAlreadyConfigured",
+      "fr": "Cette page est déjà configurée.",
+      "en": "This page is already configured."
+    },
+    {
+      "key": "PagesRejectPageNotConfigured",
+      "fr": "Cette page n'est pas configurée dans ce mode.",
+      "en": "This page is not configured in this mode."
+    },
+    {
+      "key": "PagesRejectReadOnly",
+      "fr": "La mutation est désactivée en lecture seule.",
+      "en": "Changes are disabled in read-only mode."
+    },
+    {
+      "key": "PagesRejectSpaceAlreadyAllowlisted",
+      "fr": "Cet espace est déjà autorisé.",
+      "en": "This space is already allowed."
+    },
+    {
+      "key": "PagesRemove",
+      "fr": "Retirer de Cortex",
+      "en": "Remove from Cortex"
+    },
+    {
+      "key": "PagesResolveAndAdd",
+      "fr": "Résoudre et ajouter",
+      "en": "Resolve and add"
+    },
+    {
+      "key": "PagesSetupAdvanced",
+      "fr": "Options avancées pour développeurs",
+      "en": "Advanced options for developers"
+    },
+    {
+      "key": "PagesSetupClassificationLabel",
+      "fr": "Classification locale",
+      "en": "Local classification"
+    },
+    {
+      "key": "PagesSetupCompleted",
+      "fr": "Confluence est configuré et la première page a été ajoutée.",
+      "en": "Confluence is configured and the first page has been added."
+    },
+    {
+      "key": "PagesSetupConverterLabel",
+      "fr": "Convertisseur Confluence",
+      "en": "Confluence converter"
+    },
+    {
+      "key": "PagesSetupCreatedAddCancelled",
+      "fr": "Confluence est configuré. L'ajout de la page a été annulé.",
+      "en": "Confluence is configured. Adding the page was canceled."
+    },
+    {
+      "key": "PagesSetupExpiryLabel",
+      "fr": "Date d'expiration du PAT",
+      "en": "PAT expiry date"
+    },
+    {
+      "key": "PagesSetupInitialize",
+      "fr": "Initialiser et ajouter la page",
+      "en": "Initialize and add the page"
+    },
+    {
+      "key": "PagesSetupPageUrlHint",
+      "fr": "URL complète copiée depuis votre navigateur Confluence",
+      "en": "Full URL copied from your browser in Confluence"
+    },
+    {
+      "key": "PagesSetupPageUrlLabel",
+      "fr": "URL de la première page",
+      "en": "First page URL"
+    },
+    {
+      "key": "PagesSetupPersonal",
+      "fr": "Personnel - non sensible",
+      "en": "Personal - not sensitive"
+    },
+    {
+      "key": "PagesSetupProfessional",
+      "fr": "Professionnel - confidentiel",
+      "en": "Work - confidential"
+    },
+    {
+      "key": "PagesSetupSpaceKeyHint",
+      "fr": "Détectée automatiquement quand l'URL la contient",
+      "en": "Detected automatically when the URL contains it"
+    },
+    {
+      "key": "PagesSetupSpaceKeyLabel",
+      "fr": "Clé de l'espace",
+      "en": "Space key"
+    },
+    {
+      "key": "PagesSetupTitle",
+      "fr": "Première configuration Confluence",
+      "en": "First Confluence setup"
+    },
+    {
+      "key": "PagesSwitchMode",
+      "fr": "Changer de mode",
+      "en": "Change mode"
+    },
+    {
+      "key": "PagesTitle",
+      "fr": "Pages Confluence",
+      "en": "Confluence pages"
+    },
+    {
+      "key": "PatInvalid",
+      "fr": "Invalide : l'échéance configurée ne peut pas être lue.",
+      "en": "Invalid: the configured expiry date cannot be read."
+    },
+    {
+      "key": "PatTitle",
+      "fr": "Badge PAT",
+      "en": "PAT badge"
+    },
+    {
+      "key": "PatUnknown",
+      "fr": "Inconnue : aucune échéance configurée.",
+      "en": "Unknown: no expiry date configured."
+    },
+    {
+      "key": "ProgressPublication",
+      "fr": "Publication atomique",
+      "en": "Atomic publication"
+    },
+    {
+      "key": "ProgressStaging",
+      "fr": "Téléchargement et préparation",
+      "en": "Download and preparation"
+    },
+    {
+      "key": "SchedulingCreateOrUpdate",
+      "fr": "Créer ou reconfigurer",
+      "en": "Create or reconfigure"
+    },
+    {
+      "key": "SchedulingDelete",
+      "fr": "Supprimer la tâche",
+      "en": "Delete the task"
+    },
+    {
+      "key": "SchedulingDeleteCancelled",
+      "fr": "Suppression annulée.",
+      "en": "Deletion cancelled."
+    },
+    {
+      "key": "SchedulingDeleteConfirmationTitle",
+      "fr": "Supprimer la programmation",
+      "en": "Delete scheduling"
+    },
+    {
+      "key": "SchedulingDeleted",
+      "fr": "La tâche a été supprimée.",
+      "en": "The task has been deleted."
+    },
+    {
+      "key": "SchedulingExecutionLabel",
+      "fr": "Exécution actuelle",
+      "en": "Current run"
+    },
+    {
+      "key": "SchedulingInvalidTime",
+      "fr": "Saisissez une heure locale valide au format HH:mm.",
+      "en": "Enter a valid local time in HH:mm format."
+    },
+    {
+      "key": "SchedulingLastResultLabel",
+      "fr": "Dernier résultat",
+      "en": "Last result"
+    },
+    {
+      "key": "SchedulingLastRunLabel",
+      "fr": "Dernière exécution",
+      "en": "Last run"
+    },
+    {
+      "key": "SchedulingLoading",
+      "fr": "Lecture de la tâche en cours...",
+      "en": "Reading the task..."
+    },
+    {
+      "key": "SchedulingNavigation",
+      "fr": "Programmation Confluence",
+      "en": "Confluence scheduling"
+    },
+    {
+      "key": "SchedulingNeverRun",
+      "fr": "Jamais exécutée",
+      "en": "Never run"
+    },
+    {
+      "key": "SchedulingNextRunLabel",
+      "fr": "Prochaine exécution",
+      "en": "Next run"
+    },
+    {
+      "key": "SchedulingResultNothingToDo",
+      "fr": "Rien à faire, rien de nouveau à publier",
+      "en": "Nothing to do, nothing new to publish"
+    },
+    {
+      "key": "SchedulingResultSuccess",
+      "fr": "Terminée sans erreur",
+      "en": "Completed without error"
+    },
+    {
+      "key": "SchedulingSaved",
+      "fr": "La tâche a été créée ou reconfigurée.",
+      "en": "The task has been created or reconfigured."
+    },
+    {
+      "key": "SchedulingStartTimeLabel",
+      "fr": "Heure locale de départ (HH:mm)",
+      "en": "Local start time (HH:mm)"
+    },
+    {
+      "key": "SchedulingStateActive",
+      "fr": "Présente et active",
+      "en": "Present and active"
+    },
+    {
+      "key": "SchedulingStateDisabled",
+      "fr": "Présente mais désactivée",
+      "en": "Present but disabled"
+    },
+    {
+      "key": "SchedulingStateNeedsReconfiguration",
+      "fr": "Présente - à reconfigurer",
+      "en": "Present - to be reconfigured"
+    },
+    {
+      "key": "SchedulingStateReadError",
+      "fr": "Erreur de lecture",
+      "en": "Read error"
+    },
+    {
+      "key": "SchedulingStateTitle",
+      "fr": "État de la tâche",
+      "en": "Task status"
+    },
+    {
+      "key": "SchedulingTaskContractDescription",
+      "fr": "Cortex Companion - programmation ingestion - contrat 1",
+      "en": "Cortex Companion - ingestion scheduling - contract 1"
+    },
+    {
+      "key": "ScopeChoicePageOnly",
+      "fr": "Cette page seule",
+      "en": "This page only"
+    },
+    {
+      "key": "ScopeChoiceSubtree",
+      "fr": "Cette page et ses sous-pages",
+      "en": "Page and subtree"
+    },
+    {
+      "key": "ScopeDialogTitle",
+      "fr": "Choisir le périmètre Confluence",
+      "en": "Choose the Confluence scope"
+    },
+    {
+      "key": "SearchAdvanced",
+      "fr": "Filtres avancés",
+      "en": "Advanced filters"
+    },
+    {
+      "key": "SearchAll",
+      "fr": "Toutes les sources",
+      "en": "All sources"
+    },
+    {
+      "key": "SearchCancelled",
+      "fr": "Recherche interrompue.",
+      "en": "Search stopped."
+    },
+    {
+      "key": "SearchCopied",
+      "fr": "Extrait et référence copiés.",
+      "en": "Excerpt and reference copied."
+    },
+    {
+      "key": "SearchCopy",
+      "fr": "Copier l'extrait et sa référence",
+      "en": "Copy the excerpt and its reference"
+    },
+    {
+      "key": "SearchCopyFailed",
+      "fr": "Le presse-papiers est indisponible. Réessayez.",
+      "en": "The clipboard is unavailable. Try again."
+    },
+    {
+      "key": "SearchDocuments",
+      "fr": "Documents collectés",
+      "en": "Collected documents"
+    },
+    {
+      "key": "SearchEmpty",
+      "fr": "Aucun résultat pour cette recherche et ces filtres.",
+      "en": "No results for this search and these filters."
+    },
+    {
+      "key": "SearchGoToSync",
+      "fr": "Ouvrir Base locale pour synchroniser",
+      "en": "Open Local database to synchronize"
+    },
+    {
+      "key": "SearchNotes",
+      "fr": "Documents locaux",
+      "en": "Local documents"
+    },
+    {
+      "key": "SearchOpen",
+      "fr": "Ouvrir la source",
+      "en": "Open the source"
+    },
+    {
+      "key": "SearchOpenFailed",
+      "fr": "Impossible d'ouvrir cette source.",
+      "en": "This source could not be opened."
+    },
+    {
+      "key": "SearchPreview",
+      "fr": "Aperçu du résultat sélectionné",
+      "en": "Selected result preview"
+    },
+    {
+      "key": "SearchQuery",
+      "fr": "Question ou mots-clés",
+      "en": "Question or keywords"
+    },
+    {
+      "key": "SearchResults",
+      "fr": "Résultats de recherche",
+      "en": "Search results"
+    },
+    {
+      "key": "SearchSection",
+      "fr": "Section (facultatif)",
+      "en": "Section (optional)"
+    },
+    {
+      "key": "SettingsBrowseCliAccessibleName",
+      "fr": "Choisir le fichier cortex.exe",
+      "en": "Choose the cortex.exe file"
+    },
+    {
+      "key": "SettingsBrowseKnowledgeBaseAccessibleName",
+      "fr": "Choisir le dossier de la base de connaissances",
+      "en": "Choose the knowledge base folder"
+    },
+    {
+      "key": "SettingsCliFileNotFound",
+      "fr": "Le fichier cortex.exe sélectionné n'existe pas.",
+      "en": "The selected cortex.exe file does not exist."
+    },
+    {
+      "key": "SettingsCliFixPath",
+      "fr": "Corrigez le chemin de cortex.exe avant de continuer.",
+      "en": "Correct the path to cortex.exe before continuing."
+    },
+    {
+      "key": "SettingsCliInvalidPath",
+      "fr": "Le chemin contient des caractères ou une forme non valides.",
+      "en": "The path contains invalid characters or an invalid form."
+    },
+    {
+      "key": "SettingsCliNotConfigured",
+      "fr": "Aucun exécutable Cortex valide n'est configuré.",
+      "en": "No valid Cortex executable is configured."
+    },
+    {
+      "key": "SettingsCliPathLabel",
+      "fr": "Chemin de cortex.exe",
+      "en": "Path to cortex.exe"
+    },
+    {
+      "key": "SettingsCliPathMustBeAbsolute",
+      "fr": "Le chemin doit être absolu.",
+      "en": "The path must be absolute."
+    },
+    {
+      "key": "SettingsCliTimeoutLabel",
+      "fr": "Délai maximal des commandes Cortex (secondes)",
+      "en": "Cortex command timeout (seconds)"
+    },
+    {
+      "key": "SettingsCliTitle",
+      "fr": "1. Connecter Cortex",
+      "en": "1. Connect Cortex"
+    },
+    {
+      "key": "SettingsCliWrongFileName",
+      "fr": "Le fichier sélectionné doit s'appeler cortex.exe.",
+      "en": "The selected file must be named cortex.exe."
+    },
+    {
+      "key": "SettingsConfigLoaded",
+      "fr": "Configuration Cortex valide chargée.",
+      "en": "Valid Cortex configuration loaded."
+    },
+    {
+      "key": "SettingsConfigRefreshRequired",
+      "fr": "Rechargez la configuration avant de modifier le dossier.",
+      "en": "Reload the configuration before changing the folder."
+    },
+    {
+      "key": "SettingsConfluenceCredentialEmpty",
+      "fr": "Saisissez un PAT avant de l'enregistrer.",
+      "en": "Enter a PAT before saving it."
+    },
+    {
+      "key": "SettingsConfluenceCredentialSave",
+      "fr": "Enregistrer le PAT",
+      "en": "Save the PAT"
+    },
+    {
+      "key": "SettingsConfluenceCredentialSaving",
+      "fr": "Enregistrement sécurisé du PAT dans Windows...",
+      "en": "Saving the PAT securely in Windows..."
+    },
+    {
+      "key": "SettingsConfluenceCredentialTitle",
+      "fr": "3. Authentification Confluence",
+      "en": "3. Confluence authentication"
+    },
+    {
+      "key": "SettingsCurrentStateTitle",
+      "fr": "État actuel",
+      "en": "Current status"
+    },
+    {
+      "key": "SettingsGoToConfluence",
+      "fr": "Configurer dans Pages Confluence",
+      "en": "Configure in Confluence pages"
+    },
+    {
+      "key": "SettingsKnowledgeBaseInvalid",
+      "fr": "Choisissez un dossier existant avec un chemin absolu.",
+      "en": "Choose an existing folder with an absolute path."
+    },
+    {
+      "key": "SettingsKnowledgeBasePathLabel",
+      "fr": "Dossier de la base de connaissances",
+      "en": "Knowledge base folder"
+    },
+    {
+      "key": "SettingsKnowledgeBaseSaved",
+      "fr": "Le dossier a été enregistré.",
+      "en": "The folder has been saved."
+    },
+    {
+      "key": "SettingsKnowledgeBaseTitle",
+      "fr": "2. Base de connaissances",
+      "en": "2. Knowledge base"
+    },
+    {
+      "key": "SettingsLanguageLabel",
+      "fr": "Langue de l'interface",
+      "en": "Interface language"
+    },
+    {
+      "key": "SettingsLanguageSystem",
+      "fr": "Langue de Windows",
+      "en": "Windows language"
+    },
+    {
+      "key": "SettingsLoading",
+      "fr": "Initialisation de Cortex Companion en cours...",
+      "en": "Initializing Cortex Companion..."
+    },
+    {
+      "key": "SettingsRefreshAccessibleName",
+      "fr": "Recharger la configuration Cortex",
+      "en": "Reload the Cortex configuration"
+    },
+    {
+      "key": "SettingsRefreshed",
+      "fr": "La configuration Cortex a été rechargée.",
+      "en": "The Cortex configuration has been reloaded."
+    },
+    {
+      "key": "SettingsRefreshing",
+      "fr": "Rechargement de la configuration Cortex...",
+      "en": "Reloading the Cortex configuration..."
+    },
+    {
+      "key": "SettingsSaveAndConnect",
+      "fr": "Enregistrer et connecter",
+      "en": "Save and connect"
+    },
+    {
+      "key": "SettingsSaveKnowledgeBase",
+      "fr": "Enregistrer le dossier",
+      "en": "Save the folder"
+    },
+    {
+      "key": "SettingsSavingKnowledgeBase",
+      "fr": "Enregistrement du dossier par Cortex...",
+      "en": "Cortex is saving the folder..."
+    },
+    {
+      "key": "ShortcutRefreshHint",
+      "fr": "Raccourci : F5",
+      "en": "Shortcut: F5"
+    },
+    {
+      "key": "ShortcutSaveHint",
+      "fr": "Raccourci : Ctrl+S",
+      "en": "Shortcut: Ctrl+S"
+    },
+    {
+      "key": "SourcesAdd",
+      "fr": "Ajouter une source",
+      "en": "Add a source"
+    },
+    {
+      "key": "SourcesAddedPages",
+      "fr": "Documents ajoutés au périmètre",
+      "en": "Documents added to the scope"
+    },
+    {
+      "key": "SourcesAddedRoots",
+      "fr": "Pages ajoutées au suivi direct",
+      "en": "Pages added to direct tracking"
+    },
+    {
+      "key": "SourcesApply",
+      "fr": "Mettre à jour la recherche",
+      "en": "Update search"
+    },
+    {
+      "key": "SourcesAttention",
+      "fr": "Action requise",
+      "en": "Action required"
+    },
+    {
+      "key": "SourcesAvailable",
+      "fr": "Disponible dans la recherche",
+      "en": "Available in search"
+    },
+    {
+      "key": "SourcesCovered",
+      "fr": "Incluse avec une page parente",
+      "en": "Included with a parent page"
+    },
+    {
+      "key": "SourcesLoadTree",
+      "fr": "Charger les pages de cet espace",
+      "en": "Load the pages in this space"
+    },
+    {
+      "key": "SourcesNoChange",
+      "fr": "Aucun document dans cette liste.",
+      "en": "No documents in this list."
+    },
+    {
+      "key": "SourcesNoMatch",
+      "fr": "Aucune source ne correspond à cette recherche.",
+      "en": "No source matches this search."
+    },
+    {
+      "key": "SourcesReconnect",
+      "fr": "Reconnecter Confluence",
+      "en": "Reconnect Confluence"
+    },
+    {
+      "key": "SourcesRemovedPages",
+      "fr": "Documents retirés du périmètre",
+      "en": "Documents removed from the scope"
+    },
+    {
+      "key": "SourcesRemovedRoots",
+      "fr": "Pages retirées du suivi direct",
+      "en": "Pages removed from direct tracking"
+    },
+    {
+      "key": "SourcesReview",
+      "fr": "Vérifier les changements",
+      "en": "Review changes"
+    },
+    {
+      "key": "SourcesSaveLater",
+      "fr": "Enregistrer pour plus tard",
+      "en": "Save for later"
+    },
+    {
+      "key": "SourcesSaveUpdate",
+      "fr": "Enregistrer et mettre à jour",
+      "en": "Save and update"
+    },
+    {
+      "key": "SourcesSearch",
+      "fr": "Rechercher un espace ou une page",
+      "en": "Search for a space or a page"
+    },
+    {
+      "key": "SourcesTreeLoading",
+      "fr": "Lecture des pages et de leur arborescence...",
+      "en": "Reading the pages and their page tree..."
+    },
+    {
+      "key": "SourcesTreeSearch",
+      "fr": "Rechercher une page dans cet espace",
+      "en": "Search for a page in this space"
+    },
+    {
+      "key": "SourcesUndo",
+      "fr": "Annuler le dernier retrait",
+      "en": "Undo the last removal"
+    },
+    {
+      "key": "SourcesViewDetails",
+      "fr": "Voir le résultat détaillé",
+      "en": "View the detailed result"
+    },
+    {
+      "key": "SpaceCoverageUnknown",
+      "fr": "inconnue, aucune collecte mesurée",
+      "en": "unknown, no collection measured"
+    },
+    {
+      "key": "SpaceTargetLabel",
+      "fr": "Préfixe logique",
+      "en": "Logical prefix"
+    },
+    {
+      "key": "SubtreeModeName",
+      "fr": "Page et arborescence",
+      "en": "Page and subtree"
+    },
+    {
+      "key": "SyncActionRequiredLabel",
+      "fr": "Action demandée",
+      "en": "Action required"
+    },
+    {
+      "key": "SyncAuthFailed",
+      "fr": "Credential absent, expiré ou refusé (code 4).",
+      "en": "Credential missing, expired or rejected (code 4)."
+    },
+    {
+      "key": "SyncCancelConfirmTitle",
+      "fr": "Interrompre l'opération en cours",
+      "en": "Stop the running operation"
+    },
+    {
+      "key": "SyncCancelled",
+      "fr": "Opération interrompue à votre demande.",
+      "en": "Operation stopped at your request."
+    },
+    {
+      "key": "SyncCarryForwardLabel",
+      "fr": "Documents conservés",
+      "en": "Documents kept"
+    },
+    {
+      "key": "SyncContinuesAfterClose",
+      "fr": "La synchronisation continue en dehors de l'application.",
+      "en": "Synchronization continues outside the application."
+    },
+    {
+      "key": "SyncConvertedLabel",
+      "fr": "Documents convertis (dernière tentative)",
+      "en": "Documents converted (last attempt)"
+    },
+    {
+      "key": "SyncDiagnosticsLabel",
+      "fr": "Diagnostics Cortex en direct (stderr)",
+      "en": "Live Cortex diagnostics (stderr)"
+    },
+    {
+      "key": "SyncDiagnosticsSummaryTitle",
+      "fr": "Compteurs et diagnostic",
+      "en": "Counters and diagnostics"
+    },
+    {
+      "key": "SyncErrorCodeLabel",
+      "fr": "Code d'erreur",
+      "en": "Error code"
+    },
+    {
+      "key": "SyncFailed",
+      "fr": "La synchronisation a échoué (code 1).",
+      "en": "Synchronization failed (code 1)."
+    },
+    {
+      "key": "SyncFailedLabel",
+      "fr": "Documents en échec",
+      "en": "Failed documents"
+    },
+    {
+      "key": "SyncFinalOutputLabel",
+      "fr": "Sortie finale Cortex (stdout)",
+      "en": "Cortex final output (stdout)"
+    },
+    {
+      "key": "SyncHealthPathTitle",
+      "fr": "Canal d'état local",
+      "en": "Local state channel"
+    },
+    {
+      "key": "SyncHealthTitle",
+      "fr": "Dernière tentative enregistrée",
+      "en": "Last recorded attempt"
+    },
+    {
+      "key": "SyncHealthUnreadable",
+      "fr": "État local illisible",
+      "en": "Local state unreadable"
+    },
+    {
+      "key": "SyncLastAttemptLabel",
+      "fr": "Dernière tentative",
+      "en": "Last attempt"
+    },
+    {
+      "key": "SyncLastSuccessLabel",
+      "fr": "Dernier succès",
+      "en": "Last success"
+    },
+    {
+      "key": "SyncLaunchFailed",
+      "fr": "Le worker de synchronisation n'a pas pu être lancé.",
+      "en": "The synchronization worker could not be started."
+    },
+    {
+      "key": "SyncLoading",
+      "fr": "Lecture du dernier état local...",
+      "en": "Reading the last local state..."
+    },
+    {
+      "key": "SyncNavigation",
+      "fr": "Base locale",
+      "en": "Local database"
+    },
+    {
+      "key": "SyncNeverRun",
+      "fr": "Jamais synchronisé",
+      "en": "Never synchronized"
+    },
+    {
+      "key": "SyncNoRunResult",
+      "fr": "Aucun run Companion enregistré.",
+      "en": "No Companion run recorded."
+    },
+    {
+      "key": "SyncNow",
+      "fr": "Synchroniser les documents locaux",
+      "en": "Synchronize local documents"
+    },
+    {
+      "key": "SyncRawOutputTitle",
+      "fr": "Sorties de la commande",
+      "en": "Command output"
+    },
+    {
+      "key": "SyncRemoteFailed",
+      "fr": "Le service distant est indisponible (code 5).",
+      "en": "The remote service is unavailable (code 5)."
+    },
+    {
+      "key": "SyncRunTitle",
+      "fr": "Dernière synchronisation",
+      "en": "Last synchronization"
+    },
+    {
+      "key": "SyncRunning",
+      "fr": "Synchronisation en cours.",
+      "en": "Synchronization in progress."
+    },
+    {
+      "key": "SyncSeenLabel",
+      "fr": "Documents vus",
+      "en": "Documents seen"
+    },
+    {
+      "key": "SyncStarting",
+      "fr": "Démarrage du worker de synchronisation...",
+      "en": "Starting the synchronization worker..."
+    },
+    {
+      "key": "SyncStateCancelled",
+      "fr": "Observation interrompue par la fermeture de l'application.",
+      "en": "Monitoring stopped when the application closed."
+    },
+    {
+      "key": "SyncStateReady",
+      "fr": "Dernier état local rechargé.",
+      "en": "The last local state has been reloaded."
+    },
+    {
+      "key": "SyncSucceeded",
+      "fr": "Synchronisation terminée avec succès (code 0).",
+      "en": "Synchronization completed successfully (code 0)."
+    },
+    {
+      "key": "SyncTechnicalDetails",
+      "fr": "Afficher les détails techniques",
+      "en": "Show technical details"
+    },
+    {
+      "key": "SyncTitle",
+      "fr": "Base locale",
+      "en": "Local database"
+    },
+    {
+      "key": "UpdateAvailable",
+      "fr": "Une mise à jour est disponible pour Cortex ou Companion.",
+      "en": "An update is available for Cortex or Companion."
+    },
+    {
+      "key": "UpdateAvailableLabel",
+      "fr": "Version stable disponible",
+      "en": "Stable version available"
+    },
+    {
+      "key": "UpdateCheck",
+      "fr": "Vérifier les mises à jour",
+      "en": "Check for updates"
+    },
+    {
+      "key": "UpdateCheckFailed",
+      "fr": "Vérification impossible. Vérifiez la connexion et réessayez.",
+      "en": "The check could not be completed. Check the connection and try again."
+    },
+    {
+      "key": "UpdateChecking",
+      "fr": "Vérification de la version stable...",
+      "en": "Checking the stable version..."
+    },
+    {
+      "key": "UpdateCompanion",
+      "fr": "Companion en cours d'exécution",
+      "en": "Companion running"
+    },
+    {
+      "key": "UpdateCortex",
+      "fr": "Cortex connecté",
+      "en": "Cortex connected"
+    },
+    {
+      "key": "UpdateOpen",
+      "fr": "Ouvrir le téléchargement officiel",
+      "en": "Open the official download"
+    },
+    {
+      "key": "UpdateTitle",
+      "fr": "Versions et mises à jour",
+      "en": "Versions and updates"
+    },
+    {
+      "key": "WholeSpaceModeName",
+      "fr": "Tout l'espace",
+      "en": "The whole space"
+    }
+  ]
+}

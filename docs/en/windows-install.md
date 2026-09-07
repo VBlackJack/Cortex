@@ -44,10 +44,9 @@ generated index remain local.
 After Companion connects to Cortex:
 
 1. Save the masked Confluence PAT under `Settings`.
-2. Open `Pages Confluence` and paste a full page URL.
+2. Open `Confluence pages` and paste a full page URL.
 3. Choose the PAT expiry and classification, then verify the inferred space key.
-4. Select `Initialiser et ajouter la page` (Initialize and add the page), then
-   confirm the page.
+4. Select `Initialize and add the page`, then confirm the page.
 
 Companion creates and validates `%APPDATA%\Cortex\confluence.toml`; manual
 editing is not required. The PAT stays in the DPAPI-protected Windows
@@ -60,24 +59,24 @@ options exist only for developers who need to test another binary.
 Cortex Companion is added to the Start menu and opens after a guided install.
 For first use:
 
-1. Open `Réglages` (Settings). Companion normally detects the `cortex.exe`
-   installed in the parent folder of the same Cortex installation. If the path
-   needs correction, select
-   `%LOCALAPPDATA%\Programs\Cortex\cortex.exe`, then
-   `Enregistrer et connecter` (Save and connect).
+1. Open `Settings`. Companion normally detects the `cortex.exe` installed in the
+   parent folder of the same Cortex installation. If the path needs correction,
+   select `%LOCALAPPDATA%\Programs\Cortex\cortex.exe`, then `Save and connect`.
    On a slow computer, also select a 15, 30, 60, or 120 second maximum Cortex
    command timeout; the default is 30 seconds. Since `2026.0901.02`, this value
-   applies to the compatibility check, Cortex settings reads, and `Pages
-   Confluence` commands. If it expires, Companion keeps mutations disabled and
-   directs the user back to `Réglages` (Settings) to increase the value.
-2. Verify the `Dossier de la base de connaissances` (Knowledge-base folder).
-   To change it, choose an existing folder, then select `Enregistrer le dossier`
-   (Save folder).
+   applies to the compatibility check, Cortex settings reads, and
+   `Confluence pages` commands. If it expires, Companion keeps mutations
+   disabled and directs the user back to `Settings` to increase the value.
+2. Verify the `Knowledge base folder`. To change it, choose an existing folder,
+   then select `Save the folder`.
 3. Add documents to that folder.
-4. Open `Base locale` (Local knowledge base), then select
-   `Synchroniser les documents locaux` (Synchronize local documents). The
-   screen remains
-   available to follow the result and inspect details if the operation fails.
+4. Open `Local database`, then select `Synchronize local documents`. The screen
+   remains available to follow the result and inspect details if the operation
+   fails.
+
+Companion follows the Windows language. To read it in another language it ships,
+choose one under `Interface language` in `Settings`; `Windows language` restores
+the default. The change applies the next time Companion starts.
 
 Two technical shortcuts remain available in the Start menu:
 

@@ -34,7 +34,7 @@ tombstones, retention, and health state.
 
 ## Source management in Companion (2026.0906.02)
 
-Paired version 2026.0906.02 provides visible **Mes sources** cards, a prefilled
+Paired version 2026.0906.02 provides visible **My sources** cards, a prefilled
 selection editor, confirmed page/space removal and browser links to originals.
 Removal only changes Cortex tracking; search reflects it after successful
 collection and indexing.
@@ -55,17 +55,16 @@ safe defaults. No space is enabled by default.
 
 ### Guided initialization with Companion
 
-When the file does not exist, open `Pages Confluence` in Companion:
+When the file does not exist, open `Confluence pages` in Companion:
 
 1. Paste the full URL of the first Confluence page.
 2. Verify the inferred space key. `viewpage.action` URLs and short links do not
    contain it, so enter it manually for those forms.
 3. Choose the PAT's declared expiry date and the classification. The secure
    default is `pro-confidentiel`.
-4. Select `Initialiser et ajouter la page` (Initialize and add the page).
-   Companion measures page-only, subtree, and whole-space scope before asking
-   for confirmation. When descendants exist, subtree is the recommended and
-   preselected choice.
+4. Select `Initialize and add the page`. Companion measures page-only, subtree,
+   and whole-space scope before asking for confirmation. When descendants exist,
+   subtree is the recommended and preselected choice.
 
 The Windows installer includes the console converter under
 `%LOCALAPPDATA%\Programs\Cortex\Converters`. Companion discovers it, verifies
@@ -84,12 +83,11 @@ Credential Manager for the current account.
 The manual TOML below remains available for advanced configurations and
 non-Windows environments.
 
-On a slow computer, the value selected under `Réglages > Délai maximal des
-commandes Cortex` (Settings > Maximum Cortex command timeout) also applies to
-reading this page list and resolving a page. Select 60 or 120 seconds, then
-`Enregistrer et connecter` (Save and connect), when Cortex needs several
-seconds to start. Companion now reports an expired timeout explicitly instead
-of describing it as a CLI read refusal.
+On a slow computer, the value selected under `Settings > Cortex command timeout`
+also applies to reading this page list and resolving a page. Select 60 or 120
+seconds, then `Save and connect`, when Cortex needs several seconds to start.
+Companion now reports an expired timeout explicitly instead of describing it as
+a CLI read refusal.
 
 `base_url` must use `https` unless the host is loopback. The PAT goes out as an
 `Authorization` header on every request, so a cleartext origin would publish it
@@ -226,15 +224,15 @@ limit, and failure threshold also have matching uppercase
 TOML so an inherited environment cannot silently broaden the source scope.
 
 Allowlisting a space does not require editing the TOML by hand. In Cortex
-Companion, the `Pages` screen carries an `Autoriser un nouvel espace` card:
+Companion, the `Confluence pages` screen carries an `Allow a new space` card:
 paste the URL of any page of the space, pick the classification, and confirm.
-Companion reads the space key from the URL, refuses a URL that names no space
-or that points at another Confluence server, and writes the `[[spaces]]` entry
+Companion reads the space key from the URL, refuses a URL that names no space or
+that points at another Confluence server, and writes the `[[spaces]]` entry
 under the same CAS lock as every other mutation. The space enters empty in
 explicit-pages mode, so allowlisting on its own still collects nothing. When
-`Resoudre et ajouter` refuses a page because its space is not allowlisted, that
-same card is filled in with the pasted URL, and confirming it adds the page in
-the same gesture.
+`Resolve and add` refuses a page because its space is not allowlisted, that same
+card is filled in with the pasted URL, and confirming it adds the page in the
+same gesture.
 
 ## Store the PAT
 
@@ -245,12 +243,13 @@ required before adding pages or starting a collection because it supplies
 `base_url`, `auth_expires_at`, and the space allowlist.
 
 With Cortex Companion, open `Settings > Confluence authentication`, enter the
-PAT in the masked field, then select `Save PAT`. Companion reads the validated
-target from the Confluence configuration, or uses the default while the file is
-absent, and writes the generic credential for the current Windows account
-directly to Windows Credential Manager. The value is protected by DPAPI and is
-never copied to Companion settings, TOML, or logs. If a later configuration
-selects another target, save the PAT again for the target Companion displays.
+PAT in the masked field, then select `Save the PAT`. Companion reads the
+validated target from the Confluence configuration, or uses the default while
+the file is absent, and writes the generic credential for the current Windows
+account directly to Windows Credential Manager. The value is protected by DPAPI
+and is never copied to Companion settings, TOML, or logs. If a later
+configuration selects another target, save the PAT again for the target
+Companion displays.
 
 For command-line administration, run the interactive command in a
 human-controlled terminal:

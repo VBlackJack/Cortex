@@ -7,6 +7,20 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0907.01] - 2026-09-07
+
+### Changed
+
+- Quote Companion controls in the language of the page. Companion shipped only in French,
+  so the English pages named its controls in French with an English gloss in parentheses;
+  paired with a bilingual Companion, an English reader was sent after a control that does
+  not exist under that name in their interface. The French pages keep the French labels,
+  now spelled with their accents so they match the interface exactly.
+- Guard the labels against the resource files themselves rather than a hand-picked pair.
+  The previous guard covered two labels in six documents and required the French spelling
+  everywhere, which is what made the English pages wrong; a label quoted in the other
+  language now fails the suite in any document, accents stripped or not.
+
 ## [2026.0907.00] - 2026-09-07
 
 ### Fixed

@@ -7,6 +7,19 @@
 Cette page résume les changements visibles pour les utilisateurs. Le
 [journal technique](../../CHANGELOG.md) contient le détail complet.
 
+Les commandes de l'interface sont nommées comme la version actuelle les affiche, y
+compris dans les entrées des versions antérieures, afin qu'une commande citée ici se
+retrouve à l'écran aujourd'hui.
+
+<!-- release:2026-0907-01 -->
+## 2026.0907.01 - 2026-09-07
+
+- Companion parle anglais. Son interface n'existait qu'en français, quelle que soit la langue de Windows ; elle suit désormais la langue de Windows et propose un choix explicite dans les Réglages, appliqué au prochain démarrage.
+- Une langue que Companion ne fournit pas retombe sur l'anglais plutôt que sur le français.
+- La documentation française nomme les commandes en français, accents compris, et la documentation anglaise les nomme en anglais, afin qu'une commande citée dans une page se retrouve à l'écran.
+
+Mettez Cortex et Companion à jour ensemble avec l'installeur combiné.
+
 <!-- release:2026-0907-00 -->
 ## 2026.0907.00 - 2026-09-07
 
@@ -285,7 +298,7 @@ les limites, notamment l'absence de validation manuelle Narrator/multi-écran.
 <!-- release:2026-0831-01 -->
 ## 2026.0831.01 - 2026-08-31
 
-- `Reglages > Authentification Confluence` propose maintenant un champ masqué
+- `Réglages > Authentification Confluence` propose maintenant un champ masqué
   pour le Personal Access Token (PAT). Configurez d'abord Confluence, puis
   enregistrez le PAT avant la première collecte ou lors de son renouvellement.
 - Companion lit le `credential_target` configuré et stocke le PAT pour le

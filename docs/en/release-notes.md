@@ -7,6 +7,18 @@
 This page summarizes user-visible changes. See the
 [technical changelog](../../CHANGELOG.md) for complete details.
 
+Interface controls are named as the current version shows them, including in entries
+about earlier versions, so a control quoted here can be found on screen today.
+
+<!-- release:2026-0907-01 -->
+## 2026.0907.01 - 2026-09-07
+
+- Companion speaks English. Its interface existed only in French, whatever the language of Windows; it now follows the Windows language and offers an explicit choice in Settings, applied the next time it starts.
+- A language Companion does not ship falls back to English rather than to French.
+- The English documentation names Companion controls in English, and the French documentation keeps the French names, so a control quoted in a page can be found on screen.
+
+Upgrade Cortex and Companion together with the combined installer.
+
 <!-- release:2026-0907-00 -->
 ## 2026.0907.00 - 2026-09-07
 
@@ -172,12 +184,12 @@ including the remaining manual Narrator and physical multi-monitor checks.
 - The Confluence address must now use `https`, except for a local test instance.
   A cleartext address exposed the token on the network. Companion says so as
   soon as you paste the first page URL.
-- Companion can finally stop a running collection. The `Interrompre` button asks
-  for confirmation, states what will happen, then stops the operation. The
-  already published generation stays intact.
+- Companion can finally stop a running collection. The `Stop` button asks for
+  confirmation, states what will happen, then stops the operation. The already
+  published generation stays intact.
 - Closing Companion during a run now asks for confirmation and reminds you that
   the operation keeps running in the background.
-- `Collecter Confluence` moved up onto the main card of `Base locale`, next to
+- `Collect Confluence` moved up onto the main card of `Local database`, next to
   local synchronization, instead of hiding under the advanced options.
 - `F5` reloads the current screen and `Ctrl+S` saves from Settings. The shortcut
   appears in the button tooltip.
@@ -232,12 +244,11 @@ including the remaining manual Narrator and physical multi-monitor checks.
 <!-- release:2026-0901-02 -->
 ## 2026.0901.02 - 2026-09-01
 
-- The timeout selected in `Réglages` (Settings) now applies to every short CLI
-  command launched by Companion: connection, Cortex configuration reads, and
-  Confluence page management.
-- On a slow computer, selecting 60 or 120 seconds and then `Enregistrer et
-  connecter` (Save and connect) prevents Companion from terminating
-  `cortex.exe` while it is still starting.
+- The timeout selected in `Settings` now applies to every short CLI command
+  launched by Companion: connection, Cortex configuration reads, and Confluence
+  page management.
+- On a slow computer, selecting 60 or 120 seconds and then `Save and connect`
+  prevents Companion from terminating `cortex.exe` while it is still starting.
 - A real timeout now provides a clear explanation and recovery action instead
   of the misleading `CLI refused the read` message.
 - Existing settings are reused automatically; the update does not require the
@@ -246,9 +257,9 @@ including the remaining manual Narrator and physical multi-monitor checks.
 <!-- release:2026-0901-01 -->
 ## 2026.0901.01 - 2026-09-01
 
-- Initial Confluence setup now happens directly in `Pages Confluence`. Paste a
+- Initial Confluence setup now happens directly in `Confluence pages`. Paste a
   page URL, choose the PAT expiry date and classification, then select
-  `Initialiser et ajouter la page` (Initialize and add the page).
+  `Initialize and add the page`.
 - Companion detects the instance address and space key from URLs that expose
   them. Legacy `viewpage.action` URLs and short links remain accepted; enter the
   Confluence space key when those links do not contain it.
@@ -288,9 +299,8 @@ including the remaining manual Narrator and physical multi-monitor checks.
 <!-- release:2026-0831-00 -->
 ## 2026.0831.00 - 2026-08-31
 
-- On a slow computer, `Réglages` (Settings) now lets you choose how long
-  Companion waits for Cortex to start: 15, 30, 60, or 120 seconds. The default
-  is 30 seconds.
+- On a slow computer, `Settings` now lets you choose how long Companion waits
+  for Cortex to start: 15, 30, 60, or 120 seconds. The default is 30 seconds.
 - Cortex version verification no longer loads the offline models. Initial
   connection is therefore faster, while a longer timeout remains available for
   computers where Cortex needs more time to start.
@@ -346,10 +356,9 @@ including the remaining manual Narrator and physical multi-monitor checks.
 
 - One Windows installer now provides Cortex, the offline models, and Cortex
   Companion. No separate Python or .NET runtime is required.
-- Companion becomes the recommended terminal-free path: `Réglages` (Settings)
-  detects Cortex and selects the document folder. In `Base locale` (Local
-  knowledge base), `Synchroniser les documents locaux` (Synchronize local
-  documents) starts and follows a synchronization.
+- Companion becomes the recommended terminal-free path: `Settings` detects
+  Cortex and selects the document folder. In `Local database`,
+  `Synchronize local documents` starts and follows a synchronization.
 - Database export, import, and rollback are deferred from this release. The
   local index is reconstructible from the Vault and configured sources by
   running a synchronization.

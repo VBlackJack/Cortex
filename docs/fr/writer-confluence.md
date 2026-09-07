@@ -233,11 +233,11 @@ Companion, l'écran `Pages` porte une carte `Autoriser un nouvel espace` : colle
 l'URL de n'importe quelle page de l'espace, choisissez la classification, puis
 confirmez. Companion lit la clef d'espace dans l'URL, refuse une URL qui ne
 nomme aucun espace ou qui pointe vers un autre serveur Confluence, et écrit
-l'entrée `[[spaces]]` sous le même verrou CAS que toute autre mutation.
-L'espace entre vide, en mode pages explicites : l'autoriser ne collecte donc
-rien par lui-même. Quand `Resoudre et ajouter` refuse une page parce que son
-espace n'est pas autorisé, cette même carte est préremplie avec l'URL collée, et
-la confirmer ajoute la page dans la foulée.
+l'entrée `[[spaces]]` sous le même verrou CAS que toute autre mutation. L'espace
+entre vide, en mode pages explicites : l'autoriser ne collecte donc rien par
+lui-même. Quand `Résoudre et ajouter` refuse une page parce que son espace n'est
+pas autorisé, cette même carte est préremplie avec l'URL collée, et la confirmer
+ajoute la page dans la foulée.
 
 ## Stocker le PAT
 
@@ -248,14 +248,14 @@ pas encore, Cortex et Companion utilisent la même cible Windows par défaut,
 pages ou de lancer une collecte, car il porte notamment `base_url`,
 `auth_expires_at` et la liste blanche des espaces.
 
-Avec Cortex Companion, ouvrez `Reglages > Authentification Confluence`,
+Avec Cortex Companion, ouvrez `Réglages > Authentification Confluence`,
 saisissez le PAT dans le champ masqué, puis sélectionnez `Enregistrer le PAT`.
 Companion lit la cible validée dans la configuration Confluence, ou reprend la
 cible par défaut si le fichier est absent, puis écrit directement l'identifiant
-générique du compte Windows courant dans le Gestionnaire d'identifiants
-Windows. La valeur est protégée par DPAPI et n'est jamais copiée dans les
-réglages Companion, le TOML ou les journaux. Si la configuration choisit plus
-tard une autre cible, enregistrez de nouveau le PAT pour la cible affichée.
+générique du compte Windows courant dans le Gestionnaire d'identifiants Windows.
+La valeur est protégée par DPAPI et n'est jamais copiée dans les réglages
+Companion, le TOML ou les journaux. Si la configuration choisit plus tard une
+autre cible, enregistrez de nouveau le PAT pour la cible affichée.
 
 Pour une administration en ligne de commande, utilisez un terminal contrôlé
 par l'opérateur :
@@ -411,7 +411,7 @@ Pour `whole_space`, `pages` vaut `null`. Sans génération courante, les titres
 des pages configurées valent `null` ; sans état de santé, les champs principaux
 de `last_sync` valent `null` et `scope_summaries` est vide. Une sélection
 `pages` qui exclut des descendants connus produit une synthèse exploitable par
-l'action Companion `Elargir a l'arborescence`.
+l'action Companion `Élargir à l'arborescence`.
 
 Le contrat d'exit codes est stable et ne demande aucun parsing de texte humain :
 

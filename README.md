@@ -40,7 +40,7 @@ readiness, save-and-update, last-removal undo and recovery actions. See
 [the contracts](docs/en/confluence-writer.md).
 
 
-Paired version 2026.0906.02 provides visible **Mes sources** cards, a prefilled
+Paired version 2026.0906.02 provides visible **My sources** cards, a prefilled
 selection editor, confirmed page/space removal and browser links to originals.
 Removal only changes Cortex tracking; search reflects it after successful
 collection and indexing.
@@ -70,12 +70,10 @@ runtime is required.
    `More info`, then `Run anyway`.
 4. Choose the folder that holds your documents, keep `Index everything in this
    folder`, and finish. Cortex Companion opens when installation completes.
-5. In Companion, open `Réglages` (Settings) and verify the knowledge-base
-   folder. The Cortex executable installed with Companion is detected
-   automatically.
-6. Drop your documents in that folder, open `Base locale` (Local knowledge
-   base), then select `Synchroniser les documents locaux` (Synchronize local
-   documents).
+5. In Companion, open `Settings` and verify the knowledge-base folder. The
+   Cortex executable installed with Companion is detected automatically.
+6. Drop your documents in that folder, open `Local database`, then select
+   `Synchronize local documents`.
 7. Restart your AI application: Cortex shows up there as an MCP server.
 
 Companion then lets you synchronize, schedule, diagnose, and configure Cortex

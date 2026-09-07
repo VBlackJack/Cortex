@@ -46,7 +46,7 @@ restent locaux.
 
 Après la connexion de Companion à Cortex :
 
-1. Dans `Reglages`, enregistrer le PAT Confluence masqué.
+1. Dans `Réglages`, enregistrer le PAT Confluence masqué.
 2. Dans `Pages Confluence`, coller l'URL complète d'une page.
 3. Choisir l'expiration du PAT et la classification, puis vérifier la clé
    d'espace détectée.
@@ -77,8 +77,13 @@ guidée. Pour le premier usage :
    un dossier existant, puis `Enregistrer le dossier`.
 3. Ajouter les documents dans ce dossier.
 4. Ouvrir `Base locale`, puis choisir `Synchroniser les documents locaux`.
-   L'écran reste utilisable pour
-   suivre le résultat et consulter les détails en cas d'échec.
+   L'écran reste utilisable pour suivre le résultat et consulter les détails en
+   cas d'échec.
+
+Companion suit la langue de Windows. Pour le lire dans une autre langue qu'il
+fournit, en choisir une sous `Langue de l'interface` dans `Réglages` ;
+`Langue de Windows` rétablit le défaut. Le changement s'applique au prochain
+démarrage de Companion.
 
 Deux raccourcis techniques restent disponibles dans le menu Démarrer :
 

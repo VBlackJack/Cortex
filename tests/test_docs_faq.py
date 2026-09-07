@@ -15,7 +15,9 @@
 
 from __future__ import annotations
 
+import json
 import re
+import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -178,20 +180,83 @@ def test_release_notes_are_linked_from_both_indexes_and_readmes() -> None:
             assert link in document
 
 
-def test_novice_local_sync_docs_use_the_exact_companion_labels() -> None:
-    paths = (
-        ROOT / "README.fr.md",
-        ROOT / "README.md",
-        FR_WINDOWS_INSTALL,
-        EN_WINDOWS_INSTALL,
-        FR_RELEASE_NOTES,
-        EN_RELEASE_NOTES,
-    )
+COMPANION_LABELS = ROOT / "tests" / "fixtures" / "companion_ui_labels.json"
 
-    for path in paths:
+
+def _fold(value: str) -> str:
+    """Drop diacritics and collapse spacing, so a stripped label still matches."""
+    decomposed = unicodedata.normalize("NFD", value)
+    return " ".join(
+        "".join(char for char in decomposed if not unicodedata.combining(char)).split()
+    ).casefold()
+
+
+def _quoted_spans(document: str) -> list[str]:
+    """Return every inline code span, flattened, so a wrapped label still matches."""
+    parts = document.split("`")
+    return [" ".join(parts[index].split()) for index in range(1, len(parts), 2)]
+
+
+def test_each_language_quotes_companion_labels_from_its_own_interface() -> None:
+    """No document may quote a control by the name of the other language.
+
+    Companion ships in English and French. A label quoted in the wrong language sends the
+    reader hunting for a control that, in their interface, does not exist under that name.
+    The pairs come from the shipped resource files rather than from a hand-picked list,
+    because a hand-picked list is exactly what let a French label survive in an English
+    page while the two labels beside it were corrected.
+    """
+    labels = json.loads(COMPANION_LABELS.read_text(encoding="utf-8"))["labels"]
+    assert len(labels) > 200, "The captured label set is too small to prove anything."
+    # Folded, because a document that spells a label without its accents still sends the
+    # reader after the wrong control, and that is the exact form this guard first missed.
+    french_labels = {_fold(entry["fr"]): entry["fr"] for entry in labels}
+    english_labels = {_fold(entry["en"]): entry["en"] for entry in labels}
+
+    documents = [(ROOT / "README.md", french_labels, "French")]
+    documents += [
+        (path, french_labels, "French")
+        for path in sorted((ROOT / "docs" / "en").glob("*.md"))
+    ]
+    documents.append((ROOT / "README.fr.md", english_labels, "English"))
+    documents += [
+        (path, english_labels, "English")
+        for path in sorted((ROOT / "docs" / "fr").glob("*.md"))
+    ]
+
+    offences = []
+    for path, foreign, language in documents:
+        for span in _quoted_spans(path.read_text(encoding="utf-8")):
+            for segment in span.split(" > "):
+                if _fold(segment) in foreign:
+                    offences.append(f"{path.name} quotes the {language} label {segment!r}")
+    assert not offences, "\n".join(offences)
+
+
+def test_novice_local_sync_docs_use_the_exact_companion_labels() -> None:
+    """Each mirror quotes the labels of its own language, and only those.
+
+    Companion ships in English and French. A label quoted in the wrong language is worse
+    than no label at all: the reader searches the interface for a control that, for them,
+    does not exist under that name.
+    """
+    french = ("`Base locale`", "`Synchroniser les documents locaux`")
+    english = ("`Local database`", "`Synchronize local documents`")
+    documents = {
+        ROOT / "README.fr.md": (french, english),
+        ROOT / "README.md": (english, french),
+        FR_WINDOWS_INSTALL: (french, english),
+        EN_WINDOWS_INSTALL: (english, french),
+        FR_RELEASE_NOTES: (french, english),
+        EN_RELEASE_NOTES: (english, french),
+    }
+
+    for path, (expected, foreign) in documents.items():
         document = path.read_text(encoding="utf-8")
-        assert "`Base locale`" in document
-        assert "`Synchroniser les documents locaux`" in document
+        for label in expected:
+            assert label in document, f"{path.name} does not quote {label}"
+        for label in foreign:
+            assert label not in document, f"{path.name} quotes {label} from the other language"
         assert "`Sync maintenant`" not in document
         assert "ouvrir `Sync`" not in document
         assert "open `Sync`" not in document

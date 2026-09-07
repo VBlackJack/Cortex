@@ -93,9 +93,9 @@ disponible.
 
 Le CLI d'ingestion générique rapporte le dernier état de santé atomique de la
 source et indique si un rattrapage est dû. L'adaptateur Confluence stocke son
-PAT interactivement et passe par les mêmes moteur de verrou, reprise,
-expiration et génération. Le PAT peut être enregistré sans terminal depuis
-`Reglages > Authentification Confluence` dans Companion, même avant la création
+PAT interactivement et passe par les mêmes moteur de verrou, reprise, expiration
+et génération. Le PAT peut être enregistré sans terminal depuis
+`Réglages > Authentification Confluence` dans Companion, même avant la création
 du fichier grâce à la cible `cortex-spike` par défaut. Ouvrir ensuite
 `Pages Confluence` : l'assistant crée la configuration à partir d'une URL de
 page, de l'expiration du PAT, de l'espace et de la classification. Le parcours
