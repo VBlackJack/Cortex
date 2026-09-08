@@ -728,3 +728,38 @@ def test_recent_errors_are_ok_when_only_old_lines_remain(tmp_path: Path) -> None
     assert check["details"]["older_lines"] == 1
     assert check["message"].startswith("No sync ERROR lines in the last")
     assert "1 older line(s) ignored" in check["message"]
+
+
+def _add_document_chunk(chroma: Path, source_path: str) -> None:
+    """Append one ingestion document chunk; such a path never exists in the vault."""
+    connection = sqlite3.connect(chroma / "chroma.sqlite3")
+    connection.execute("INSERT INTO embeddings VALUES (2, 'metadata', 'chunk-2')")
+    metadata = {
+        "path": source_path,
+        "section": source_path.split("/", 1)[0],
+        "content_hash": "b" * 64,
+        "contract_id": "freshness-contract-v1",
+        "content_hash_contract_version": "v1",
+        "source_kind": "doc",
+    }
+    for key, value in metadata.items():
+        connection.execute(
+            "INSERT INTO embedding_metadata VALUES (2, ?, ?, NULL, NULL, NULL)",
+            (key, value),
+        )
+    connection.commit()
+    connection.close()
+
+
+def test_freshness_does_not_report_ingestion_documents_as_missing(tmp_path: Path) -> None:
+    context = _baseline(tmp_path)
+    _add_document_chunk(
+        tmp_path / "local" / "Cortex" / "chroma_db",
+        "sources/confluence-sync/CCSP/markdown/1.md",
+    )
+
+    report = run_doctor(context)
+
+    check = _checks(report)["freshness.summary"]
+    assert check["status"] == "OK", check
+    assert check["details"]["summary"].get("missing", 0) == 0

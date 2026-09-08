@@ -59,6 +59,7 @@ _FRESHNESS_KEYS = (
     "content_hash",
     "contract_id",
     "content_hash_contract_version",
+    "source_kind",
 )
 
 
