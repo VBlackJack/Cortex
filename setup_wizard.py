@@ -156,8 +156,12 @@ def _prompt_index(
 
 def _default_index() -> dict[str, int]:
     # Lazy import: callers that skip indexing never load chromadb/fastembed.
+    from cortex_logging import configure_logging
     from indexer import sync
 
+    # The installer runs this step unattended; without the rotating log the sync
+    # it starts leaves no trace that cortex doctor or a support ticket can read.
+    configure_logging()
     return sync(section=None, verbose=True)
 
 

@@ -297,3 +297,20 @@ def test_run_setup_leaves_the_environment_untouched_without_kb_path() -> None:
     )
 
     assert seen == [None]
+
+
+def test_default_index_configures_logging_before_syncing(monkeypatch: pytest.MonkeyPatch) -> None:
+    import cortex_logging
+    import indexer
+
+    calls: list[str] = []
+
+    def fake_sync(section: str | None, verbose: bool) -> dict[str, int]:
+        calls.append("sync")
+        return {"errors": 0}
+
+    monkeypatch.setattr(cortex_logging, "configure_logging", lambda: calls.append("logging"))
+    monkeypatch.setattr(indexer, "sync", fake_sync)
+
+    assert setup_wizard._default_index() == {"errors": 0}
+    assert calls == ["logging", "sync"]
