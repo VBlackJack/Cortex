@@ -31,11 +31,12 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from contextlib import closing
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from _version import __version__
+from cortex_logging import LOG_TIMESTAMP_FORMAT
 from data_home import migration_state
 from dependencies import REQUIRED_PACKAGES
 from user_config import (
@@ -50,6 +51,7 @@ DOCTOR_SCHEMA_VERSION = 1
 DOCTOR_STATUSES = ("OK", "WARN", "FAIL", "SKIP", "UNKNOWN", "INFO")
 DEFAULT_HANDSHAKE_TIMEOUT_SECONDS = 20.0
 DEFAULT_ERROR_LINE_LIMIT = 10
+DEFAULT_ERROR_MAX_AGE_DAYS = 7
 _FINGERPRINT_KEYS = ("embedding_model", "fastembed_version", "pooling")
 _FRESHNESS_KEYS = (
     "path",
@@ -115,6 +117,7 @@ class DoctorContext:
     reranker_probe: RerankerProbe | None = None
     handshake_timeout_seconds: float = DEFAULT_HANDSHAKE_TIMEOUT_SECONDS
     error_line_limit: int = DEFAULT_ERROR_LINE_LIMIT
+    error_max_age_days: int = DEFAULT_ERROR_MAX_AGE_DAYS
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
 
 
@@ -719,7 +722,27 @@ def _write_lock_check(context: DoctorContext, path: Path) -> DiagnosticCheck:
     )
 
 
-def _log_error_check(log_dir: Path, limit: int) -> DiagnosticCheck:
+def _log_line_timestamp(line: str) -> datetime | None:
+    """Return the timestamp a log line starts with, or None when it carries none."""
+    token, _, _ = line.partition(" ")
+    try:
+        return datetime.strptime(token, LOG_TIMESTAMP_FORMAT)
+    except ValueError:
+        return None
+
+
+def _log_error_check(
+    log_dir: Path, limit: int, now: datetime, max_age_days: int
+) -> DiagnosticCheck:
+    """Report the sync ERROR lines logged inside the age window, newest last.
+
+    "Recent" is bounded by age, not only by count: a rotated log keeps months of
+    lines, and a WARN raised by stale noise would otherwise survive until rotation.
+    A line whose timestamp cannot be read keeps its place, because the check must
+    never hide an error it cannot date. Older lines are counted so the message says
+    what was left out.
+    """
+    window = f"in the last {max_age_days} day(s)"
     if not log_dir.is_dir():
         return _check(
             "logs.recent_errors",
@@ -728,6 +751,10 @@ def _log_error_check(log_dir: Path, limit: int) -> DiagnosticCheck:
             path=str(log_dir),
             lines=[],
         )
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    cutoff = now - timedelta(days=max_age_days)
+
     def rotation_order(path: Path) -> tuple[int, int, float]:
         if path.name == "cortex.log":
             return (2, 0, path.stat().st_mtime)
@@ -738,10 +765,16 @@ def _log_error_check(log_dir: Path, limit: int) -> DiagnosticCheck:
 
     files = sorted(log_dir.glob("cortex.log*"), key=rotation_order)
     errors: list[str] = []
+    older = 0
     try:
         for path in files:
             for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-                if " ERROR " in line and "cortex.sync" in line:
+                if " ERROR " not in line or "cortex.sync" not in line:
+                    continue
+                stamp = _log_line_timestamp(line)
+                if stamp is not None and stamp < cutoff:
+                    older += 1
+                else:
                     errors.append(line)
     except OSError as exc:
         return _check(
@@ -752,14 +785,21 @@ def _log_error_check(log_dir: Path, limit: int) -> DiagnosticCheck:
             lines=[],
         )
     recent = errors[-limit:]
+    message = (
+        f"Found {len(recent)} sync ERROR line(s) {window}"
+        if recent
+        else f"No sync ERROR lines {window}"
+    )
+    if older:
+        message += f"; {older} older line(s) ignored"
     return _check(
         "logs.recent_errors",
         "WARN" if recent else "OK",
-        f"Found {len(recent)} recent sync ERROR line(s)"
-        if recent
-        else "No sync ERROR lines found",
+        message,
         path=str(log_dir),
         limit=limit,
+        max_age_days=max_age_days,
+        older_lines=older,
         lines=recent,
     )
 
@@ -1119,6 +1159,8 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
                 _log_error_check(
                     local_data_home(current.environ) / "logs",
                     current.error_line_limit,
+                    current.now(),
+                    current.error_max_age_days,
                 ),
             ]
         )
@@ -1187,6 +1229,8 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
                 _log_error_check(
                     local_data_home(current.environ) / "logs",
                     current.error_line_limit,
+                    current.now(),
+                    current.error_max_age_days,
                 ),
             ]
         )

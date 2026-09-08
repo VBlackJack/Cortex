@@ -684,3 +684,47 @@ def test_recent_errors_are_bounded_across_rotated_logs(tmp_path: Path) -> None:
     assert check["status"] == "WARN"
     assert len(check["details"]["lines"]) == 2
     assert check["details"]["lines"][-1].endswith("errors=3")
+
+
+def test_recent_errors_ignore_lines_older_than_the_age_window(tmp_path: Path) -> None:
+    context = _baseline(tmp_path)
+    logs = tmp_path / "local" / "Cortex" / "logs"
+    logs.mkdir()
+    fresh = "2026-07-11T06:41:00+0000 ERROR cortex.sync reason=fresh"
+    (logs / "cortex.log").write_text(
+        f"2026-07-01T06:41:00+0000 ERROR cortex.sync reason=boom\n{fresh}\n",
+        encoding="utf-8",
+    )
+
+    report = run_doctor(context)
+
+    check = _checks(report)["logs.recent_errors"]
+    assert check["status"] == "WARN"
+    assert check["details"]["lines"] == [fresh]
+    assert check["details"]["older_lines"] == 1
+    assert check["details"]["max_age_days"] == doctor.DEFAULT_ERROR_MAX_AGE_DAYS
+    assert f"in the last {doctor.DEFAULT_ERROR_MAX_AGE_DAYS} day(s)" in check["message"]
+    assert "1 older line(s) ignored" in check["message"]
+
+
+def test_recent_errors_are_ok_when_only_old_lines_remain(tmp_path: Path) -> None:
+    context = _baseline(tmp_path)
+    logs = tmp_path / "local" / "Cortex" / "logs"
+    logs.mkdir()
+    (logs / "cortex.log.1").write_text(
+        "2026-06-01T06:41:00+0000 ERROR cortex.sync reason=boom\n",
+        encoding="utf-8",
+    )
+    (logs / "cortex.log").write_text(
+        "2026-07-12T11:00:00+0000 INFO cortex.sync finished errors=0\n",
+        encoding="utf-8",
+    )
+
+    report = run_doctor(context)
+
+    check = _checks(report)["logs.recent_errors"]
+    assert check["status"] == "OK"
+    assert check["details"]["lines"] == []
+    assert check["details"]["older_lines"] == 1
+    assert check["message"].startswith("No sync ERROR lines in the last")
+    assert "1 older line(s) ignored" in check["message"]

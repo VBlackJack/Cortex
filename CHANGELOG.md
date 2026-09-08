@@ -7,6 +7,13 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Fixed
+- Bound the doctor's "recent" sync errors by age. `logs.recent_errors` read the last ten
+  ERROR lines of the rotated logs whatever their date, so a WARN raised by old noise, here
+  two test runs from before the log isolation, survived until rotation. The check now keeps
+  the lines of the last seven days, says the window and how many older lines it left out,
+  and still keeps a line it cannot date.
+
 ## [2026.0908.00] - 2026-09-08
 
 ### Changed

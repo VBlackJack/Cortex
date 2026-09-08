@@ -28,6 +28,8 @@ from config import (
 )
 
 _HANDLER_MARKER = "_cortex_managed_handler"
+LOG_TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
+"""Leading timestamp of every log line; readers such as doctor parse it back."""
 
 
 def configure_logging(
@@ -55,7 +57,7 @@ def configure_logging(
     directory.mkdir(parents=True, exist_ok=True)
     formatter = logging.Formatter(
         "%(asctime)s %(levelname)s %(name)s %(message)s",
-        datefmt="%Y-%m-%dT%H:%M:%S%z",
+        datefmt=LOG_TIMESTAMP_FORMAT,
     )
 
     stderr_handler = logging.StreamHandler(sys.stderr)
