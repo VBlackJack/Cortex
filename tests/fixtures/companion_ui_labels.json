@@ -1153,6 +1153,26 @@
       "en": "Load the pages in this space"
     },
     {
+      "key": "SourcesMergeNoChange",
+      "fr": "Cette option laisserait la source telle quelle.",
+      "en": "This option would leave the source as it is."
+    },
+    {
+      "key": "SourcesMergeReplace",
+      "fr": "Remplacer la sélection",
+      "en": "Replace the selection"
+    },
+    {
+      "key": "SourcesMergeTitle",
+      "fr": "Fusionner avec la source existante",
+      "en": "Merge with the existing source"
+    },
+    {
+      "key": "SourcesMergeWiden",
+      "fr": "Élargir la source",
+      "en": "Widen the source"
+    },
+    {
       "key": "SourcesNoChange",
       "fr": "Aucun document dans cette liste.",
       "en": "No documents in this list."
