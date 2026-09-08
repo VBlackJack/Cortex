@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0908.00] - 2026-09-08
+
 ### Changed
 - Say in the preview document whether the configured space already collects the page.
   `preview` moves to contract version 2 and gains `coverage` (`none`, `page`, `subtree` or
@@ -16,6 +18,11 @@ available in [French](docs/fr/notes-de-version.md) and
   can offer to widen or replace the selection instead. A whole-space or listed-page answer
   costs no request and a subtree answer costs one, for the ancestors of the page. `resolve`
   keeps its contract and derives `configured` from the same answer.
+- Keep the test suite off the developer's real write lock. Its path resolves like the
+  knowledge base path, and a `cortex sync` running on the machine, here the one the
+  installer starts after an update, held it for minutes: six sync tests failed on the lock
+  timeout with nothing wrong in the code. The bootstrap now gives the suite a throwaway
+  lock, as it already gave it a knowledge base and a log directory.
 
 ## [2026.0907.03] - 2026-09-07
 

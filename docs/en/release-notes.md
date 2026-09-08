@@ -10,6 +10,15 @@ This page summarizes user-visible changes. See the
 Interface controls are named as the current version shows them, including in entries
 about earlier versions, so a control quoted here can be found on screen today.
 
+<!-- release:2026-0908-00 -->
+## 2026.0908.00 - 2026-09-08
+
+- Pasting a page that a source already collects no longer ends in a refusal. The scope window says so up front, and once the scope is chosen Companion shows the two ways to merge it, side by side: widen the source, or replace its selection, each with the documents it adds and removes. A page under a tracked subtree is recognised as well; it used to look new and be refused later.
+- Search no longer has a version requirement of its own. It follows the startup check like every other feature, and the message that asked for a particular Cortex version is gone.
+- The preview document of the command line says whether the configured space already collects the page, and through which listed page.
+
+Upgrade Cortex and Companion together with the combined installer.
+
 <!-- release:2026-0907-03 -->
 ## 2026.0907.03 - 2026-09-07
 

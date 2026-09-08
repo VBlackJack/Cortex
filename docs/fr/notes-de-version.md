@@ -11,6 +11,15 @@ Les commandes de l'interface sont nommées comme la version actuelle les affiche
 compris dans les entrées des versions antérieures, afin qu'une commande citée ici se
 retrouve à l'écran aujourd'hui.
 
+<!-- release:2026-0908-00 -->
+## 2026.0908.00 - 2026-09-08
+
+- Coller une page qu'une source collecte déjà ne finit plus par un refus. La fenêtre de périmètre le dit d'emblée, et une fois le périmètre choisi Companion montre les deux façons de fusionner, côte à côte : élargir la source, ou remplacer sa sélection, chacune avec les documents qu'elle ajoute et retire. Une page située sous un sous-arbre suivi est reconnue aussi ; elle passait pour nouvelle et se faisait refuser plus tard.
+- La recherche n'a plus d'exigence de version à elle. Elle suit la vérification de démarrage comme toutes les autres fonctions, et le message qui réclamait une version précise de Cortex a disparu.
+- Le document de prévisualisation de la ligne de commande dit si l'espace configuré collecte déjà la page, et par quelle page listée.
+
+Mettez Cortex et Companion à jour ensemble avec l'installeur combiné.
+
 <!-- release:2026-0907-03 -->
 ## 2026.0907.03 - 2026-09-07
 
