@@ -114,6 +114,10 @@ dans le fichier mais n'est pas utilisé dans ce mode.
 Une configuration existante sans `index_whole_folder` garde son comportement
 historique : la valeur absente équivaut à `false` et active les sections.
 
+Changer de mode ré-étiquette chaque fichier indexé à la synchronisation suivante,
+qui republie une fois toute la base de connaissances et retire la génération
+laissée par le mode précédent.
+
 Pour changer proprement de mode sur une installation existante, utiliser le
 choix `Reinitialiser` de l'installeur ou :
 

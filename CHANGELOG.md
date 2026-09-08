@@ -8,6 +8,16 @@ available in [French](docs/fr/notes-de-version.md) and
 ## [Unreleased]
 
 ### Fixed
+- Remove the generation a change of index mode left behind. A chunk is labelled with the
+  section that published it, the folder name in sections mode or the root in whole-folder
+  mode, and its id ignores that label. The sync read the existing chunks of a path through
+  the current label alone, so after a change of mode a file changed in between kept its
+  previous generation under the other label, invisible to every later sync: on the
+  developer's machine, 1888 stale chunks of eleven `_memory` notes sat next to their live
+  version, the doctor blamed the lexical index for the difference, and the next sync would
+  have copied them into it. The sync now reads both labels for the paths a section owns,
+  removes the superseded generation, and republishes an unchanged file whose label is wrong
+  instead of skipping it, so the label follows the mode.
 - Stop the doctor's freshness summary from counting ingestion documents as missing vault
   files. The read-only inspector loaded the index metadata without `source_kind`, so every
   Confluence document chunk, whose path names a document in Cortex's own store and never a

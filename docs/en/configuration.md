@@ -107,6 +107,10 @@ but is not used in this mode.
 An existing configuration without `index_whole_folder` keeps its historical
 behavior: the absent value means `false` and enables sections.
 
+Changing the mode relabels every indexed file at the next synchronisation, which
+republishes the whole knowledge base once and removes the generation the previous
+mode left behind.
+
 To change modes safely on an existing installation, select `Reset` in the
 installer or run:
 

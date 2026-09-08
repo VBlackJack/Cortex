@@ -776,3 +776,74 @@ def test_vault_and_ingestion_reconciliation_do_not_purge_each_other(
         "doc",
         "note",
     }
+
+
+def _labelled(chunks: list[dict[str, Any]], section: str) -> list[dict[str, Any]]:
+    for chunk in chunks:
+        chunk["metadata"]["section"] = section
+    return chunks
+
+
+def test_section_sync_removes_the_generation_labelled_by_the_other_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    (root / "knowledge").mkdir(parents=True)
+    (root / "knowledge" / "note.md").write_text("current", encoding="utf-8")
+    stale = _labelled(_chunks(path="knowledge/note.md", content_hash="0" * 64), ROOT_SECTION)
+    foreign = _labelled(_chunks(path="other/note.md", content_hash="2" * 64), ROOT_SECTION)
+    collection = Collection()
+    collection.seed(stale + foreign)
+    current = _chunks(path="knowledge/note.md", content_hash="1" * 64)
+    monkeypatch.setitem(
+        sync_hash_aware.CHUNKERS, ".md", lambda _path: ChunkResult(status="ok", chunks=current)
+    )
+
+    stats = _sync_section_locked(collection, root, "knowledge")
+
+    assert set(collection.rows) == {current[0]["id"], foreign[0]["id"]}
+    assert collection.rows[current[0]["id"]]["metadata"]["section"] == "knowledge"
+    assert stats["published_files"] == 1
+    assert stats["deleted_chunks"] == 1
+
+
+def test_section_sync_relabels_an_unchanged_file_left_by_the_other_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    (root / "knowledge").mkdir(parents=True)
+    (root / "knowledge" / "note.md").write_text("same bytes", encoding="utf-8")
+    collection = Collection()
+    collection.seed(_labelled(_chunks(path="knowledge/note.md"), ROOT_SECTION))
+    same = _chunks(path="knowledge/note.md")
+    monkeypatch.setitem(
+        sync_hash_aware.CHUNKERS, ".md", lambda _path: ChunkResult(status="ok", chunks=same)
+    )
+
+    stats = _sync_section_locked(collection, root, "knowledge")
+
+    assert set(collection.rows) == {same[0]["id"]}
+    assert collection.rows[same[0]["id"]]["metadata"]["section"] == "knowledge"
+    assert stats["published_files"] == 1
+    assert stats["skipped_files"] == 0
+    assert stats["deleted_chunks"] == 0
+
+
+def test_root_sync_removes_the_generation_labelled_by_a_section(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    (root / "knowledge").mkdir(parents=True)
+    (root / "knowledge" / "note.md").write_text("current", encoding="utf-8")
+    collection = Collection()
+    collection.seed(_chunks(path="knowledge/note.md", content_hash="0" * 64))
+    current = _chunks(path="knowledge/note.md", content_hash="1" * 64)
+    monkeypatch.setitem(
+        sync_hash_aware.CHUNKERS, ".md", lambda _path: ChunkResult(status="ok", chunks=current)
+    )
+
+    stats = _sync_section_locked(collection, root, ROOT_SECTION)
+
+    assert set(collection.rows) == {current[0]["id"]}
+    assert collection.rows[current[0]["id"]]["metadata"]["section"] == ROOT_SECTION
+    assert stats["deleted_chunks"] == 1

@@ -217,6 +217,24 @@ def sync_file(
     return len(chunks), deleted
 
 
+def _existing_filters(section: str) -> tuple[dict[str, str] | None, ...]:
+    """Return the metadata filters that select every chunk a section may own.
+
+    A chunk is labelled with the section that published it: the folder name in
+    sections mode, the root section in whole-folder mode. The ids ignore that
+    label, so after a change of mode the same path exists under both. Reading the
+    current label alone left the other generation invisible, and a file changed
+    between the two modes kept a stale generation nobody removed.
+    """
+    if section == ROOT_SECTION:
+        return (None,)
+    return ({"section": section}, {"section": ROOT_SECTION})
+
+
+def _section_owns(path: str, section: str) -> bool:
+    return section == ROOT_SECTION or path.startswith(f"{section}/")
+
+
 def _existing_by_path(
     collection: Any,
     section: str,
@@ -224,24 +242,30 @@ def _existing_by_path(
     source_kind: str | None,
 ) -> dict[str, tuple[list[str], list[dict[str, Any]]]]:
     existing: dict[str, tuple[list[str], list[dict[str, Any]]]] = {}
-    for page in iter_collection_pages(
-        collection,
-        page_size=_PAGE_SIZE,
-        where={"section": section},
-        include=["metadatas"],
-    ):
-        ids = page.get("ids", [])
-        metadata = page.get("metadatas", []) or []
-        for chunk_id, meta in zip(ids, metadata):
-            indexed_kind = meta.get("source_kind") if meta else None
-            if source_kind is None:
-                if indexed_kind not in {None, VAULT_SOURCE_KIND}:
+    for where in _existing_filters(section):
+        for page in iter_collection_pages(
+            collection,
+            page_size=_PAGE_SIZE,
+            where=where,
+            include=["metadatas"],
+        ):
+            ids = page.get("ids", [])
+            metadata = page.get("metadatas", []) or []
+            for chunk_id, meta in zip(ids, metadata):
+                indexed_kind = meta.get("source_kind") if meta else None
+                if source_kind is None:
+                    if indexed_kind not in {None, VAULT_SOURCE_KIND}:
+                        continue
+                elif indexed_kind != source_kind:
                     continue
-            elif indexed_kind != source_kind:
-                continue
-            if meta and isinstance(meta.get("path"), str):
+                if not meta or not isinstance(meta.get("path"), str):
+                    continue
                 path = meta["path"].replace("\\", "/")
+                if not _section_owns(path, section):
+                    continue
                 old_ids, old_metadata = existing.setdefault(path, ([], []))
+                if chunk_id in old_ids:
+                    continue
                 old_ids.append(chunk_id)
                 old_metadata.append(meta)
     return existing
@@ -257,8 +281,13 @@ def _is_complete_current_version(
         return False
     content_hash = _file_content_hash(chunks[0]["metadata"])
     metadata_schema_version = chunks[0]["metadata"].get("schema_version")
+    # The label must match too: a version published by the other index mode has
+    # the same ids and bytes but the wrong section, and skipping it would keep
+    # that label out of every section-filtered read.
+    section = chunks[0]["metadata"].get("section")
     return all(
         _file_content_hash(meta) == content_hash
+        and meta.get("section") == section
         and meta.get("chunking_contract_version") == CHUNKING_CONTRACT_VERSION
         and (
             metadata_schema_version is None
