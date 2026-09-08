@@ -10,6 +10,17 @@ This page summarizes user-visible changes. See the
 Interface controls are named as the current version shows them, including in entries
 about earlier versions, so a control quoted here can be found on screen today.
 
+<!-- release:2026-0908-01 -->
+## 2026.0908.01 - 2026-09-08
+
+- Switching the indexing mode no longer leaves stale copies in the index. A note changed after the switch kept its previous version next to the current one, and a search could return both; the next synchronisation removes those copies and keeps the current version only.
+- Cortex Doctor no longer reports the Confluence documents as missing files. They live in Cortex's own store, not in the knowledge base folder, and the freshness summary now leaves them out.
+- Cortex Doctor counts as recent only the synchronisation errors of the last seven days, says how many older lines it left out, and no longer warns about old noise.
+- The synchronisation the installer starts after an update now writes to the log like a manual one.
+- Companion's history keeps a run whose report lacks a counter. It says that detailed counters are not available instead of showing an unreadable entry.
+
+Upgrade Cortex and Companion together with the combined installer.
+
 <!-- release:2026-0908-00 -->
 ## 2026.0908.00 - 2026-09-08
 

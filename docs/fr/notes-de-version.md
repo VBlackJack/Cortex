@@ -11,6 +11,17 @@ Les commandes de l'interface sont nommées comme la version actuelle les affiche
 compris dans les entrées des versions antérieures, afin qu'une commande citée ici se
 retrouve à l'écran aujourd'hui.
 
+<!-- release:2026-0908-01 -->
+## 2026.0908.01 - 2026-09-08
+
+- Changer de mode d'indexation ne laisse plus de copies périmées dans l'index. Une note modifiée après le changement gardait sa version précédente à côté de la version courante, et une recherche pouvait rendre les deux ; la prochaine synchronisation retire ces copies et ne garde que la version courante.
+- Cortex Doctor ne signale plus les documents Confluence comme des fichiers manquants. Ils vivent dans le magasin propre de Cortex, pas dans le dossier de la base de connaissances, et le résumé de fraîcheur les laisse désormais de côté.
+- Cortex Doctor ne compte comme récentes que les erreurs de synchronisation des sept derniers jours, dit combien de lignes plus anciennes il a laissées de côté, et n'avertit plus pour du bruit ancien.
+- La synchronisation que l'installateur lance après une mise à jour écrit désormais dans le journal comme une synchronisation manuelle.
+- L'historique de Companion conserve une opération dont le rapport n'a pas de compteur. Il indique que les compteurs détaillés ne sont pas disponibles au lieu d'afficher une entrée illisible.
+
+Mettez à jour Cortex et Companion ensemble avec l'installateur combiné.
+
 <!-- release:2026-0908-00 -->
 ## 2026.0908.00 - 2026-09-08
 

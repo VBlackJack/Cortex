@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0908.01] - 2026-09-08
+
 ### Fixed
 - Remove the generation a change of index mode left behind. A chunk is labelled with the
   section that published it, the folder name in sections mode or the root in whole-folder
