@@ -35,6 +35,7 @@ from confluence_writer.models import (
     RemotePage,
     ResolvedPageContract,
     ScopeChoiceContract,
+    ScopeCoverage,
     ScopePreviewContract,
     ScopeSummaryContract,
 )
@@ -128,6 +129,24 @@ def resolve_page(
     client: ConfluenceRestClient,
 ) -> ResolvedPageContract:
     """Resolve, verify, and classify one Kazan page reference."""
+    page, mapping = _resolve_remote(value, settings=settings, client=client)
+    coverage, _ = _coverage(page, mapping, client)
+    return ResolvedPageContract(
+        contract_version=CLI_CONTRACT_VERSION,
+        page_id=page.page_id,
+        title=page.title,
+        space_key=page.space_key,
+        configured=coverage != "none",
+    )
+
+
+def _resolve_remote(
+    value: str,
+    *,
+    settings: ConfluenceSettings,
+    client: ConfluenceRestClient,
+) -> tuple[RemotePage, SpaceMapping]:
+    """Resolve one Kazan page reference to its remote page and allowlisted mapping."""
     if settings.base_url is None:
         raise InvalidPageReferenceError("Confluence base_url is not configured.")
     parsed = _parse_reference(value, base_url=settings.base_url)
@@ -164,14 +183,7 @@ def resolve_page(
     )
     if mapping is None:
         raise OutsideAllowlistError("Resolved page belongs to a space outside the allowlist.")
-    configured = _is_configured(page, mapping, client)
-    return ResolvedPageContract(
-        contract_version=CLI_CONTRACT_VERSION,
-        page_id=page.page_id,
-        title=page.title,
-        space_key=page.space_key,
-        configured=configured,
-    )
+    return page, mapping
 
 
 def preview_scope(
@@ -194,10 +206,17 @@ def preview_scope(
     accidental floor of one, so a space the caller can see no page in now measures
     zero. Both other choices still count the root itself, unchanged, which confines
     the correction to the one number a whole-space collection determines.
+
+    The document also says whether the configured space already collects the root, and
+    through which listed page. A graphical caller used to learn that only by being
+    refused after the user had chosen a scope, and never learned it at all for a page
+    that a configured subtree covered; with the answer in hand it can offer to widen
+    or replace the selection instead.
     """
-    resolved = resolve_page(value, settings=settings, client=client)
-    descendant_count = client.count_subtree(resolved.page_id, resolved.space_key)
-    whole_space_count = client.count_pages(resolved.space_key)
+    page, mapping = _resolve_remote(value, settings=settings, client=client)
+    coverage, covering_root = _coverage(page, mapping, client)
+    descendant_count = client.count_subtree(page.page_id, page.space_key)
+    whole_space_count = client.count_pages(page.space_key)
 
     def choice(page_count: int) -> ScopeChoiceContract:
         return ScopeChoiceContract(
@@ -207,10 +226,12 @@ def preview_scope(
 
     return ScopePreviewContract(
         contract_version=PREVIEW_CONTRACT_VERSION,
-        page_id=resolved.page_id,
-        title=resolved.title,
-        space_key=resolved.space_key,
+        page_id=page.page_id,
+        title=page.title,
+        space_key=page.space_key,
         recommended_selection="subtree" if descendant_count > 0 else "pages",
+        coverage=coverage,
+        covering_root=covering_root,
         page_only=choice(1),
         subtree=choice(1 + descendant_count),
         whole_space=choice(whole_space_count),
@@ -219,21 +240,30 @@ def preview_scope(
     )
 
 
-def _is_configured(
+def _coverage(
     page: RemotePage,
     mapping: SpaceMapping,
     client: ConfluenceRestClient,
-) -> bool:
-    """Decide whether one resolved page is already collected by its space mapping."""
+) -> tuple[ScopeCoverage, str | None]:
+    """Say how the space mapping already collects one resolved page, and through what.
+
+    A whole-space mapping covers every page and a listed page covers itself, both
+    without a request. A subtree mapping covers a page through a listed ancestor,
+    which costs the one ancestors request; the first listed ancestor met, from the
+    top of the chain down, is reported as the covering root.
+    """
     selection = mapping.effective_selection
     if selection == "whole_space":
-        return True
+        return "whole_space", None
     if page.page_id in mapping.selected_page_ids:
-        return True
+        return "page", page.page_id
     if selection != "subtree":
-        return False
+        return "none", None
     roots = set(mapping.selected_page_ids)
-    return any(ancestor in roots for ancestor in client.ancestor_ids(page.page_id))
+    for ancestor in client.ancestor_ids(page.page_id):
+        if ancestor in roots:
+            return "subtree", ancestor
+    return "none", None
 
 
 def validate_page_reference(value: str, *, base_url: str) -> None:

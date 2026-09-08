@@ -379,11 +379,13 @@ def test_preview_measures_every_scope_as_one_clean_versioned_document(
 
     assert exit_code == EXIT_OK
     assert json.loads(captured.out) == {
-        "contract_version": 1,
+        "contract_version": 2,
         "page_id": "1001",
         "title": "Run Book",
         "space_key": "DOC",
         "recommended_selection": "subtree",
+        "coverage": "whole_space",
+        "covering_root": None,
         "page_only": {"page_count": 1, "estimated_bytes": 393216},
         "subtree": {"page_count": 2, "estimated_bytes": 786432},
         "whole_space": {"page_count": 3, "estimated_bytes": 1179648},
@@ -391,10 +393,9 @@ def test_preview_measures_every_scope_as_one_clean_versioned_document(
         "retention_generations": 2,
     }
     assert captured.err == ""
-    # One resolve and two indexed counts. The document above is unchanged from the
-    # enumerating implementation, which is what lets this ship without a paired
-    # Companion release; only the cost of producing it changed. The counts must
-    # stay counts, so the request shape is pinned here too.
+    # One resolve and two indexed counts. The fixture space is collected whole, so the
+    # coverage answer costs no ancestors request here. The counts must stay counts,
+    # so the request shape is pinned here too.
     assert len(transport.json_calls) == 3
     # Pinned by suffix rather than containment: "limit=1" also matches "limit=100".
     assert all(call.endswith("&limit=1") for call in transport.json_calls[1:])

@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from confluence_writer.config import ConfluenceSettings, SpaceMapping
+from confluence_writer.config import ConfluenceSettings, PageSelection, SpaceMapping
 from confluence_writer.models import RemotePage
 from confluence_writer.resolver import preview_scope
 
@@ -44,10 +44,23 @@ def _page(page_id: str, title: str) -> RemotePage:
 class PreviewClient:
     """Answer the preview with counts, and fail loudly on any enumeration."""
 
-    def __init__(self, *, descendant_count: int = 2, space_count: int = 4) -> None:
+    def __init__(
+        self,
+        *,
+        descendant_count: int = 2,
+        space_count: int = 4,
+        ancestors: tuple[str, ...] = (),
+    ) -> None:
         self.root = _page("100", "Root")
         self.descendant_count = descendant_count
         self.space_count = space_count
+        self.ancestors = ancestors
+        self.ancestor_calls = 0
+
+    def ancestor_ids(self, page_id: str) -> tuple[str, ...]:
+        assert page_id == "100"
+        self.ancestor_calls += 1
+        return self.ancestors
 
     def get_page_by_id(self, page_id: str) -> RemotePage:
         assert page_id == "100"
@@ -72,7 +85,7 @@ class PreviewClient:
         raise AssertionError("preview must not enumerate the whole space")
 
 
-def _settings() -> ConfluenceSettings:
+def _settings(selection: str = "pages", pages: tuple[str, ...] = ()) -> ConfluenceSettings:
     return ConfluenceSettings(
         schema_version=3,
         base_url="https://wiki.example.test",
@@ -81,8 +94,10 @@ def _settings() -> ConfluenceSettings:
                 space_key="DOC",
                 target="confluence/DOC",
                 classification="pro-confidentiel",
-                selection="pages",
-                pages=(),
+                selection=selection,  # type: ignore[arg-type]
+                pages=None
+                if selection == "whole_space"
+                else tuple(PageSelection(page_id=page_id) for page_id in pages),
             ),
         ),
     )
@@ -113,6 +128,8 @@ def test_preview_measures_all_choices_and_recommends_subtree(reference: str) -> 
     assert preview.recommended_selection == "subtree"
     assert preview.subtree.estimated_bytes == 3 * 384 * 1024
     assert preview.retention_generations == 2
+    assert preview.coverage == "none"
+    assert preview.covering_root is None
 
 
 def test_preview_recommends_pages_when_the_root_has_no_descendant() -> None:
@@ -144,3 +161,60 @@ def test_preview_reports_an_empty_space_as_empty() -> None:
     assert preview.whole_space.page_count == 0
     assert preview.whole_space.estimated_bytes == 0
     assert preview.page_only.page_count == 1
+
+
+def _preview(client: PreviewClient, settings: ConfluenceSettings):  # type: ignore[no-untyped-def]
+    return preview_scope(
+        "100",
+        settings=settings,
+        client=client,  # type: ignore[arg-type]
+        storage_root=str(Path("C:/state")),
+        retention_generations=2,
+    )
+
+
+def test_preview_reports_an_unlisted_page_as_uncovered_without_asking_for_ancestors() -> None:
+    client = PreviewClient(ancestors=("7",))
+
+    preview = _preview(client, _settings("pages", ("7",)))
+
+    assert (preview.coverage, preview.covering_root) == ("none", None)
+    assert client.ancestor_calls == 0
+
+
+def test_preview_reports_a_listed_page_as_covered_by_itself() -> None:
+    client = PreviewClient(ancestors=("7",))
+
+    preview = _preview(client, _settings("subtree", ("7", "100")))
+
+    assert (preview.coverage, preview.covering_root) == ("page", "100")
+    assert client.ancestor_calls == 0
+
+
+def test_preview_reports_a_descendant_as_covered_by_its_listed_root() -> None:
+    """The chain runs from the top of the space down, so the first listed ancestor met
+    is the highest configured root above the page."""
+    client = PreviewClient(ancestors=("9", "7", "8"))
+
+    preview = _preview(client, _settings("subtree", ("8", "7")))
+
+    assert (preview.coverage, preview.covering_root) == ("subtree", "7")
+    assert client.ancestor_calls == 1
+
+
+def test_preview_reports_a_page_outside_every_subtree_as_uncovered() -> None:
+    client = PreviewClient(ancestors=("9",))
+
+    preview = _preview(client, _settings("subtree", ("7",)))
+
+    assert (preview.coverage, preview.covering_root) == ("none", None)
+    assert client.ancestor_calls == 1
+
+
+def test_preview_reports_a_whole_space_as_covering_the_page() -> None:
+    client = PreviewClient()
+
+    preview = _preview(client, _settings("whole_space"))
+
+    assert (preview.coverage, preview.covering_root) == ("whole_space", None)
+    assert client.ancestor_calls == 0

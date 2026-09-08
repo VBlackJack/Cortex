@@ -349,9 +349,14 @@ phase `enumeration`, comptés contre une estimation indexée obtenue en une
 requête supplémentaire. Un déploiement incapable de répondre à cette estimation
 obtient quand même son catalogue, en silence et sans progression.
 
-Le contrat `preview` v1 fournit `page_only`, `subtree` et `whole_space`, chacun
+Le contrat `preview` v2 fournit `page_only`, `subtree` et `whole_space`, chacun
 avec `page_count` et `estimated_bytes`, ainsi que `recommended_selection`,
-`storage_root` et `retention_generations`.
+`storage_root` et `retention_generations`. Il dit aussi si l'espace configuré
+collecte déjà la page : `coverage` vaut `none`, `page` (la page est listée),
+`subtree` (une racine listée est l'un de ses ancêtres) ou `whole_space`, et
+`covering_root` nomme la page listée qui la couvre, ou vaut null. Seule la
+réponse `subtree` coûte une requête, celle des ancêtres de la page. Un client
+de bureau s'en sert pour proposer une fusion plutôt qu'un refus.
 
 Les valeurs `subtree` et `whole_space` sont des comptages lus dans l'index de
 recherche Confluence, une requête chacun. Énumérer un grand espace pour obtenir

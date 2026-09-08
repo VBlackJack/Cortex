@@ -44,7 +44,7 @@ MAX_REDIRECTS = 5
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 CLI_CONTRACT_VERSION = 1
 PAGES_CONTRACT_VERSION = 2
-PREVIEW_CONTRACT_VERSION = 1
+PREVIEW_CONTRACT_VERSION = 2
 
 # Stable process exit contract. Existing values 0, 1, and 3 retain their
 # historical meanings; the unused values distinguish machine-actionable cases.

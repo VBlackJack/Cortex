@@ -88,14 +88,20 @@ class ScopeChoiceContract(CliContractModel):
     estimated_bytes: int
 
 
+ScopeCoverage = Literal["none", "page", "subtree", "whole_space"]
+"""How a configured space already collects one page, if it does."""
+
+
 class ScopePreviewContract(CliContractModel):
     """Versioned network preview presented before persisting one page root."""
 
-    contract_version: Literal[1]
+    contract_version: Literal[2]
     page_id: str
     title: str
     space_key: str
     recommended_selection: Literal["pages", "subtree"]
+    coverage: ScopeCoverage
+    covering_root: str | None
     page_only: ScopeChoiceContract
     subtree: ScopeChoiceContract
     whole_space: ScopeChoiceContract

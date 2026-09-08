@@ -337,9 +337,15 @@ records on stderr for the `enumeration` phase, counted against an indexed
 estimate obtained in one extra request. A deployment that cannot answer that
 estimate still gets its catalogue, silently and without progress.
 
-Preview contract v1 supplies `page_only`, `subtree`, and `whole_space`, each
+Preview contract v2 supplies `page_only`, `subtree`, and `whole_space`, each
 with `page_count` and `estimated_bytes`, together with
-`recommended_selection`, `storage_root`, and `retention_generations`.
+`recommended_selection`, `storage_root`, and `retention_generations`. It also
+says whether the configured space already collects the page: `coverage` is
+`none`, `page` (the page is listed), `subtree` (a listed root is one of its
+ancestors) or `whole_space`, and `covering_root` names the listed page that
+covers it, or is null. Only the subtree answer costs a request, for the
+ancestors of the page. A desktop client uses it to offer a merge instead of a
+refusal.
 
 The subtree and whole-space figures are counts read from the Confluence search
 index, one request each. Enumerating a large space to reach the same two

@@ -7,6 +7,16 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+### Changed
+- Say in the preview document whether the configured space already collects the page.
+  `preview` moves to contract version 2 and gains `coverage` (`none`, `page`, `subtree` or
+  `whole_space`) and `covering_root`, the listed page that covers it. The desktop client
+  refused a page it already tracked only after the user had chosen a scope, and could not
+  see a page that a configured subtree already covered; with the answer in the document it
+  can offer to widen or replace the selection instead. A whole-space or listed-page answer
+  costs no request and a subtree answer costs one, for the ancestors of the page. `resolve`
+  keeps its contract and derives `configured` from the same answer.
+
 ## [2026.0907.03] - 2026-09-07
 
 ### Added
