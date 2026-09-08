@@ -14,6 +14,7 @@
 """
 Pytest bootstrap: put the project root on sys.path and make the suite hermetic.
 """
+
 import atexit
 import logging
 import os
@@ -38,6 +39,15 @@ if "CORTEX_KB_PATH" not in os.environ:
     _KB_TMP = tempfile.mkdtemp(prefix="cortex-test-kb-")
     os.environ["CORTEX_KB_PATH"] = _KB_TMP
     atexit.register(shutil.rmtree, _KB_TMP, ignore_errors=True)
+
+# The write lock path is resolved the same way, and its default is the developer's real
+# data home. A `cortex sync` running on the machine holds that lock for minutes, and six
+# sync tests then fail on the lock timeout with nothing wrong in the code. Point the
+# suite at a throwaway lock instead, unless the caller chose one.
+if "CORTEX_WRITE_LOCK_PATH" not in os.environ:
+    _LOCK_TMP = tempfile.mkdtemp(prefix="cortex-test-lock-")
+    os.environ["CORTEX_WRITE_LOCK_PATH"] = os.path.join(_LOCK_TMP, "chroma_db.write.lock")
+    atexit.register(shutil.rmtree, _LOCK_TMP, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True, scope="session")
