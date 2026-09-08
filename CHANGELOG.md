@@ -8,6 +8,17 @@ available in [French](docs/fr/notes-de-version.md) and
 ## [Unreleased]
 
 ### Fixed
+- Stop the doctor's freshness summary from counting ingestion documents as missing vault
+  files. The read-only inspector loaded the index metadata without `source_kind`, so every
+  Confluence document chunk, whose path names a document in Cortex's own store and never a
+  file of the vault, was judged against the vault on disk and reported `missing`: 2381 of
+  them on the developer's machine, one WARN with nothing wrong. The key is loaded and the
+  documents leave the vault comparison, as they already did for the freshness tool.
+- Write the rotating log during the index build that `cortex setup` runs, so the sync the
+  installer starts after an update leaves the same trace as `cortex sync`.
+- Keep the semantic search integration tests off the developer's real index unless
+  `CORTEX_TEST_REAL_INDEX=1` asks for them: opening the vector store writes to its SQLite
+  file, and the full suite was touching the production index on every run.
 - Bound the doctor's "recent" sync errors by age. `logs.recent_errors` read the last ten
   ERROR lines of the rotated logs whatever their date, so a WARN raised by old noise, here
   two test runs from before the log isolation, survived until rotation. The check now keeps

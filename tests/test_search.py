@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Integration tests for semantic search.
-Skipped automatically if the local ChromaDB has not been built yet.
+Integration tests for semantic search against the developer's real index.
+
+Opening that index is not free of side effects: the vector store writes to its
+SQLite file on open, so the suite must not touch it unless the developer asks.
+Run with the opt-in variable set; the tests also skip when no index exists.
 """
 import os
 
@@ -21,14 +24,16 @@ import pytest
 
 from config import CHROMA_PATH
 
+REAL_INDEX_OPT_IN = "CORTEX_TEST_REAL_INDEX"
+
 
 def _chroma_db_exists() -> bool:
     return os.path.isdir(CHROMA_PATH) and any(os.scandir(CHROMA_PATH))
 
 
 pytestmark = pytest.mark.skipif(
-    not _chroma_db_exists(),
-    reason="ChromaDB not built - run `python indexer.py` first",
+    os.environ.get(REAL_INDEX_OPT_IN) != "1" or not _chroma_db_exists(),
+    reason=f"runs against the real index only with {REAL_INDEX_OPT_IN}=1 and a built index",
 )
 
 
