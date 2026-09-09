@@ -50,7 +50,7 @@ MCP resource or prompt.
 
 | Tool | Parameters | Behavior | Response format |
 |---|---|---|---|
-| `cortex_search` | `query: str`, optional `section`, `top_k`, `source_kinds`, `authors`, and occurred/updated RFC 3339 bounds | Local hybrid search, metadata filters, vector fallback, and domain-aware freshness | Structured schema v2 object with effective filters, results, citations, relevance, freshness, metadata, and compatibility Markdown |
+| `cortex_search` | `query: str`, optional `section`, `top_k`, `source_kinds`, `authors`, and occurred/updated RFC 3339 bounds | Local vector search by default, optional `retrieval_mode` (`vector`, `hybrid`, `rerank`), metadata filters, vector fallback, and domain-aware freshness | Structured schema v2 object with effective filters, results, citations, relevance, freshness, metadata, and compatibility Markdown |
 | `cortex_sync` | `section: Optional[str] = None` | Incremental reconciliation of one section or the full configured scope | Markdown: `published_files`, `added_chunks`, `deleted_chunks`, `removed_files`, `skipped_files`, `empty_files`, `errors` |
 | `cortex_list_sections` | none | Lists included sections and top-level folders outside policy | Markdown: indexable sections followed by `out of policy` folders |
 | `cortex_freshness` | `section: Optional[str] = None`, `include_entries: bool = False` | Compares live sources with index metadata without modifying them | Structured object: contract, scope, summary, duration, and optional per-file entries |
@@ -61,19 +61,22 @@ lock errors are converted into explicit responses; they do not become raw
 traces on the client side.
 
 <!-- spec:search -->
-## 3. Hybrid search contract
+## 3. Search contract
 
 `cortex_search` always clamps `top_k` between 1 and 10. In hybrid mode, each
 branch retrieves at most 40 candidates. ChromaDB vector results and SQLite FTS5
 lexical results are merged with Reciprocal Rank Fusion using `k = 60`, then the
 first 20 candidates are offered to the
-`jinaai/jina-reranker-v1-tiny-en` ONNX reranker.
+`jinaai/jina-reranker-v1-tiny-en` ONNX reranker only in explicit `rerank` mode.
+The default is `vector`: it uses no lexical index or reranker. The reranker loads
+on demand. CLI callers select a strategy with `--retrieval-mode`; MCP callers
+use `retrieval_mode`.
 
 | Returned mode | Condition | Final order |
 |---|---|---|
-| `hybrid+rerank` | Compatible lexical index and available reranker | Cross-encoder score, with stable order for ties |
-| `hybrid` | Fusion is available but the reranker is not loaded or fails | RRF order, with degradation reason |
-| `vector-only` | Lexical index is absent, incompatible, or unreadable | ChromaDB cosine distance, with fallback reason |
+| `hybrid+rerank` | Explicit `rerank`, compatible lexical index and available reranker | Cross-encoder score, with stable order for ties |
+| `hybrid` | Explicit `hybrid`, or reranker failure in `rerank` mode | RRF order; degradation reason only on failure |
+| `vector-only` | Default or explicit `vector` (no fallback reason); lexical failure in an optional mode | ChromaDB cosine distance; fallback reason only on failure |
 
 The lexical index neutralizes FTS5 query syntax by retaining only word tokens,
 each placed in quotes. It is derived exclusively from ChromaDB chunks. ChromaDB

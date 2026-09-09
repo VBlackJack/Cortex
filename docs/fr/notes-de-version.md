@@ -11,6 +11,14 @@ Les commandes de l'interface sont nommées comme la version actuelle les affiche
 compris dans les entrées des versions antérieures, afin qu'une commande citée ici se
 retrouve à l'écran aujourd'hui.
 
+<!-- release:2026-0909-01 -->
+## 2026.0909.01 - 2026-09-09
+
+- Les documents Confluence retirés sont réconciliés aussi pour les cibles personnalisées. Un sous-arbre illisible préserve la dernière génération publiée.
+- Un changement de cible ou de classification régénère les éléments concernés. Une application partielle reste en attente au lieu d'annoncer la nouvelle configuration comme entièrement appliquée.
+- La recherche utilise par défaut le vectoriel multilingue. Les modes hybride et rerank restent accessibles par `--retrieval-mode` en CLI et `retrieval_mode` en MCP. Les clients existants utilisent le nouveau défaut sans changer leurs commandes.
+- Après mise à jour, la prochaine collecte réussie renouvelle une fois les anciennes révisions de publication ; la synchronisation d'index suivante retire les versions obsolètes accumulées. Aucune suppression manuelle d'index n'est nécessaire.
+
 <!-- release:2026-0909-00 -->
 ## 2026.0909.00 - 2026-09-09
 

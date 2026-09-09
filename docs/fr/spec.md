@@ -51,7 +51,7 @@ ou prompt MCP propre à Cortex.
 
 | Tool | Paramètres | Comportement | Format de réponse |
 |---|---|---|---|
-| `cortex_search` | `query: str`, `section`, `top_k`, `source_kinds`, `authors` et bornes RFC 3339 de création/mise à jour optionnels | Recherche hybride locale, filtres de métadonnées, fallback vectoriel et fraîcheur par domaine | Objet structuré schema v2 avec filtres effectifs, résultats, citations, pertinence, fraîcheur, métadonnées et Markdown de compatibilité |
+| `cortex_search` | `query: str`, `section`, `top_k`, `source_kinds`, `authors` et bornes RFC 3339 de création/mise à jour optionnels | Recherche vectorielle locale par défaut, `retrieval_mode` facultatif (`vector`, `hybrid`, `rerank`), filtres de métadonnées, fallback vectoriel et fraîcheur par domaine | Objet structuré schema v2 avec filtres effectifs, résultats, citations, pertinence, fraîcheur, métadonnées et Markdown de compatibilité |
 | `cortex_sync` | `section: Optional[str] = None` | Réconciliation incrémentale d'une section ou de toute la portée configurée | Markdown : `published_files`, `added_chunks`, `deleted_chunks`, `removed_files`, `skipped_files`, `empty_files`, `errors` |
 | `cortex_list_sections` | aucun | Liste les sections incluses et les dossiers de premier niveau hors politique | Markdown : sections indexables puis dossiers `out of policy` |
 | `cortex_freshness` | `section: Optional[str] = None`, `include_entries: bool = False` | Compare les sources vivantes aux métadonnées d'index sans les modifier | Objet structuré : contrat, scope, résumé, durée et, sur demande, entrées par fichier |
@@ -62,19 +62,21 @@ configuration, de migration, de fingerprint et de verrou sont converties en
 réponses explicites ; elles ne deviennent pas des traces brutes côté client.
 
 <!-- spec:search -->
-## 3. Contrat de recherche hybride
+## 3. Contrat de recherche
 
 `cortex_search` borne toujours `top_k` entre 1 et 10. En mode hybride, chaque
 branche récupère au plus 40 candidats. Les résultats vectoriels ChromaDB et les
 résultats lexicaux SQLite FTS5 sont fusionnés par Reciprocal Rank Fusion avec
 `k = 60`, puis les 20 premiers candidats sont proposés au reranker ONNX
-`jinaai/jina-reranker-v1-tiny-en`.
+`jinaai/jina-reranker-v1-tiny-en` uniquement en mode explicite `rerank`.
+Le mode par défaut est `vector` : sans index lexical ni reranker. Le reranker est
+chargé à la demande. La CLI expose `--retrieval-mode` et MCP `retrieval_mode`.
 
 | Mode retourné | Condition | Ordre final |
 |---|---|---|
-| `hybrid+rerank` | Index lexical compatible et reranker disponible | Score du cross-encoder, avec ordre stable en cas d'égalité |
-| `hybrid` | Fusion disponible mais reranker non chargé ou en erreur | Ordre RRF, avec motif de dégradation |
-| `vector-only` | Index lexical absent, incompatible ou illisible | Distance cosinus ChromaDB, avec motif de fallback |
+| `hybrid+rerank` | Mode explicite `rerank`, index lexical compatible et reranker disponible | Score du cross-encoder, avec ordre stable en cas d'égalité |
+| `hybrid` | Mode explicite `hybrid`, ou échec du reranker en mode `rerank` | Ordre RRF ; motif de dégradation uniquement en cas de panne |
+| `vector-only` | Défaut ou `vector` explicite (sans fallback) ; panne lexicale dans un mode facultatif | Distance cosinus ChromaDB ; motif de fallback uniquement en cas de panne |
 
 L'index lexical neutralise la syntaxe FTS5 de la requête en ne gardant que les
 tokens de mots, chacun entre guillemets. Il est dérivé exclusivement des chunks

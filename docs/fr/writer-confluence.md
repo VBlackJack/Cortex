@@ -515,3 +515,5 @@ incomplètes ; aucun contenu de page ou pièce jointe n'est téléchargé.
 ni réseau. Le contrat version 1 expose `selection_current`, `generation_id` et
 `status`. Companion compare aussi la génération indexée observée avant d'afficher
 Disponible. Les contrats existants pages/resolve/preview restent inchangés.
+
+L'indexation des documents générés réconcilie tous les dossiers cibles configurés, y compris hors de `sources/`. Un échec d'énumération de sous-arbre rejette toute la tentative et conserve la génération servie. Changer la cible ou la classification régénère les pages distantes inchangées et le README de zone. Le nouveau format de révision déclenche une régénération après mise à niveau. Une tentative partielle conserve le reçu des paramètres précédents jusqu'à une reprise complète réussie.

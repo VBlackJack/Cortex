@@ -50,9 +50,17 @@ pertinence sur les documents de l'utilisateur. `--corpus` accepte un autre fichi
 respectant la structure de `eval/retrieval_corpus.json`.
 
 Le rapport contient l'empreinte du corpus, les modèles et versions de dépendances,
-le rappel, le MRR, le nDCG et la latence p95 des stratégies vectorielle, hybride et
-avec reranking. Plusieurs fragments du même document ne gonflent pas le rappel.
-Le classement par défaut du produit reste inchangé.
+le rappel, le MRR, le nDCG et la latence p95 du défaut réel et des stratégies
+vectorielle, hybride et avec reranking. Plusieurs fragments du même document ne
+gonflent pas le rappel. Le défaut est désormais le vectoriel multilingue.
+La CLI `--retrieval-mode` et MCP `retrieval_mode` acceptent `vector`, `hybrid` ou `rerank`.
+
+La CI et la release exécutent ce benchmark avec
+`--acceptance eval/retrieval_acceptance.json`. La politique lie le hash exact du
+corpus et le top-k à 15 questions distinctes par langue, avec un rappel@5 minimal
+de 90 % en français et 100 % en anglais pour le défaut réel, sans dégradation.
+Un échec produit un code non nul. Ces seuils synthétiques ne certifient pas la
+pertinence sur les documents utilisateur.
 
 La comparaison à une référence refuse par défaut une baisse de rappel.
 `--max-recall-drop` fixe une tolérance absolue ; `--max-latency-ratio` ajoute une

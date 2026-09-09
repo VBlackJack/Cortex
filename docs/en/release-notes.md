@@ -10,6 +10,14 @@ This page summarizes user-visible changes. See the
 Interface controls are named as the current version shows them, including in entries
 about earlier versions, so a control quoted here can be found on screen today.
 
+<!-- release:2026-0909-01 -->
+## 2026.0909.01 - 2026-09-09
+
+- Removed Confluence documents are reconciled for custom targets as well as the standard target. An unreadable subtree preserves the last published generation.
+- Changes to a Confluence target or classification regenerate the affected material. Partial failures remain pending instead of reporting the new configuration fully applied.
+- Search defaults to multilingual vector retrieval. Hybrid and reranked search remain available through `--retrieval-mode` in the CLI and `retrieval_mode` in MCP. Existing clients use the new default without changing their commands.
+- After upgrading, the next successful collection refreshes legacy publication revisions once; the following index sync removes accumulated obsolete versions. No manual deletion of the index is required.
+
 <!-- release:2026-0909-00 -->
 ## 2026.0909.00 - 2026-09-09
 

@@ -15,6 +15,8 @@ the generated Markdown, vector index, and lexical index remain local.
 
 Starting with 2026.0906.01, Companion offers a guided home screen, operation history and Confluence setup from one page or space link. Connection and measured scope confirmation stay in the flow; successful collection is followed by indexing. Use the combined installer to keep Cortex and Companion compatible.
 
+With paired version 2026.0909.01, Confluence updates preserve the served generation when subtree enumeration fails and apply changed target/classification settings on retry. Search uses multilingual vector retrieval by default; CLI and MCP callers can explicitly select hybrid or reranked search. The first successful collection after upgrading regenerates older publication revisions, and the following sync removes obsolete index entries.
+
 ## Guided document updates (2026.0909.00)
 
 Companion brings local documents and Confluence together in **My sources**, with one **Update my documents** action. Search previews are resizable, large page trees render visible rows, and cancelling review preparation keeps the draft. Readiness now follows the saved document folder and configuration, including after restart. Run one document update after upgrading to establish this evidence for older indexes. See the [release notes](docs/en/release-notes.md).
@@ -181,7 +183,7 @@ cortex setup --yes --kb-path "D:\Documents\Knowledge"
 
 | Tool | Description |
 |---|---|
-| `cortex_search` | Hybrid search. Parameters: `query`, `section`, `top_k` (1-10), source/author filters, and occurred/updated date ranges. |
+| `cortex_search` | Multilingual vector search by default; optional `retrieval_mode` (`vector`, `hybrid`, `rerank`). Parameters: `query`, `section`, `top_k` (1-10), source/author filters, and occurred/updated date ranges. |
 | `cortex_sync` | Triggers an incremental sync of the selected folder and, on a full sync, the current published document generation. |
 | `cortex_list_sections` | Lists included sections and "out of policy" folders. |
 | `cortex_freshness` | Read-only vault and ingestion freshness summary. Parameters: `section` (optional), `include_entries` (`false` by default). |

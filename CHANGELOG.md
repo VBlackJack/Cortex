@@ -7,6 +7,17 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0909.01] - 2026-09-09
+
+### Fixed
+- Reconcile generated documents independently of their configured target prefix, including stale versions left by earlier syncs and complete source removal in both indexes.
+- Refuse publication when a selected Confluence subtree cannot be enumerated, preserving its previously published descendants.
+- Regenerate pages, artifacts and zone metadata when publication settings change; keep the previous configuration receipt on partial carry-forward so unapplied changes are retried.
+
+### Changed
+- Default to multilingual vector search. Select hybrid fusion or reranking explicitly with `cortex search --retrieval-mode hybrid|rerank` or the MCP `retrieval_mode` argument. Reranker loading is deferred until requested.
+- Gate actual default retrieval separately for French and English in CI and release using the corpus-bound acceptance policy. The synthetic corpus remains a regression fixture, not a production relevance estimate.
+
 ## [2026.0909.00] - 2026-09-09
 
 ### Changed

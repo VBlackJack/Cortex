@@ -497,3 +497,5 @@ and attachments are not downloaded.
 network access. Contract version 1 exposes `selection_current`, `generation_id`
 and `status`. Companion additionally compares observed indexed generation identity
 before displaying availability. Existing pages/resolve/preview contracts are unchanged.
+
+Generated indexing reconciles all configured target folders, including targets outside `sources/`. A failed subtree enumeration rejects the entire attempt and preserves the served generation. Changing a target or classification rematerializes unchanged remote pages and the zone README. The revision format triggers one regeneration after upgrading. A partial attempt retains the previous settings receipt until a complete retry succeeds.

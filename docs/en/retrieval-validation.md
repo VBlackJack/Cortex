@@ -45,9 +45,16 @@ The supplied corpus contains 15 synthetic operational documents and 30 FR/EN
 questions. It is a reproducible starting point, not a user-validated relevance
 dataset. Supply `--corpus` to use a reviewed dataset with the same JSON structure.
 The report records the corpus SHA-256, model/package identities, platform, recall,
-MRR, nDCG and p95 latency for vector, hybrid and reranked retrieval. Duplicate
-chunks cannot inflate document-level recall. The production default remains
-unchanged; explicit strategy selection is used by the evaluator only.
+MRR, nDCG and p95 latency for the actual default, vector, hybrid and reranked
+retrieval. Duplicate chunks cannot inflate document-level recall. The default is
+multilingual vector retrieval. CLI `--retrieval-mode` and MCP `retrieval_mode`
+accept `vector`, `hybrid` or `rerank`.
+
+CI and release run this benchmark with `--acceptance eval/retrieval_acceptance.json`.
+The policy binds the exact corpus hash and top-k to 15 distinct questions per
+language, requiring recall@5 of at least 90% in French and 100% in English for
+the actual default, without degradation. Failures return a nonzero exit code.
+These synthetic regression thresholds do not certify relevance on user documents.
 
 Performance fields distinguish runtime imports, initial indexing, reranker loading,
 first query after indexing, first JSON search in a fresh interpreter, incremental

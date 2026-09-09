@@ -15,6 +15,8 @@ locaux.
 
 Depuis 2026.0906.01, Companion propose un accueil guidé, un historique et l'ajout Confluence par un seul lien de page ou d'espace. La connexion et le choix du nombre de pages restent dans le parcours ; la collecte réussie est suivie de l'indexation. Utiliser l'installeur combiné pour garder Cortex et Companion compatibles.
 
+Avec la version associée 2026.0909.01, les mises à jour Confluence conservent la génération servie si un sous-arbre ne peut pas être énuméré et réappliquent les changements de cible/classification lors de la reprise. La recherche utilise le vectoriel multilingue par défaut ; les clients CLI et MCP peuvent choisir explicitement les modes hybride ou rerank. La première collecte réussie après mise à jour régénère les anciennes révisions, puis la synchronisation retire les entrées obsolètes de l’index.
+
 ## Mise à jour documentaire guidée (2026.0909.00)
 
 Companion réunit les documents locaux et Confluence dans **Mes sources**, avec une action **Mettre à jour mes documents**. L’aperçu de recherche est redimensionnable, les grands arbres réalisent les lignes visibles et l’annulation de la préparation conserve le brouillon. La disponibilité suit désormais le dossier et la configuration enregistrés, y compris après redémarrage. Lancer une mise à jour documentaire après la mise à niveau pour établir cette preuve sur les anciens index. Voir les [notes de version](docs/fr/notes-de-version.md).
@@ -187,7 +189,7 @@ cortex setup --yes --kb-path "D:\Documents\Connaissances"
 
 | Outil | Description |
 |---|---|
-| `cortex_search` | Recherche hybride. Paramètres : `query`, `section`, `top_k` (1-10), filtres source/auteur et plages de dates de création/mise à jour. |
+| `cortex_search` | Recherche vectorielle multilingue par défaut ; `retrieval_mode` facultatif (`vector`, `hybrid`, `rerank`). Paramètres : `query`, `section`, `top_k` (1-10), filtres source/auteur et plages de dates de création/mise à jour. |
 | `cortex_sync` | Déclenche un sync incrémental du dossier choisi et, sur un sync complet, de la génération documentaire courante. |
 | `cortex_list_sections` | Liste les sections incluses et les dossiers "out of policy". |
 | `cortex_freshness` | Résumé en lecture seule de la fraîcheur du vault et de l'ingestion. Paramètres : `section` (optionnel), `include_entries` (`false` par défaut). |
