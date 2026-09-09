@@ -186,6 +186,7 @@ class GenerationEngine:
             if summary.selected_page_count == 0
         )
         partial = counts.failed > 0 or counts.carry_forward > 0
+        applied_fingerprint = previous_fingerprint if partial else attempt.selection_fingerprint
         degraded = partial or bool(empty_spaces) or not retention_succeeded
         health = SourceHealth(
             schema_version=SCHEMA_VERSION,
@@ -200,7 +201,7 @@ class GenerationEngine:
             ),
             action_required=ACTION_RETRY_RETENTION if not retention_succeeded else None,
             counts=counts,
-            selection_fingerprint=attempt.selection_fingerprint,
+            selection_fingerprint=applied_fingerprint,
             scope_summaries=attempt.scope_summaries,
         )
         self.storage.write_health(health)

@@ -691,6 +691,54 @@ def test_current_document_generation_reconciles_chroma_and_lexical(
     assert after["summary"] == {"fresh": 3}
 
 
+@pytest.mark.parametrize("target", ["sources/custom", "knowledge/confluence"])
+def test_generated_target_reconciles_obsolete_versions_and_empty_generation(
+    tmp_path: Path, target: str,
+) -> None:
+    storage = IngestionStorage(tmp_path / "ingestion", "doc", retention_generations=3)
+    collection = Collection()
+    lexical = LexicalIndex(tmp_path / "lexical.db")
+    lexical.rebuild(collection)
+
+    def document(body: str) -> CollectedDocument:
+        original = _ingestion_document("101", body, observed_at=_NOW)
+        path = f"{target}/101.md"
+        return original.model_copy(update={
+            "path": path,
+            "content": original.content.replace(original.path.encode(), path.encode()),
+        })
+
+    _publish_generation(storage, (document("Original searchable content"),),
+                        frozenset({"101"}), observed_at=_NOW)
+    sync_ingestion_documents(collection, storage.root, retention_generations=3,
+                             lexical_index=lexical)
+    repeated = sync_ingestion_documents(collection, storage.root, retention_generations=3,
+                                        lexical_index=lexical)
+    assert repeated["skipped_files"] == 1
+    assert repeated["published_files"] == 0
+
+    # Simulate the obsolete versions a pre-fix installation may already contain.
+    stale_rows = dict(collection.rows)
+    _publish_generation(storage, (document("Replacement searchable content"),),
+                        frozenset({"101"}), observed_at=_NOW + timedelta(hours=1))
+    sync_ingestion_documents(collection, storage.root, retention_generations=3,
+                             lexical_index=lexical)
+    collection.rows.update(stale_rows)
+    recovered = sync_ingestion_documents(collection, storage.root, retention_generations=3,
+                                         lexical_index=lexical)
+    assert recovered["deleted_chunks"] == 1
+    assert len(collection.rows) == lexical.count() == 1
+    assert all("Replacement" in row["document"] for row in collection.rows.values())
+
+    _publish_generation(storage, (), frozenset(), observed_at=_NOW + timedelta(hours=2))
+    removed = sync_ingestion_documents(collection, storage.root, retention_generations=3,
+                                       lexical_index=lexical)
+    assert removed["removed_files"] == 1
+    assert removed["errors"] == 0
+    assert not collection.rows
+    assert lexical.count() == 0
+
+
 def test_pending_generation_and_absent_document_source_are_no_ops(
     tmp_path: Path,
 ) -> None:

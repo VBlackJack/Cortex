@@ -1101,3 +1101,91 @@ def test_missing_allowlist_remains_invalid_and_explicit_empty_survives_render(
     )
     with pytest.raises(ConfluenceConfigError, match="spaces allowlist"):
         require_sync_settings(missing)
+
+
+@pytest.mark.parametrize("failure_at", ["root", "descendants"])
+def test_failed_subtree_preserves_the_entire_generation_below_threshold(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_at: str,
+) -> None:
+    from ingestion.cli import execute_scheduled_attempt
+    from ingestion.config import IngestionSettings
+
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=3)
+    settings = _subtree_settings(tmp_path, ("1", "10"))
+    client = FakeRestClient(
+        [_page(str(i), _NOW) for i in [1, 2, *range(10, 20)]],
+        descendants={"1": ("2",), "10": tuple(str(i) for i in range(11, 20))},
+    )
+    _run(storage, settings, client, FakeConsole(), _NOW)
+    before = storage.load_current_manifest()
+    original = client.get_page if failure_at == "root" else client.enumerate_subtree
+
+    def fail(root_id: str, space: str) -> object:
+        if root_id == "1":
+            raise ConfluenceRestError("fixture subtree unavailable")
+        return original(root_id, space)
+
+    monkeypatch.setattr(client, "get_page" if failure_at == "root" else "enumerate_subtree", fail)
+    with pytest.raises(writer_module.ConfluenceWriterError, match="enumeration is incomplete"):
+        execute_scheduled_attempt(storage, IngestionSettings(data_root=storage.root),
+                      lambda _secret: _collect(storage, settings, client, FakeConsole(), _NOW),
+                      now=_NOW + timedelta(hours=1), force=True)
+    assert storage.load_current_manifest() == before
+    assert storage.load_health().error_code == "source_attempt_failed"
+    assert storage.document_path(before.generation_id, next(
+        doc.path for doc in before.documents if doc.source_uid == "2"
+    )).is_file()
+
+
+@pytest.mark.parametrize("change", ["target", "classification", "both"])
+def test_local_mapping_changes_rematerialize_unchanged_pages_and_zone(
+    tmp_path: Path, change: str,
+) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=3)
+    settings = _settings(tmp_path)
+    client = FakeRestClient([_page("101", _NOW)])
+    _run(storage, settings, client, FakeConsole(), _NOW)
+    updates = {}
+    if change in {"target", "both"}:
+        updates["target"] = "knowledge/new-target"
+    if change in {"classification", "both"}:
+        updates["classification"] = "pro-confidentiel"
+    mapping = settings.spaces[0].model_copy(update=updates)
+    settings = settings.model_copy(update={"spaces": (mapping,)})
+    result = _run(storage, settings, client, FakeConsole(), _NOW + timedelta(hours=1))
+    manifest = storage.load_current_manifest()
+    assert result.health.status is HealthStatus.OK
+    assert result.health.selection_fingerprint == settings.selection_fingerprint()
+    assert all(doc.path.startswith(mapping.target + "/") for doc in manifest.documents)
+    page = next(doc for doc in manifest.documents if doc.source_uid == "101")
+    assert page.artifacts
+    assert all(artifact.path.startswith(mapping.target + "/") for artifact in page.artifacts)
+    zone = next(doc for doc in manifest.documents if doc.source_uid == "zone:DOC")
+    assert f"Classification: `{mapping.classification}`" in storage.document_path(
+        manifest.generation_id, zone.path
+    ).read_text(encoding="utf-8")
+    stable = _collect(storage, settings, client, FakeConsole(), _NOW + timedelta(hours=2))
+    assert stable.documents == ()
+
+
+def test_partial_mapping_change_keeps_previous_receipt_and_retries_failed_page(
+    tmp_path: Path,
+) -> None:
+    storage = IngestionStorage(tmp_path / "state", "doc", retention_generations=3)
+    settings = _settings(tmp_path, threshold=1.0)
+    client = FakeRestClient([_page("101", _NOW)])
+    _run(storage, settings, client, FakeConsole(), _NOW)
+    previous_fingerprint = settings.selection_fingerprint()
+    mapping = settings.spaces[0].model_copy(update={"target": "knowledge/new-target"})
+    settings = settings.model_copy(update={"spaces": (mapping,)})
+    console = FakeConsole()
+    console.failed_ids.add("101")
+    partial = _run(storage, settings, client, console, _NOW + timedelta(hours=1))
+    assert partial.published
+    assert partial.health.status is HealthStatus.DEGRADED
+    assert partial.health.selection_fingerprint == previous_fingerprint
+    repaired = _run(storage, settings, client, FakeConsole(), _NOW + timedelta(hours=2))
+    assert repaired.health.status is HealthStatus.OK
+    assert repaired.health.selection_fingerprint == settings.selection_fingerprint()
+    assert all(doc.path.startswith(mapping.target + "/")
+               for doc in storage.load_current_manifest().documents)

@@ -261,7 +261,9 @@ def _existing_by_path(
                 if not meta or not isinstance(meta.get("path"), str):
                     continue
                 path = meta["path"].replace("\\", "/")
-                if not _section_owns(path, section):
+                # Generated documents own a source domain, not a vault folder.
+                # Their configurable target need not match the synthetic section.
+                if source_kind is None and not _section_owns(path, section):
                     continue
                 old_ids, old_metadata = existing.setdefault(path, ([], []))
                 if chunk_id in old_ids:
