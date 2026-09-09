@@ -7,12 +7,15 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
-## [2026.0909.03] - 2026-09-09
+## [2026.0909.04] - 2026-09-09
 
 ### Fixed
 - Finish Windows installation without starting document indexing, including upgrades and resets. The completion page directs users to synchronize in Companion.
 
+The 2026.0909.03 build was cancelled before publication to correct the offline smoke recipe. Published artifacts use 2026.0909.04.
+
 ### Changed
+- Run an explicit synchronization after installer exit in the offline release smoke test.
 - Reject the legacy installer `/INDEX` switch before installation. Automated deployments must run `cortex sync` separately after a successful installer exit.
 
 ## [2026.0909.02] - 2026-09-09

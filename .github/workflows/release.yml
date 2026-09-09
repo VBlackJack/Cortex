@@ -680,6 +680,10 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $converterProbe.schema_version -ne 1) {
             throw "Installed Confluence converter capability probe failed."
           }
+          & $installed sync
+          if ($LASTEXITCODE -ne 0) {
+            throw "Post-install synchronization failed with exit code $LASTEXITCODE."
+          }
           $searchOutput = & $installed sync --search "offline installer smoke" 2>&1
           if ($LASTEXITCODE -ne 0) {
             throw "Installed Cortex search failed with exit code $LASTEXITCODE."

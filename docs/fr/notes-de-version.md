@@ -11,8 +11,8 @@ Les commandes de l'interface sont nommées comme la version actuelle les affiche
 compris dans les entrées des versions antérieures, afin qu'une commande citée ici se
 retrouve à l'écran aujourd'hui.
 
-<!-- release:2026-0909-03 -->
-## 2026.0909.03 - 2026-09-09
+<!-- release:2026-0909-04 -->
+## 2026.0909.04 - 2026-09-09
 
 L’installation Windows se termine désormais sans indexer les documents dans un processus caché. Après avoir cliqué sur Terminer, lancez la synchronisation dans Cortex Companion pour suivre son résultat. Les mises à jour et remises à zéro suivent aussi ce parcours. Les déploiements automatisés doivent remplacer l’ancienne option `/INDEX` par une commande `cortex sync` après la fin réussie de l’installation.
 

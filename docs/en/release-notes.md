@@ -10,8 +10,8 @@ This page summarizes user-visible changes. See the
 Interface controls are named as the current version shows them, including in entries
 about earlier versions, so a control quoted here can be found on screen today.
 
-<!-- release:2026-0909-03 -->
-## 2026.0909.03 - 2026-09-09
+<!-- release:2026-0909-04 -->
+## 2026.0909.04 - 2026-09-09
 
 Windows installation now finishes without indexing documents in a hidden process. After clicking Finish, start synchronization in Cortex Companion to follow its result. Upgrades and resets also leave indexing to this separate step. Automated deployments must replace the old `/INDEX` switch with a separate `cortex sync` after successful installation.
 

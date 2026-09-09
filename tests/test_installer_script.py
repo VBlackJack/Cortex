@@ -309,6 +309,8 @@ def test_release_smokes_installed_embedding_and_reranker_offline() -> None:
         assert f'"{argument}"' in workflow
     assert '"/INDEX",' not in workflow
     assert workflow.index("$installProcess.ExitCode") < workflow.index(
+        "& $installed sync\n"
+    ) < workflow.index(
         'sync --search "offline installer smoke"'
     )
     assert "Offline installer embedding and reranker smoke passed" in workflow
