@@ -7,6 +7,13 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0909.02] - 2026-09-09
+
+### Fixed
+- Select only executable and Python artifacts for GitHub publication. Evaluation reports remain CI evidence and cannot enter the downloadable release assets.
+
+This release includes the ingestion and search fixes from 2026.0909.01. That version reached PyPI and the MCP Registry, but the exact asset-set guard stopped its GitHub binary publication when the retrieval report was included.
+
 ## [2026.0909.01] - 2026-09-09
 
 ### Fixed

@@ -15,7 +15,7 @@ locaux.
 
 Depuis 2026.0906.01, Companion propose un accueil guidé, un historique et l'ajout Confluence par un seul lien de page ou d'espace. La connexion et le choix du nombre de pages restent dans le parcours ; la collecte réussie est suivie de l'indexation. Utiliser l'installeur combiné pour garder Cortex et Companion compatibles.
 
-Avec la version associée 2026.0909.01, les mises à jour Confluence conservent la génération servie si un sous-arbre ne peut pas être énuméré et réappliquent les changements de cible/classification lors de la reprise. La recherche utilise le vectoriel multilingue par défaut ; les clients CLI et MCP peuvent choisir explicitement les modes hybride ou rerank. La première collecte réussie après mise à jour régénère les anciennes révisions, puis la synchronisation retire les entrées obsolètes de l’index.
+Avec la version associée 2026.0909.02, les mises à jour Confluence conservent la génération servie si un sous-arbre ne peut pas être énuméré et réappliquent les changements de cible/classification lors de la reprise. La recherche utilise le vectoriel multilingue par défaut ; les clients CLI et MCP peuvent choisir explicitement les modes hybride ou rerank. La première collecte réussie après mise à jour régénère les anciennes révisions, puis la synchronisation retire les entrées obsolètes de l’index.
 
 ## Mise à jour documentaire guidée (2026.0909.00)
 

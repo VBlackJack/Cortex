@@ -11,6 +11,11 @@ Les commandes de l'interface sont nommées comme la version actuelle les affiche
 compris dans les entrées des versions antérieures, afin qu'une commande citée ici se
 retrouve à l'écran aujourd'hui.
 
+<!-- release:2026-0909-02 -->
+## 2026.0909.02 - 2026-09-09
+
+Publie les corrections d’ingestion et de recherche multilingue de 2026.0909.01 avec le bon ensemble de fichiers. La version précédente a atteint PyPI et le registre MCP ; la publication de ses binaires GitHub a été arrêtée par le contrôle des artefacts. Les rapports du benchmark restent des preuves CI.
+
 <!-- release:2026-0909-01 -->
 ## 2026.0909.01 - 2026-09-09
 

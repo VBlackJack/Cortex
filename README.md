@@ -15,7 +15,7 @@ the generated Markdown, vector index, and lexical index remain local.
 
 Starting with 2026.0906.01, Companion offers a guided home screen, operation history and Confluence setup from one page or space link. Connection and measured scope confirmation stay in the flow; successful collection is followed by indexing. Use the combined installer to keep Cortex and Companion compatible.
 
-With paired version 2026.0909.01, Confluence updates preserve the served generation when subtree enumeration fails and apply changed target/classification settings on retry. Search uses multilingual vector retrieval by default; CLI and MCP callers can explicitly select hybrid or reranked search. The first successful collection after upgrading regenerates older publication revisions, and the following sync removes obsolete index entries.
+With paired version 2026.0909.02, Confluence updates preserve the served generation when subtree enumeration fails and apply changed target/classification settings on retry. Search uses multilingual vector retrieval by default; CLI and MCP callers can explicitly select hybrid or reranked search. The first successful collection after upgrading regenerates older publication revisions, and the following sync removes obsolete index entries.
 
 ## Guided document updates (2026.0909.00)
 

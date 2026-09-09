@@ -10,6 +10,11 @@ This page summarizes user-visible changes. See the
 Interface controls are named as the current version shows them, including in entries
 about earlier versions, so a control quoted here can be found on screen today.
 
+<!-- release:2026-0909-02 -->
+## 2026.0909.02 - 2026-09-09
+
+Publishes the ingestion and multilingual search fixes from 2026.0909.01 with the correct binary asset set. The previous version reached PyPI and the MCP Registry; its GitHub binary publication was stopped by the artifact-set check. Benchmark reports remain CI evidence.
+
 <!-- release:2026-0909-01 -->
 ## 2026.0909.01 - 2026-09-09
 
