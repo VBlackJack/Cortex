@@ -52,7 +52,12 @@ env:
   CPYTHON_LICENSE_SHA256: 3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf
 
 jobs:
+  retrieval:
+    name: Bilingual retrieval release gate
+    uses: ./.github/workflows/retrieval.yml
+
   verify:
+    needs: retrieval
     name: Verify release source
     runs-on: ubuntu-latest
     permissions:

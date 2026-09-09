@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from index_contract import SOURCE_KINDS
+from index_contract import DEFAULT_RETRIEVAL_MODE, RETRIEVAL_MODES, SOURCE_KINDS, RetrievalMode
 
 CONTRACT_VERSION = 1
 EXCERPT_LIMIT = 1200
@@ -46,6 +46,10 @@ def build_parser(prog: str = "cortex search") -> argparse.ArgumentParser:
         "--json", action="store_true", help="Return the desktop search JSON contract"
     )
     parser.add_argument("--source-kind", choices=sorted(SOURCE_KINDS), help="Restrict source kind")
+    parser.add_argument(
+        "--retrieval-mode", choices=RETRIEVAL_MODES, default=DEFAULT_RETRIEVAL_MODE,
+        help="Search strategy: vector (default), hybrid, or rerank",
+    )
     return parser
 
 
@@ -81,19 +85,21 @@ def present_hit(hit: dict[str, Any], root: Path | None) -> dict[str, Any]:
     }
 
 
-def emit_search(query: str, section: str | None, top_k: int, source_kind: str | None) -> int:
+def emit_search(
+    query: str, section: str | None, top_k: int, source_kind: str | None,
+    *, retrieval_mode: RetrievalMode = DEFAULT_RETRIEVAL_MODE,
+) -> int:
     """Write one versioned response; failures never resemble an empty successful search."""
     from config import KB_PATH
     from indexer import search
-    from reranker import warmup_reranker
 
     try:
-        warmup_reranker()
         hits = search(
             query,
             section=section,
             top_k=top_k,
             source_kinds=[source_kind] if source_kind else None,
+            retrieval_mode=retrieval_mode,
         )
         results = [
             present_hit(

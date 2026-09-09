@@ -53,3 +53,36 @@ def test_json_envelope_preserves_degradation(
     assert report["contract_version"] == 1
     assert report["degraded"] is True
     assert len(report["results"]) == 1
+
+
+@pytest.mark.parametrize("mode", ["vector", "hybrid", "rerank"])
+@pytest.mark.parametrize("json_output", [False, True])
+def test_console_search_routes_the_explicit_strategy(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    mode: str, json_output: bool,
+) -> None:
+    calls = []
+
+    def search(*args: object, **kwargs: object) -> indexer.SearchResults:
+        calls.append(kwargs)
+        return indexer.SearchResults([], mode="vector-only")
+
+    monkeypatch.setattr(indexer, "search", search)
+    arguments = ["test", "--retrieval-mode", mode] + (["--json"] if json_output else [])
+    assert indexer.search_main(arguments) == 0
+    assert calls[0]["retrieval_mode"] == mode
+    capsys.readouterr()
+
+
+def test_default_json_search_does_not_warm_the_unused_reranker(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tests.test_indexer_search import Collection
+
+    monkeypatch.setattr(indexer, "get_collection", Collection)
+    monkeypatch.setattr(indexer, "warmup_reranker", lambda: pytest.fail("unused reranker"))
+    monkeypatch.setattr(indexer, "LexicalIndex", lambda: pytest.fail("unused lexical index"))
+    assert emit_search("question", None, 5, None) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["mode"] == "vector-only"
+    assert payload["degraded"] is False

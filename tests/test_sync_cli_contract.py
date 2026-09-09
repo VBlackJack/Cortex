@@ -325,8 +325,10 @@ def test_search_main_renders_hits_and_exits_zero(
         section: str | None,
         top_k: int,
         source_kinds: list[str] | None = None,
+        retrieval_mode: str = "vector",
     ) -> list[dict[str, object]]:
         assert source_kinds is None
+        assert retrieval_mode == "vector"
         calls.append((query, section, top_k))
         return hits
 

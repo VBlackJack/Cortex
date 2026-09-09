@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "corpus_sha256": "69243b22d4dac6d229994e455e973180f1b87f5b6b8ce375aeb25db074fc4921",
+  "top_k": 5,
+  "languages": {
+    "en": {"questions": 15, "min_recall": 1.0},
+    "fr": {"questions": 15, "min_recall": 0.9}
+  }
+}

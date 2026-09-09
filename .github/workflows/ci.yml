@@ -21,6 +21,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  retrieval:
+    name: Bilingual retrieval gate
+    uses: ./.github/workflows/retrieval.yml
+
   gate:
     name: Quality gate (Py${{ matrix.python-version }} / ${{ matrix.os }})
     runs-on: ${{ matrix.os }}

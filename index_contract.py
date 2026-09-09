@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 COLLECTION_NAME = "cortex"
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 EMBEDDING_POOLING = "mean"
@@ -32,6 +34,12 @@ LEXICAL_INDEX_CONTRACT_VERSION = "v2"
 # without loading the user configuration the chunker depends on.
 SOURCE_KINDS = frozenset({"note", "doc", "message"})
 
+RetrievalMode = Literal["vector", "hybrid", "rerank"]
+RETRIEVAL_MODES: tuple[RetrievalMode, ...] = ("vector", "hybrid", "rerank")
+# The bilingual evaluation favors multilingual semantic retrieval. Keep the
+# lexical/English-reranker strategies explicit until validated for a corpus.
+DEFAULT_RETRIEVAL_MODE: RetrievalMode = "vector"
+
 
 def build_embedding_fingerprint(fastembed_version: str) -> dict[str, str]:
     """Build the runtime vector-space fingerprint without loading user configuration."""
@@ -45,6 +53,7 @@ def build_embedding_fingerprint(fastembed_version: str) -> dict[str, str]:
 __all__ = [
     "CHUNKING_CONTRACT_VERSION",
     "COLLECTION_NAME",
+    "DEFAULT_RETRIEVAL_MODE",
     "EMBEDDING_MODEL",
     "EMBEDDING_POOLING",
     "LEGACY_INDEX_EMBEDDING_MODEL",
@@ -52,6 +61,8 @@ __all__ = [
     "LEGACY_INDEX_FASTEMBED_VERSION",
     "LEXICAL_INDEX_CONTRACT_VERSION",
     "METADATA_SCHEMA_VERSION",
+    "RETRIEVAL_MODES",
+    "RetrievalMode",
     "SOURCE_KINDS",
     "build_embedding_fingerprint",
 ]

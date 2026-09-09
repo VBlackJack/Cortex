@@ -24,6 +24,11 @@ import indexer
 from config import SEARCH_HYBRID_CANDIDATES
 
 
+@pytest.fixture(autouse=True)
+def isolated_reranker(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(indexer, "warmup_reranker", lambda: None)
+
+
 class Collection:
     def __init__(self, error: Exception | None = None) -> None:
         self.error = error
@@ -72,7 +77,8 @@ def test_vector_evaluation_does_not_touch_lexical_or_reranker(
 
     monkeypatch.setattr(indexer, "LexicalIndex", forbidden)
     monkeypatch.setattr(indexer, "rerank_fused_hits", forbidden)
-    assert indexer.search("test", retrieval_mode="vector").mode == "vector-only"
+    assert indexer.search("test").mode == "vector-only"
+    assert indexer.search("test").fallback_reason is None
 
 
 def test_hybrid_evaluation_skips_reranker(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -82,6 +88,12 @@ def test_hybrid_evaluation_skips_reranker(monkeypatch: pytest.MonkeyPatch) -> No
         indexer, "rerank_fused_hits", lambda *args: pytest.fail("Unexpected rerank")
     )
     assert indexer.search("test", retrieval_mode="hybrid").mode == "hybrid"
+
+
+def test_invalid_strategy_fails_before_opening_the_index(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(indexer, "get_collection", lambda: pytest.fail("unexpected index open"))
+    with pytest.raises(indexer.CortexSearchError, match="retrieval mode"):
+        indexer.search("test", retrieval_mode="typo")
 
 
 @pytest.mark.parametrize("unavailable", [False, True])
@@ -106,7 +118,7 @@ def test_search_never_returns_unverified_lexical_content(
         ),
     )
     monkeypatch.setattr(indexer, "rerank_fused_hits", lambda query, hits: (hits, None))
-    results = indexer.search("obsolete")
+    results = indexer.search("obsolete", retrieval_mode="rerank")
     assert results == []
     assert results.mode == ("vector-only" if unavailable else "hybrid+rerank")
     assert bool(results.fallback_reason) is unavailable
@@ -201,7 +213,7 @@ def test_hybrid_search_uses_candidate_budget_and_bounds_final_top_k(
     monkeypatch.setattr(indexer, "get_collection", lambda: collection)
     monkeypatch.setattr(indexer, "LexicalIndex", lambda: Lexical(hits=lexical_hits))
 
-    results = indexer.search("query", top_k=99)
+    results = indexer.search("query", top_k=99, retrieval_mode="rerank")
 
     assert results.mode == "hybrid"
     assert len(results) == 10
@@ -235,7 +247,7 @@ def test_hybrid_search_exposes_rerank_mode_and_bounds_final_top_k(
 
     monkeypatch.setattr(indexer, "rerank_fused_hits", rerank)
 
-    results = indexer.search("query", top_k=99)
+    results = indexer.search("query", top_k=99, retrieval_mode="rerank")
 
     assert results.mode == "hybrid+rerank"
     assert len(results) == 10
@@ -265,7 +277,7 @@ def test_reranker_failure_exposes_hybrid_fallback_and_preserves_order(
         lambda _query, hits: (hits, "reranker query failed: ONNX unavailable"),
     )
 
-    results = indexer.search("query", top_k=5)
+    results = indexer.search("query", top_k=5, retrieval_mode="rerank")
 
     assert results.mode == "hybrid"
     assert "ONNX unavailable" in str(results.fallback_reason)
@@ -293,7 +305,7 @@ def test_vector_only_fallback_is_explicit_and_never_rebuilds(
         lambda *_args, **_kwargs: pytest.fail("server search must not rebuild"),
     )
 
-    results = indexer.search("query")
+    results = indexer.search("query", retrieval_mode="rerank")
 
     assert results.mode == "vector-only"
     assert reason in str(results.fallback_reason)
@@ -312,7 +324,7 @@ def test_sqlite_query_error_falls_back_to_vector_only(
         lambda: Lexical(error=sqlite3.OperationalError("broken FTS")),
     )
 
-    results = indexer.search("query")
+    results = indexer.search("query", retrieval_mode="rerank")
 
     assert results.mode == "vector-only"
     assert "broken FTS" in str(results.fallback_reason)

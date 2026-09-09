@@ -42,6 +42,7 @@ from freshness import (
     cortex_freshness_report,
     cortex_ingestion_index_freshness_report,
 )
+from index_contract import DEFAULT_RETRIEVAL_MODE, RetrievalMode
 from indexer import (
     CortexSearchError,
     discover_out_of_policy_sections,
@@ -53,7 +54,6 @@ from indexer import (
 from ingestion.config import IngestionConfigError, load_ingestion_settings
 from ingestion.freshness import augment_freshness_report
 from ingestion.locking import IngestionLockedError
-from reranker import warmup_reranker
 from write_lock import CortexWriteLockedError
 
 _LOG = logging.getLogger("cortex.server")
@@ -89,9 +89,6 @@ async def app_lifespan(app: Any) -> AsyncIterator[dict[str, Any]]:
         collection.query(query_texts=["warmup"], n_results=1)
     except Exception as exc:  # noqa: BLE001 -- warmup failure must not prevent startup.
         _LOG.warning("embedding_warmup_failed error=%s", exc)
-    reranker_failure = warmup_reranker()
-    if reranker_failure is not None:
-        _LOG.warning("reranker_warmup_degraded reason=%s", reranker_failure)
     yield {"collection": collection}
 
 
@@ -186,12 +183,14 @@ def cortex_search(
     occurred_at_to: str | None = None,
     updated_at_from: str | None = None,
     updated_at_to: str | None = None,
+    retrieval_mode: RetrievalMode = DEFAULT_RETRIEVAL_MODE,
 ) -> dict[str, Any] | str:
     """
     Search the internal knowledge base using semantic similarity.
     Use this tool whenever the user asks about anything that may be documented
     in their local knowledge base. Supports French and English queries.
     `top_k` is clamped to the 1-10 range; larger values return 10 results.
+    Defaults to multilingual vector retrieval; hybrid and rerank are explicit alternatives.
     """
     try:
         section, err = _resolve_section(section)
@@ -211,6 +210,7 @@ def cortex_search(
             occurred_at_to=occurred_at_to,
             updated_at_from=updated_at_from,
             updated_at_to=updated_at_to,
+            retrieval_mode=retrieval_mode,
         )
     except EmbeddingFingerprintMismatchError as exc:
         return f"## Cortex search refused\n\n{exc}"

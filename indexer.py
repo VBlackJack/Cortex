@@ -83,7 +83,12 @@ from embedding_fingerprint import (  # noqa: E402
     EmbeddingFingerprintMismatchError,
     get_validated_collection,
 )
-from index_contract import SOURCE_KINDS  # noqa: E402
+from index_contract import (  # noqa: E402
+    DEFAULT_RETRIEVAL_MODE,
+    RETRIEVAL_MODES,
+    SOURCE_KINDS,
+    RetrievalMode,
+)
 from ingestion.config import (  # noqa: E402
     IngestionConfigError,
     IngestionSettings,
@@ -703,13 +708,15 @@ def search(
     occurred_at_to: str | None = None,
     updated_at_from: str | None = None,
     updated_at_to: str | None = None,
-    retrieval_mode: Literal["vector", "hybrid", "rerank"] = "rerank",
+    retrieval_mode: RetrievalMode = DEFAULT_RETRIEVAL_MODE,
 ) -> SearchResults:
-    """Return hybrid results, explicitly degrading to vector-only when needed.
+    """Search semantically by default, with explicitly selected hybrid strategies.
 
     `top_k` is clamped to SEARCH_TOP_K_MIN..SEARCH_TOP_K_MAX rather than
     rejected, so an over-eager caller still gets the bounded result set.
     """
+    if retrieval_mode not in RETRIEVAL_MODES:
+        raise CortexSearchError("Unknown retrieval mode")
     collection = get_collection()
     where, lexical_filters = build_chroma_where(
         section=section,
@@ -760,6 +767,7 @@ def search(
     fused = reciprocal_rank_fusion(vector_hits, lexical_hits)
     if retrieval_mode == "hybrid":
         return SearchResults(fused[:bounded_top_k], mode="hybrid")
+    warmup_reranker()
     reranked, rerank_failure = rerank_fused_hits(query, fused)
     if rerank_failure is not None:
         log.warning("search_mode_hybrid reason=%s", rerank_failure)
@@ -911,7 +919,6 @@ def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int
         return exit_code
 
     if args.search:
-        warmup_reranker()
         hits = search(args.search, section=args.section, top_k=args.top_k)
         _render_search_hits(hits, _lossless_console(sys.stdout))
         return EXIT_OK
@@ -942,10 +949,11 @@ def search_main(
         parser.error(f"query must contain between 1 and {QUERY_LIMIT} characters")
     configure_logging()
     if args.json:
-        return emit_search(args.query, args.section, args.top_k, args.source_kind)
-    warmup_reranker()
+        return emit_search(args.query, args.section, args.top_k, args.source_kind,
+                           retrieval_mode=args.retrieval_mode)
     hits = search(args.query, section=args.section, top_k=args.top_k,
-                  source_kinds=[args.source_kind] if args.source_kind else None)
+                  source_kinds=[args.source_kind] if args.source_kind else None,
+                  retrieval_mode=args.retrieval_mode)
     _render_search_hits(hits, _lossless_console(sys.stdout))
     return EXIT_OK
 

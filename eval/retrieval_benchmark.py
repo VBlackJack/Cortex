@@ -22,10 +22,17 @@ from typing import Any, Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from eval.retrieval_metrics import metrics, percentile, regressions  # noqa: E402
+from eval.retrieval_metrics import (  # noqa: E402
+    acceptance_failures,
+    metrics,
+    percentile,
+    regressions,
+)
 
 DEFAULT_CORPUS = Path(__file__).with_name("retrieval_corpus.json")
-MODES: tuple[Literal["vector", "hybrid", "rerank"], ...] = ("vector", "hybrid", "rerank")
+MODES: tuple[Literal["default", "vector", "hybrid", "rerank"], ...] = (
+    "default", "vector", "hybrid", "rerank",
+)
 TOP_K = 5
 
 
@@ -114,7 +121,11 @@ def run(root: Path, corpus: dict[str, Any], model_cache: Path) -> dict[str, Any]
     for mode in MODES:
         for question in corpus["questions"]:
             started = time.perf_counter()
-            hits = indexer.search(question["query"], top_k=TOP_K, retrieval_mode=mode)
+            hits = (
+                indexer.search(question["query"], top_k=TOP_K)
+                if mode == "default"
+                else indexer.search(question["query"], top_k=TOP_K, retrieval_mode=mode)
+            )
             elapsed = time.perf_counter() - started
             paths = [str(hit["metadata"]["path"]) for hit in hits]
             trials.append(
@@ -170,6 +181,8 @@ def main() -> int:
     parser.add_argument("--model-cache", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--baseline", type=Path)
+    parser.add_argument("--acceptance", type=Path,
+                        help="Require default retrieval to meet a corpus-bound bilingual policy")
     parser.add_argument("--max-recall-drop", type=float, default=0.0)
     parser.add_argument("--max-latency-ratio", type=float)
     parser.add_argument("--worker-root", type=Path, help=argparse.SUPPRESS)
@@ -229,8 +242,11 @@ def main() -> int:
                     report["regressions"] = regressions(
                         report, baseline, args.max_recall_drop, args.max_latency_ratio
                     )
+                if args.acceptance:
+                    policy = json.loads(args.acceptance.read_text(encoding="utf-8"))
+                    report["acceptance_failures"] = acceptance_failures(report, policy)
                 args.output.write_text(json.dumps(report, indent=2), encoding="utf-8")
-                if report.get("regressions"):
+                if report.get("regressions") or report.get("acceptance_failures"):
                     return 1
             return result.returncode
     corpus_bytes = args.corpus.read_bytes()

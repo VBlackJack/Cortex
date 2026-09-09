@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from eval.retrieval_metrics import metrics, percentile, regressions
+from eval.retrieval_metrics import acceptance_failures, metrics, percentile, regressions
 
 
 def test_duplicate_chunks_do_not_inflate_recall() -> None:
@@ -48,3 +48,32 @@ def test_baseline_gate_rejects_regression_and_incomparable_corpus() -> None:
     assert regressions(current, baseline, 0.2, None) == []
     with pytest.raises(ValueError, match="corpus"):
         regressions({**current, "corpus_sha256": "different"}, baseline, 0, None)
+
+
+def test_bilingual_acceptance_cannot_hide_french_losses_behind_english_scores() -> None:
+    policy = {"schema_version": 1, "corpus_sha256": "same", "top_k": 5,
+              "languages": {"fr": {"questions": 1, "min_recall": 0.9},
+                            "en": {"questions": 1, "min_recall": 1.0}}}
+    trials = [{"requested_mode": "default", "id": language, "language": language,
+               "recall": score, "degraded": False}
+              for language, score in (("fr", 0.5), ("en", 1.0))]
+    report = {"corpus_sha256": "same", "top_k": 5, "trials": trials}
+    assert acceptance_failures(report, policy) == ["fr: default recall below acceptance minimum"]
+    trials[0]["recall"] = 1.0
+    assert acceptance_failures(report, policy) == []
+    trials[0]["degraded"] = True
+    assert acceptance_failures(report, policy) == ["fr: default retrieval degraded"]
+    trials.pop()
+    assert "en: default trials missing or duplicated" in acceptance_failures(report, policy)
+    with pytest.raises(ValueError, match="corpus"):
+        acceptance_failures({**report, "corpus_sha256": "other"}, policy)
+
+
+def test_committed_acceptance_is_bound_to_the_evaluated_corpus() -> None:
+    import hashlib
+
+    root = Path(__file__).parents[1] / "eval"
+    policy = json.loads((root / "retrieval_acceptance.json").read_text("utf-8"))
+    assert hashlib.sha256((root / "retrieval_corpus.json").read_bytes()).hexdigest() == (
+        policy["corpus_sha256"]
+    )

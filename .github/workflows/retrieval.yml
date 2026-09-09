@@ -1,0 +1,48 @@
+# Copyright 2026 Julien Bombled
+# Licensed under the Apache License, Version 2.0.
+name: bilingual retrieval acceptance
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout evaluated source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+      - name: Prepare verified models with isolated locked tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          model_environment="${RUNNER_TEMP}/cortex-retrieval-model-env"
+          python -m venv "${model_environment}"
+          "${model_environment}/bin/python" -m pip install --require-hashes -r requirements-model.lock
+          "${model_environment}/bin/python" scripts/model_payload.py prepare --output "${RUNNER_TEMP}/cortex-retrieval-models"
+      - name: Install locked production and evaluation environment
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock
+          python -m pip install --no-build-isolation --no-deps -e .
+      - name: Gate actual default recall separately for French and English
+        shell: bash
+        run: |
+          set -euo pipefail
+          python eval/retrieval_benchmark.py \
+            --model-cache "${RUNNER_TEMP}/cortex-retrieval-models" \
+            --output local/retrieval/acceptance.json \
+            --acceptance eval/retrieval_acceptance.json
+      - name: Retain measured evidence even when acceptance fails
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: bilingual-retrieval
+          path: local/retrieval/acceptance.json
+          if-no-files-found: warn

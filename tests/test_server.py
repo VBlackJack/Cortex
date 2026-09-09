@@ -27,6 +27,21 @@ from indexer import CortexSearchError, SearchResults
 from ingestion.config import IngestionSettings
 
 
+@pytest.mark.parametrize("mode", ["vector", "hybrid", "rerank"])
+def test_mcp_routes_explicit_retrieval_strategy(
+    monkeypatch: pytest.MonkeyPatch, mode: str,
+) -> None:
+    calls = []
+
+    def search(**kwargs: object) -> SearchResults:
+        calls.append(kwargs)
+        return SearchResults([], mode="vector-only")
+
+    monkeypatch.setattr(server, "search", search)
+    server.cortex_search("question", retrieval_mode=mode)
+    assert calls[0]["retrieval_mode"] == mode
+
+
 def test_cortex_freshness_defaults_to_summary(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -137,11 +152,11 @@ async def test_server_lifespan_does_not_require_kb(
         warmups["reranker"] += 1
         return None
 
-    monkeypatch.setattr(server, "warmup_reranker", warmup)
+    monkeypatch.setattr("indexer.warmup_reranker", warmup)
 
     async with server.app_lifespan(None) as state:
         assert state == {"collection": collection}
-    assert warmups == {"reranker": 1}
+    assert warmups == {"reranker": 0}
 
 
 def test_cortex_search_uses_existing_index_without_kb(
