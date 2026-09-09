@@ -28,9 +28,11 @@ configure les clients MCP pris en charge.
    avancé `Organiser en sections` limite l'indexation aux dossiers indiqués ;
    les défauts sont `knowledge` (référence), `projects` (travail) et `notes`
    (notes libres).
-6. Laisser `Indexer ce dossier maintenant` coché pour une première indexation,
-   ou le décocher pour terminer plus vite et synchroniser plus tard.
-7. À la fin, laisser `Lancer Cortex Companion` coché. Redémarrer ensuite les
+6. Sur la page de fin, laisser `Lancer Cortex Companion` coché et cliquer sur
+   `Terminer`. L’installation ne lance jamais l’indexation.
+7. Dans Companion, ouvrir `Base locale`, puis choisir `Synchroniser les documents
+   locaux` au moment souhaité. La durée dépend du nombre et de la taille des
+   documents ; suivre le résultat dans cet écran. Redémarrer ensuite les
    applications IA enregistrées.
 
 L'installation ne demande pas de droits administrateur. Cortex est installé
@@ -100,12 +102,15 @@ Cortex-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB"
 ```
 
 Le mode silencieux crée le dossier si nécessaire, installe Cortex et Companion,
-et enregistre les clients, mais ne lance pas Companion et n'indexe pas
-immédiatement. Ajouter `/INDEX` pour forcer la première indexation pendant le
-déploiement :
+et enregistre les clients, mais ne lance pas Companion et n’indexe aucun
+document. L’ancienne option `/INDEX` est refusée avant l’installation. Lancer
+la synchronisation séparément après la fin réussie de l’installeur :
 
 ```powershell
-Cortex-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB" /INDEX
+$installation = Start-Process .\Cortex-Setup.exe -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB"' -Wait -PassThru -WindowStyle Hidden
+if ($installation.ExitCode -ne 0) { throw "Cortex installation failed." }
+& "$env:LOCALAPPDATA\Programs\Cortex\cortex.exe" sync
+if ($LASTEXITCODE -ne 0) { throw "Cortex synchronization failed." }
 ```
 
 Le défaut silencieux est `/INDEXMODE=whole`. Pour le mode avancé :
@@ -121,7 +126,7 @@ Le processus retourne un code non nul si la configuration automatique échoue.
 Si `%APPDATA%\Cortex\config.toml` existe déjà, l'assistant propose deux choix :
 
 - `Garder ma configuration` est le défaut prudent. Le dossier, le mode et
-  l'index existants sont conservés ; Cortex réindexe et réenregistre les clients.
+  l'index existants sont conservés ; Cortex réenregistre les clients sans indexer.
 - `Reinitialiser` supprime uniquement la configuration Cortex et les données
   générées sous `%LOCALAPPDATA%\Cortex`, puis applique le dossier et le mode
   choisis dans l'assistant. Le dossier de documents n'est jamais supprimé.
@@ -131,7 +136,7 @@ tenir l'index ouvert et faire échouer proprement l'opération. En silencieux,
 le défaut reste Keep ; `/RESETCONFIG` demande explicitement le reset :
 
 ```powershell
-Cortex-Setup.exe /VERYSILENT /RESETCONFIG /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE=whole /INDEX
+Cortex-Setup.exe /VERYSILENT /RESETCONFIG /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE=whole
 ```
 
 ## Désinstallation

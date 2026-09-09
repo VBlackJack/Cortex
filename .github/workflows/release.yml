@@ -588,7 +588,6 @@ jobs:
             "/VERYSILENT",
             "/SUPPRESSMSGBOXES",
             "/NORESTART",
-            "/INDEX",
             "/KBPATH=`"$knowledgeBase`"",
             "/INDEXMODE=whole",
             "/LOG=`"$installerLog`""

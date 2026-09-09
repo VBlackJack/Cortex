@@ -25,10 +25,11 @@ supported MCP clients.
    subfolder become searchable. The advanced `Organize into sections` mode
    limits indexing to named folders; its defaults are `knowledge` (reference),
    `projects` (work), and `notes` (free-form notes).
-6. Keep `Index this folder now` selected for an initial index, or clear it to
-   finish faster and synchronize later.
-7. Keep `Launch Cortex Companion` selected at the end. Then restart the
-   registered AI applications.
+6. On the completion page, keep `Launch Cortex Companion` selected and click
+   `Finish`. Installation never starts indexing.
+7. In Companion, open `Local database`, then select `Synchronize local documents`
+   when ready. Duration depends on the number and size of your documents; follow
+   the result there. Then restart the registered AI applications.
 
 Installation does not require administrator privileges. Cortex is installed
 under `%LOCALAPPDATA%\Programs\Cortex`. New terminals opened after installation
@@ -93,11 +94,15 @@ Cortex-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB"
 ```
 
 Silent mode creates the folder when needed, installs Cortex and Companion, and
-registers the clients, but does not launch Companion or index immediately. Add
-`/INDEX` to force the first index during deployment:
+registers the clients, but does not launch Companion or index documents. The old
+`/INDEX` option is rejected before installation. Run synchronization separately
+after the installer exits successfully:
 
 ```powershell
-Cortex-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB" /INDEX
+$installation = Start-Process .\Cortex-Setup.exe -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB"' -Wait -PassThru -WindowStyle Hidden
+if ($installation.ExitCode -ne 0) { throw "Cortex installation failed." }
+& "$env:LOCALAPPDATA\Programs\Cortex\cortex.exe" sync
+if ($LASTEXITCODE -ne 0) { throw "Cortex synchronization failed." }
 ```
 
 Silent mode defaults to `/INDEXMODE=whole`. For advanced sections:
@@ -114,7 +119,7 @@ When `%APPDATA%\Cortex\config.toml` already exists, the wizard offers two
 choices:
 
 - `Keep my current configuration` is the conservative default. The existing
-  folder, mode, and index stay intact; Cortex reindexes and registers clients.
+  folder, mode, and index stay intact; Cortex registers clients without indexing.
 - `Reset configuration` removes only Cortex's configuration and generated data
   under `%LOCALAPPDATA%\Cortex`, then applies the folder and mode selected in
   the wizard. The document folder is never deleted.
@@ -124,7 +129,7 @@ and make the operation fail safely. Silent installs still default to Keep;
 `/RESETCONFIG` explicitly requests a reset:
 
 ```powershell
-Cortex-Setup.exe /VERYSILENT /RESETCONFIG /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE=whole /INDEX
+Cortex-Setup.exe /VERYSILENT /RESETCONFIG /KBPATH="C:\Docs\Cortex-KB" /INDEXMODE=whole
 ```
 
 ## Uninstallation

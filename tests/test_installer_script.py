@@ -16,8 +16,13 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import zipfile
 from pathlib import Path
+
+import pytest
+
+import setup_wizard
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "packaging" / "windows" / "cortex-installer.iss"
@@ -52,8 +57,12 @@ def test_installer_runs_setup_without_a_shell_and_checks_failure() -> None:
     script = INSTALLER.read_text(encoding="utf-8")
 
     assert "SetEnvironmentVariableW@kernel32.dll stdcall" in script
-    assert "Parameters := 'setup --yes --clients all'" in script
-    assert "Parameters := Parameters + ' --no-index'" in script
+    assert "Parameters := 'setup --yes --clients all --no-index'" in script
+    assert "ShouldIndexNow" not in script
+    assert "IndexNowCheckBox" not in script
+    assert "CustomMessage('IndexAfterInstall')" in script
+    assert "CurPageID = wpFinished" in script
+    assert "CustomMessage('IndexSwitchUnsupported')" in script
     assert "ewWaitUntilTerminated" in script
     assert "ResultCode <> 0" in script
     assert "GetCustomSetupExitCode" in script
@@ -296,9 +305,45 @@ def test_release_smokes_installed_embedding_and_reranker_offline() -> None:
     assert "Failed to clean per-user model cache before installation" in workflow
     assert "$installProcess = Start-Process" in workflow
     assert "-Wait -PassThru -WindowStyle Hidden" in workflow
-    for argument in ("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/INDEX"):
+    for argument in ("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"):
         assert f'"{argument}"' in workflow
-    assert 'sync --search "offline installer smoke"' in workflow
+    assert '"/INDEX",' not in workflow
+    assert workflow.index("$installProcess.ExitCode") < workflow.index(
+        'sync --search "offline installer smoke"'
+    )
     assert "Offline installer embedding and reranker smoke passed" in workflow
     assert "licenses\\Apache-2.0.txt" in workflow
     assert "licenses\\THIRD_PARTY_NOTICES.md" in workflow
+
+
+@pytest.mark.parametrize("existing,reset", [(False, False), (True, False), (True, True)])
+def test_installer_setup_command_never_calls_indexer(
+    monkeypatch: pytest.MonkeyPatch, existing: bool, reset: bool
+) -> None:
+    """Exercise the shipped command through CLI parsing and setup orchestration."""
+    script = INSTALLER.read_text(encoding="utf-8")
+    match = re.search(r"Parameters := '(setup [^']+)';", script)
+    assert match is not None
+    arguments = match.group(1).split()[1:]
+    if reset:
+        arguments.append("--reset")
+    calls: list[str] = []
+    original_run = setup_wizard.run_setup
+
+    def forbidden_index() -> dict[str, int]:
+        pytest.fail("Installation must never start indexing")
+
+    def run(plan: setup_wizard.SetupPlan) -> setup_wizard.SetupResult:
+        assert plan.clients == "all"
+        assert plan.reset is reset
+        return original_run(
+            plan,
+            init_fn=lambda **kwargs: not existing,
+            register_fn=lambda *args, **kwargs: calls.append("register") or [],
+            reset_fn=lambda: calls.append("reset"),
+            index_fn=forbidden_index,
+        )
+
+    monkeypatch.setattr(setup_wizard, "run_setup", run)
+    assert setup_wizard.main(arguments) == 0
+    assert calls == (["reset", "register"] if reset else ["register"])

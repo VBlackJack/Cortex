@@ -7,6 +7,14 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0909.03] - 2026-09-09
+
+### Fixed
+- Finish Windows installation without starting document indexing, including upgrades and resets. The completion page directs users to synchronize in Companion.
+
+### Changed
+- Reject the legacy installer `/INDEX` switch before installation. Automated deployments must run `cortex sync` separately after a successful installer exit.
+
 ## [2026.0909.02] - 2026-09-09
 
 ### Fixed
@@ -504,7 +512,7 @@ Existing indexing history without configuration identity requires a new successf
 - Removed the hidden five-second Confluence read limit and fifteen-second
   Cortex configuration limit that could terminate the bundled CLI on slower
   Windows computers even when the user had selected 120 seconds.
-- Replaced the misleading `Le CLI a refusé la lecture` timeout path with an
+- Replaced the misleading `Le CLI a refusÃ© la lecture` timeout path with an
   explicit message that directs the user to increase the shared limit in
   Settings.
 

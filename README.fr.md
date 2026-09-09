@@ -80,6 +80,7 @@ runtime .NET n'est à installer séparément.
    `Exécuter quand même`.
 4. Choisir le dossier de vos documents, laisser `Tout indexer dans ce dossier`
    et terminer. Cortex Companion s'ouvre à la fin de l'installation.
+   L’indexation ne démarre que lorsque vous lancez la synchronisation dans Companion.
 5. Dans Companion, ouvrir `Réglages` pour vérifier le dossier de la base de
    connaissances. L'exécutable Cortex installé avec Companion est détecté
    automatiquement.

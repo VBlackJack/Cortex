@@ -76,6 +76,7 @@ runtime is required.
    `More info`, then `Run anyway`.
 4. Choose the folder that holds your documents, keep `Index everything in this
    folder`, and finish. Cortex Companion opens when installation completes.
+   Indexing only starts when you request synchronization in Companion.
 5. In Companion, open `Settings` and verify the knowledge-base folder. The
    Cortex executable installed with Companion is detected automatically.
 6. Drop your documents in that folder, open `Local database`, then select

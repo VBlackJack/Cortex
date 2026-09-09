@@ -81,11 +81,13 @@ english.ReinstallCaption=Existing Cortex configuration
 english.ReinstallDescription=Choose what this installation should do with your current setup.
 english.ReinstallSubCaption=Keep preserves your configuration and index. Reset deletes generated Cortex state, then applies the folder and indexing choices on the next pages.
 english.KeepConfig=Keep my current Cortex configuration (recommended)
-english.ResetConfig=Reset configuration and rebuild the index from scratch
+english.ResetConfig=Reset configuration and clear the generated index
 english.KBPageCaption=Knowledge base folder
 english.KBPageDescription=Choose where Cortex will read your documents.
 english.KBPageSubCaption=You can start with an empty folder and add documents later.
-english.IndexNow=Index this folder now
+english.IndexAfterInstall=Cortex is installed. To index your documents, finish this wizard, then select Local database > Synchronize local documents in Cortex Companion. Duration depends on your documents.
+english.IndexSwitchUnsupported=The /INDEX option is no longer supported. Finish installation, then run cortex sync separately.
+english.Configuring=Configuring Cortex and registering clients...
 english.IndexModeCaption=Indexing mode
 english.IndexModeDescription=Choose how Cortex should read this folder.
 english.IndexModeSubCaption=Recommended: everything is searchable automatically. Advanced: only named section folders are indexed.
@@ -108,11 +110,13 @@ french.ReinstallCaption=Configuration Cortex existante
 french.ReinstallDescription=Choisissez ce que cette installation doit faire de votre configuration actuelle.
 french.ReinstallSubCaption=Garder conserve la configuration et l'index. Réinitialiser efface les données Cortex générées, puis applique le dossier et le mode choisis aux pages suivantes.
 french.KeepConfig=Garder ma configuration Cortex actuelle (recommandé)
-french.ResetConfig=Réinitialiser la configuration et reconstruire l'index
+french.ResetConfig=Réinitialiser la configuration et effacer l'index généré
 french.KBPageCaption=Dossier de base de connaissances
 french.KBPageDescription=Choisissez le dossier dans lequel Cortex lira vos documents.
 french.KBPageSubCaption=Vous pouvez commencer avec un dossier vide et ajouter des documents plus tard.
-french.IndexNow=Indexer ce dossier maintenant
+french.IndexAfterInstall=Cortex est installé. Pour indexer vos documents, terminez cet assistant, puis choisissez Base locale > Synchroniser les documents locaux dans Cortex Companion. La durée dépend de vos documents.
+french.IndexSwitchUnsupported=L’option /INDEX n’est plus prise en charge. Terminez l’installation, puis lancez cortex sync séparément.
+french.Configuring=Configuration de Cortex et enregistrement des clients...
 french.IndexModeCaption=Mode d'indexation
 french.IndexModeDescription=Choisissez comment Cortex doit lire ce dossier.
 french.IndexModeSubCaption=Recommandé : tout devient cherchable automatiquement. Avancé : seuls les dossiers de sections nommés sont indexés.
@@ -153,7 +157,6 @@ Filename: "{app}\Companion\CortexCompanion.exe"; Description: "{cm:LaunchProgram
 var
   ReinstallPage: TInputOptionWizardPage;
   KnowledgeBasePage: TInputDirWizardPage;
-  IndexNowCheckBox: TNewCheckBox;
   IndexModePage: TInputOptionWizardPage;
   SectionsPage: TInputQueryWizardPage;
   KnowledgeBasePath: String;
@@ -206,14 +209,6 @@ end;
 function KeepExistingConfiguration: Boolean;
 begin
   Result := ExistingConfigDetected and not ResetConfigurationRequested;
-end;
-
-function ShouldIndexNow: Boolean;
-begin
-  if WizardSilent then
-    Result := CommandLineSwitchPresent('INDEX')
-  else
-    Result := IndexNowCheckBox.Checked;
 end;
 
 function SelectedIndexMode: String;
@@ -276,15 +271,6 @@ begin
     InitialPath := ExpandConstant('{userdocs}\Cortex-KB');
   KnowledgeBasePage.Values[0] := InitialPath;
 
-  IndexNowCheckBox := TNewCheckBox.Create(KnowledgeBasePage);
-  IndexNowCheckBox.Parent := KnowledgeBasePage.Surface;
-  IndexNowCheckBox.Caption := CustomMessage('IndexNow');
-  IndexNowCheckBox.Checked := True;
-  IndexNowCheckBox.Top :=
-    KnowledgeBasePage.Edits[0].Top + KnowledgeBasePage.Edits[0].Height + ScaleY(16);
-  IndexNowCheckBox.Left := KnowledgeBasePage.Edits[0].Left;
-  IndexNowCheckBox.Width := KnowledgeBasePage.Edits[0].Width;
-
   IndexModePage := CreateInputOptionPage(
     KnowledgeBasePage.ID,
     CustomMessage('IndexModeCaption'),
@@ -331,6 +317,11 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
+  if CommandLineSwitchPresent('INDEX') then
+  begin
+    Result := CustomMessage('IndexSwitchUnsupported');
+    Exit;
+  end;
   if KeepExistingConfiguration then
   begin
     KnowledgeBasePath := '';
@@ -532,11 +523,10 @@ begin
       SetEnvironmentVariable('CORTEX_INDEX_SECTIONS', '');
   end;
 
-  Parameters := 'setup --yes --clients all';
+  WizardForm.StatusLabel.Caption := CustomMessage('Configuring');
+  Parameters := 'setup --yes --clients all --no-index';
   if ResetConfiguration then
     Parameters := Parameters + ' --reset';
-  if not ShouldIndexNow then
-    Parameters := Parameters + ' --no-index';
   if not Exec(
     ExpandConstant('{app}\cortex.exe'),
     Parameters,
@@ -559,6 +549,13 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
     RunCortexSetup;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if (CurPageID = wpFinished) and not SetupFailed then
+    WizardForm.FinishedLabel.Caption :=
+      CustomMessage('IndexAfterInstall');
 end;
 
 function GetCustomSetupExitCode: Integer;
