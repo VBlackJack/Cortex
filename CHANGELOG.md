@@ -7,6 +7,19 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.0909.00] - 2026-09-09
+
+### Changed
+- Ship Companion's unified source inventory, guided document update, readiness-based home screen, resizable search preview and progressive settings.
+- Align English and French setup guides with the current interface and synchronize the Companion label fixture.
+
+### Fixed
+- Read large source catalogues without silent truncation in Companion; reject output exceeding the bounded transport budget explicitly.
+- Confirm successful local-only indexing without Confluence and invalidate readiness when the saved folder or configuration changes, including after restart.
+- Virtualize the source tree and keep review preparation cancellable with draft recovery and no write on cancellation.
+
+Existing indexing history without configuration identity requires a new successful update before Companion confirms readiness. Upgrade both components with the combined installer.
+
 ## [2026.0908.01] - 2026-09-08
 
 ### Fixed

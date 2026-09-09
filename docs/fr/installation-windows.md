@@ -47,10 +47,10 @@ restent locaux.
 Après la connexion de Companion à Cortex :
 
 1. Dans `Réglages`, enregistrer le PAT Confluence masqué.
-2. Dans `Pages Confluence`, coller l'URL complète d'une page.
+2. Dans `Mes sources`, choisir `Ajouter une source`, puis coller l'URL complète d'une page.
 3. Choisir l'expiration du PAT et la classification, puis vérifier la clé
    d'espace détectée.
-4. Cliquer sur `Initialiser et ajouter la page`, puis confirmer la page.
+4. Cliquer sur `Voir les documents à ajouter`, puis confirmer la page.
 
 Companion crée et valide `%APPDATA%\Cortex\confluence.toml`. Aucune édition
 manuelle n'est nécessaire. Le PAT reste dans le Gestionnaire d'identifiants
@@ -70,7 +70,7 @@ guidée. Pour le premier usage :
    Sur un poste lent, choisir aussi un délai maximal des commandes Cortex de
    15, 30, 60 ou 120 secondes ; le défaut est 30 secondes. Depuis
    `2026.0901.02`, cette valeur s'applique à la vérification de compatibilité,
-   à la lecture des réglages Cortex et aux commandes `Pages Confluence`. Si le
+   à la lecture des réglages Cortex et aux commandes `Mes sources`. Si le
    délai est dépassé, Companion garde les mutations désactivées et indique de
    revenir dans `Réglages` pour augmenter la valeur.
 2. Vérifier le `Dossier de la base de connaissances`. Pour le changer, choisir

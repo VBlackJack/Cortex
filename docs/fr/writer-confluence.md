@@ -57,14 +57,14 @@ par défaut. Aucun espace n'est actif par défaut.
 
 ### Initialisation guidée avec Companion
 
-Quand le fichier n'existe pas, ouvrir `Pages Confluence` dans Companion :
+Quand le fichier n'existe pas, ouvrir `Mes sources` dans Companion :
 
-1. Coller l'URL complète d'une première page Confluence.
+1. Choisir `Ajouter une source`, puis coller l'URL complète d'une première page Confluence.
 2. Vérifier la clé d'espace détectée. Les URL `viewpage.action` et les liens
    courts ne la contiennent pas ; la saisir alors manuellement.
 3. Choisir la date d'expiration déclarée du PAT et la classification. La valeur
    par défaut est `pro-confidentiel`.
-4. Cliquer sur `Initialiser et ajouter la page`. Companion mesure alors la page
+4. Cliquer sur `Voir les documents à ajouter`. Companion mesure alors la page
    seule, son sous-arbre et l'espace complet avant de demander le périmètre.
    Quand la racine a des descendants, `Cette page et son arborescence` est le
    choix recommandé et sélectionné par défaut.
@@ -228,16 +228,13 @@ Ce lock protège uniquement les writers TOML. Il est distinct du lock de sync
 d'ingestion et du lock d'écriture Chroma. Aucune commande CLI de mutation n'est
 encore exposée.
 
-Autoriser un espace ne demande pas de modifier le TOML à la main. Dans Cortex
-Companion, l'écran `Pages` porte une carte `Autoriser un nouvel espace` : collez
-l'URL de n'importe quelle page de l'espace, choisissez la classification, puis
-confirmez. Companion lit la clef d'espace dans l'URL, refuse une URL qui ne
-nomme aucun espace ou qui pointe vers un autre serveur Confluence, et écrit
-l'entrée `[[spaces]]` sous le même verrou CAS que toute autre mutation. L'espace
-entre vide, en mode pages explicites : l'autoriser ne collecte donc rien par
-lui-même. Quand `Résoudre et ajouter` refuse une page parce que son espace n'est
-pas autorisé, cette même carte est préremplie avec l'URL collée, et la confirmer
-ajoute la page dans la foulée.
+Pour ajouter une source sans éditer le TOML, ouvrez `Mes sources`, choisissez
+`Ajouter une source`, collez l’URL d’une page puis cliquez sur `Voir les documents à ajouter`.
+Companion vérifie le serveur et l’espace, mesure les périmètres disponibles et
+n’enregistre que la sélection confirmée sous le verrou CAS partagé.
+`Enregistrer pour plus tard` conserve la sélection en attente ;
+`Enregistrer et mettre à jour` collecte puis indexe les documents.
+Une prévisualisation annulée ne crée pas de source vide.
 
 ## Stocker le PAT
 
@@ -248,7 +245,7 @@ pas encore, Cortex et Companion utilisent la même cible Windows par défaut,
 pages ou de lancer une collecte, car il porte notamment `base_url`,
 `auth_expires_at` et la liste blanche des espaces.
 
-Avec Cortex Companion, ouvrez `Réglages > Authentification Confluence`,
+Avec Cortex Companion, ouvrez `Réglages > Connexion Confluence`,
 saisissez le PAT dans le champ masqué, puis sélectionnez `Enregistrer le PAT`.
 Companion lit la cible validée dans la configuration Confluence, ou reprend la
 cible par défaut si le fichier est absent, puis écrit directement l'identifiant

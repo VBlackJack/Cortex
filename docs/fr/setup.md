@@ -84,7 +84,7 @@ d'enregistrement client est signalé en avertissement sans interrompre le reste.
 `cortex setup` configure le dossier documentaire choisi et les clients MCP. Il
 ne crée pas de liste blanche Confluence, ne stocke pas de PAT et n'enregistre
 pas de tâche dans le Planificateur de tâches Windows. Sous Windows, Companion
-guide la création de la liste blanche depuis `Pages Confluence`. Ces surfaces
+guide la création de la liste blanche depuis `Mes sources`. Ces surfaces
 détenues par l'opérateur se configurent séparément :
 
 - [Planification de l'ingestion](ingestion-scheduling.md) pour la cadence, les

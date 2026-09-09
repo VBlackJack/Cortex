@@ -15,6 +15,10 @@ locaux.
 
 Depuis 2026.0906.01, Companion propose un accueil guidé, un historique et l'ajout Confluence par un seul lien de page ou d'espace. La connexion et le choix du nombre de pages restent dans le parcours ; la collecte réussie est suivie de l'indexation. Utiliser l'installeur combiné pour garder Cortex et Companion compatibles.
 
+## Mise à jour documentaire guidée (2026.0909.00)
+
+Companion réunit les documents locaux et Confluence dans **Mes sources**, avec une action **Mettre à jour mes documents**. L’aperçu de recherche est redimensionnable, les grands arbres réalisent les lignes visibles et l’annulation de la préparation conserve le brouillon. La disponibilité suit désormais le dossier et la configuration enregistrés, y compris après redémarrage. Lancer une mise à jour documentaire après la mise à niveau pour établir cette preuve sur les anciens index. Voir les [notes de version](docs/fr/notes-de-version.md).
+
 ## Périmètre mesuré sans énumérer l'espace (2026.0907.00)
 
 L'ajout d'une source Confluence mesure les périmètres page, sous-arbre et espace

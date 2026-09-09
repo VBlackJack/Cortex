@@ -98,6 +98,116 @@
       "en": "Expand to subtree"
     },
     {
+      "key": "ExperienceAttention",
+      "fr": "Une connexion ou une source demande votre attention.",
+      "en": "A connection or source needs your attention."
+    },
+    {
+      "key": "ExperienceChecking",
+      "fr": "Vérification des sources avant la mise à jour...",
+      "en": "Checking sources before updating..."
+    },
+    {
+      "key": "ExperienceConfluence",
+      "fr": "Sources Confluence",
+      "en": "Confluence sources"
+    },
+    {
+      "key": "ExperienceDetails",
+      "fr": "État détaillé",
+      "en": "Detailed status"
+    },
+    {
+      "key": "ExperienceDraft",
+      "fr": "Modifications non enregistrées",
+      "en": "Unsaved changes"
+    },
+    {
+      "key": "ExperienceEditFolder",
+      "fr": "Choisir ou modifier le dossier",
+      "en": "Choose or change the folder"
+    },
+    {
+      "key": "ExperienceInitializing",
+      "fr": "Préparation de votre espace documentaire...",
+      "en": "Preparing your document workspace..."
+    },
+    {
+      "key": "ExperienceLocal",
+      "fr": "Documents locaux",
+      "en": "Local documents"
+    },
+    {
+      "key": "ExperienceLocalEmpty",
+      "fr": "Aucun dossier documentaire enregistré pour le moment.",
+      "en": "No document folder has been saved yet."
+    },
+    {
+      "key": "ExperienceNoChanges",
+      "fr": "Sélection inchangée",
+      "en": "Selection unchanged"
+    },
+    {
+      "key": "ExperiencePending",
+      "fr": "Vos documents doivent être mis à jour.",
+      "en": "Your documents need an update."
+    },
+    {
+      "key": "ExperienceReady",
+      "fr": "Vos documents sont prêts pour la recherche.",
+      "en": "Your documents are ready to search."
+    },
+    {
+      "key": "ExperienceRecover",
+      "fr": "Voir la prochaine action nécessaire",
+      "en": "Review the required action"
+    },
+    {
+      "key": "ExperienceRemoveFilters",
+      "fr": "Retirer les filtres de recherche",
+      "en": "Remove search filters"
+    },
+    {
+      "key": "ExperienceResize",
+      "fr": "Redimensionner les résultats et leur aperçu",
+      "en": "Resize results and preview"
+    },
+    {
+      "key": "ExperienceSelectionUnknown",
+      "fr": "Le nombre de pages incluses n'est pas encore mesuré.",
+      "en": "Page coverage has not been measured yet."
+    },
+    {
+      "key": "ExperienceSeparate",
+      "fr": "Exécuter une étape séparément",
+      "en": "Run a separate step"
+    },
+    {
+      "key": "ExperienceSetup",
+      "fr": "Choisissez vos documents pour commencer.",
+      "en": "Choose your documents to get started."
+    },
+    {
+      "key": "ExperienceSources",
+      "fr": "Vérifier mes sources",
+      "en": "Check my sources"
+    },
+    {
+      "key": "ExperienceTechnical",
+      "fr": "Connexion Cortex et réglages avancés",
+      "en": "Cortex connection and advanced settings"
+    },
+    {
+      "key": "ExperienceUpdate",
+      "fr": "Mettre à jour mes documents",
+      "en": "Update my documents"
+    },
+    {
+      "key": "ExperienceWorking",
+      "fr": "Vos documents sont en cours de mise à jour.",
+      "en": "Your documents are being updated."
+    },
+    {
       "key": "FlowAdvanced",
       "fr": "Détails techniques et options avancées",
       "en": "Technical details and advanced options"
@@ -109,8 +219,8 @@
     },
     {
       "key": "FlowCollecting",
-      "fr": "Application des sources - collecte des documents en cours.",
-      "en": "Applying the sources - document collection in progress."
+      "fr": "Lecture des documents Confluence...",
+      "en": "Reading Confluence documents..."
     },
     {
       "key": "FlowConnect",
@@ -124,8 +234,8 @@
     },
     {
       "key": "FlowIndexing",
-      "fr": "Documents collectés - indexation en cours.",
-      "en": "Documents collected - indexing in progress."
+      "fr": "Préparation des documents pour la recherche...",
+      "en": "Preparing documents for search..."
     },
     {
       "key": "FlowInspect",
@@ -579,8 +689,8 @@
     },
     {
       "key": "PagesNavigation",
-      "fr": "Pages Confluence",
-      "en": "Confluence pages"
+      "fr": "Mes sources",
+      "en": "My sources"
     },
     {
       "key": "PagesNoSpaces",
@@ -989,8 +1099,8 @@
     },
     {
       "key": "SettingsCliTitle",
-      "fr": "1. Connecter Cortex",
-      "en": "1. Connect Cortex"
+      "fr": "Connecter Cortex",
+      "en": "Connect Cortex"
     },
     {
       "key": "SettingsCliWrongFileName",
@@ -1024,8 +1134,8 @@
     },
     {
       "key": "SettingsConfluenceCredentialTitle",
-      "fr": "3. Authentification Confluence",
-      "en": "3. Confluence authentication"
+      "fr": "Connexion Confluence",
+      "en": "Confluence connection"
     },
     {
       "key": "SettingsCurrentStateTitle",
@@ -1054,8 +1164,8 @@
     },
     {
       "key": "SettingsKnowledgeBaseTitle",
-      "fr": "2. Base de connaissances",
-      "en": "2. Knowledge base"
+      "fr": "Dossier documentaire",
+      "en": "Document folder"
     },
     {
       "key": "SettingsLanguageLabel",
@@ -1216,6 +1326,11 @@
       "key": "SourcesSearch",
       "fr": "Rechercher un espace ou une page",
       "en": "Search for a space or a page"
+    },
+    {
+      "key": "SourcesTreeCancelled",
+      "fr": "Lecture des pages interrompue. Vos choix sont conservés.",
+      "en": "Page loading cancelled. Your selection is preserved."
     },
     {
       "key": "SourcesTreeLoading",

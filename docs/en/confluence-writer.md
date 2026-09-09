@@ -55,14 +55,14 @@ safe defaults. No space is enabled by default.
 
 ### Guided initialization with Companion
 
-When the file does not exist, open `Confluence pages` in Companion:
+When the file does not exist, open `My sources` in Companion:
 
-1. Paste the full URL of the first Confluence page.
+1. Select `Add a source`, then paste the full URL of the first Confluence page.
 2. Verify the inferred space key. `viewpage.action` URLs and short links do not
    contain it, so enter it manually for those forms.
 3. Choose the PAT's declared expiry date and the classification. The secure
    default is `pro-confidentiel`.
-4. Select `Initialize and add the page`. Companion measures page-only, subtree,
+4. Select `View the documents to add`. Companion measures page-only, subtree,
    and whole-space scope before asking for confirmation. When descendants exist,
    subtree is the recommended and preselected choice.
 
@@ -223,16 +223,12 @@ limit, and failure threshold also have matching uppercase
 `CORTEX_CONFLUENCE_...` environment overrides. Space allowlisting stays in
 TOML so an inherited environment cannot silently broaden the source scope.
 
-Allowlisting a space does not require editing the TOML by hand. In Cortex
-Companion, the `Confluence pages` screen carries an `Allow a new space` card:
-paste the URL of any page of the space, pick the classification, and confirm.
-Companion reads the space key from the URL, refuses a URL that names no space or
-that points at another Confluence server, and writes the `[[spaces]]` entry
-under the same CAS lock as every other mutation. The space enters empty in
-explicit-pages mode, so allowlisting on its own still collects nothing. When
-`Resolve and add` refuses a page because its space is not allowlisted, that same
-card is filled in with the pasted URL, and confirming it adds the page in the
-same gesture.
+To add a source without editing TOML, open `My sources`, select `Add a source`,
+paste a page URL, and select `View the documents to add`. Companion checks the
+server and space, measures the available scope choices, and saves only the
+selection confirmed by the user through the shared CAS lock. `Save for later`
+keeps the selection pending; `Save and update` collects and then indexes it.
+A cancelled preview does not create an empty source.
 
 ## Store the PAT
 
@@ -242,7 +238,7 @@ Companion use the same default Windows target, `cortex-spike`. The file is still
 required before adding pages or starting a collection because it supplies
 `base_url`, `auth_expires_at`, and the space allowlist.
 
-With Cortex Companion, open `Settings > Confluence authentication`, enter the
+With Cortex Companion, open `Settings > Confluence connection`, enter the
 PAT in the masked field, then select `Save the PAT`. Companion reads the
 validated target from the Confluence configuration, or uses the default while
 the file is absent, and writes the generic credential for the current Windows

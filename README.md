@@ -15,6 +15,10 @@ the generated Markdown, vector index, and lexical index remain local.
 
 Starting with 2026.0906.01, Companion offers a guided home screen, operation history and Confluence setup from one page or space link. Connection and measured scope confirmation stay in the flow; successful collection is followed by indexing. Use the combined installer to keep Cortex and Companion compatible.
 
+## Guided document updates (2026.0909.00)
+
+Companion brings local documents and Confluence together in **My sources**, with one **Update my documents** action. Search previews are resizable, large page trees render visible rows, and cancelling review preparation keeps the draft. Readiness now follows the saved document folder and configuration, including after restart. Run one document update after upgrading to establish this evidence for older indexes. See the [release notes](docs/en/release-notes.md).
+
 ## Measured scope without enumerating the space (2026.0907.00)
 
 Adding a Confluence source measures its page, subtree and whole-space scopes

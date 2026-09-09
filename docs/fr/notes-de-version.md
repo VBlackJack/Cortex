@@ -11,6 +11,18 @@ Les commandes de l'interface sont nommées comme la version actuelle les affiche
 compris dans les entrées des versions antérieures, afin qu'une commande citée ici se
 retrouve à l'écran aujourd'hui.
 
+<!-- release:2026-0909-00 -->
+## 2026.0909.00 - 2026-09-09
+
+- Mes sources réunit les documents locaux et Confluence. Mettre à jour mes documents collecte les sources configurées puis les indexe, avec une prochaine action claire sur l’accueil.
+- La recherche propose un aperçu redimensionnable et des actions de récupération sans résultat. Les paramètres mettent les documents et Confluence en premier et signalent les changements de dossier non enregistrés.
+- Les catalogues volumineux sont lus intégralement dans leur limite de sécurité. L’arbre réalise les lignes visibles, conserve le résumé de sélection et ouvre les branches correspondantes pendant le filtrage.
+- Annuler une lecture de pages ou la préparation de la confirmation conserve le brouillon sans enregistrer les changements. Un échec d’édition peut être repris tant que la configuration enregistrée n’a pas changé.
+- Une mise à jour locale réussie indique désormais que les documents sont prêts sans exiger Confluence. Changer le dossier documentaire enregistré ou la configuration impose une nouvelle indexation, y compris après redémarrage de Companion.
+- Les guides anglais et français utilisent désormais les libellés actuels de l’interface.
+
+Mettre à jour Cortex et Companion ensemble avec l’installeur combiné. Lancer une mise à jour documentaire après la mise à niveau : les anciens historiques d’indexation ne contiennent pas la preuve de configuration nécessaire pour confirmer la disponibilité.
+
 <!-- release:2026-0908-01 -->
 ## 2026.0908.01 - 2026-09-08
 

@@ -44,9 +44,9 @@ generated index remain local.
 After Companion connects to Cortex:
 
 1. Save the masked Confluence PAT under `Settings`.
-2. Open `Confluence pages` and paste a full page URL.
+2. Open `My sources`, select `Add a source`, and paste a full page URL.
 3. Choose the PAT expiry and classification, then verify the inferred space key.
-4. Select `Initialize and add the page`, then confirm the page.
+4. Select `View the documents to add`, then confirm the page.
 
 Companion creates and validates `%APPDATA%\Cortex\confluence.toml`; manual
 editing is not required. The PAT stays in the DPAPI-protected Windows
@@ -65,7 +65,7 @@ For first use:
    On a slow computer, also select a 15, 30, 60, or 120 second maximum Cortex
    command timeout; the default is 30 seconds. Since `2026.0901.02`, this value
    applies to the compatibility check, Cortex settings reads, and
-   `Confluence pages` commands. If it expires, Companion keeps mutations
+   `My sources` commands. If it expires, Companion keeps mutations
    disabled and directs the user back to `Settings` to increase the value.
 2. Verify the `Knowledge base folder`. To change it, choose an existing folder,
    then select `Save the folder`.

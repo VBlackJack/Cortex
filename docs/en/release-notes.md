@@ -10,6 +10,18 @@ This page summarizes user-visible changes. See the
 Interface controls are named as the current version shows them, including in entries
 about earlier versions, so a control quoted here can be found on screen today.
 
+<!-- release:2026-0909-00 -->
+## 2026.0909.00 - 2026-09-09
+
+- My sources brings local documents and Confluence together. Update my documents collects configured sources and then indexes them, with a clear next action on Home.
+- Search has a resizable preview and recovery actions when no result matches. Settings puts documents and Confluence first and makes unsaved folder changes visible.
+- Large source catalogues load completely within their safety limit. The page tree renders visible rows, keeps the selection summary available and reveals matching branches while filtering.
+- Cancelling a page read or review preparation preserves the draft without saving changes. Failed edits can be reopened while the saved configuration is unchanged.
+- A successful local-only update now finishes ready without requiring Confluence. Changing the saved document folder or configuration requires a new index, including after restarting Companion.
+- The English and French guides now use the current interface labels.
+
+Upgrade Cortex and Companion together with the combined installer. Run a document update once after upgrading: older indexing history does not contain the configuration evidence needed to confirm readiness.
+
 <!-- release:2026-0908-01 -->
 ## 2026.0908.01 - 2026-09-08
 
