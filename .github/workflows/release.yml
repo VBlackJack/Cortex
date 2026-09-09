@@ -919,11 +919,18 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - name: Download all build artifacts
+      - name: Download executable build artifacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
         with:
+          pattern: cortex-*-portable
           path: dist-artifacts
           merge-multiple: true
+
+      - name: Download the Python distribution
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
+        with:
+          name: pypi-distributions
+          path: dist-artifacts
 
       - name: Verify exact release asset set
         shell: bash

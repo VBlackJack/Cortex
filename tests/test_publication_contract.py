@@ -260,3 +260,25 @@ def test_registry_script_has_safe_bash_syntax() -> None:
     assert 'validate "${MCP_SERVER_JSON_PATH}"' in script
     assert "github-oidc" in script
     assert "sha256sum --check --status" in script
+
+
+def test_release_downloads_exclude_evaluation_reports() -> None:
+    import fnmatch
+
+    import yaml
+
+    workflow = yaml.safe_load(_RELEASE_WORKFLOW.read_text("utf-8"))
+    steps = workflow["jobs"]["release"]["steps"]
+    available = {"cortex-windows-x64-portable", "cortex-linux-x64-portable",
+                 "cortex-macos-arm64-portable", "pypi-distributions",
+                 "bilingual-retrieval", "future-diagnostic-report"}
+    selected: set[str] = set()
+    for step in steps:
+        if not step.get("uses", "").startswith("actions/download-artifact@"):
+            continue
+        options = step["with"]
+        assert options["path"] == "dist-artifacts"
+        assert "name" in options or "pattern" in options, "Unfiltered download includes reports"
+        selected.update({options["name"]} if "name" in options else
+                        fnmatch.filter(available, options["pattern"]))
+    assert selected == available - {"bilingual-retrieval", "future-diagnostic-report"}
