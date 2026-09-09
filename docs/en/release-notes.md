@@ -1,6 +1,6 @@
 # Release notes
 
-[FranÃ§ais](../fr/notes-de-version.md) | **English**
+[Français](../fr/notes-de-version.md) | **English**
 
 [Back to the table of contents](index.md)
 

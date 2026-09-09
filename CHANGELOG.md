@@ -512,7 +512,7 @@ Existing indexing history without configuration identity requires a new successf
 - Removed the hidden five-second Confluence read limit and fifteen-second
   Cortex configuration limit that could terminate the bundled CLI on slower
   Windows computers even when the user had selected 120 seconds.
-- Replaced the misleading `Le CLI a refusÃ© la lecture` timeout path with an
+- Replaced the misleading `Le CLI a refusé la lecture` timeout path with an
   explicit message that directs the user to increase the shared limit in
   Settings.
 
