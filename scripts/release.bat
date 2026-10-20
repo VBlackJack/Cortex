@@ -7,6 +7,12 @@ REM You may obtain a copy of the License at
 REM
 REM     http://www.apache.org/licenses/LICENSE-2.0
 REM
+REM Unless required by applicable law or agreed to in writing, software
+REM distributed under the License is distributed on an "AS IS" BASIS,
+REM WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+REM See the License for the specific language governing permissions and
+REM limitations under the License.
+REM
 REM One-click Cortex release (Windows): compute the next CalVer, bump
 REM _version.py, commit, tag v<version>, and push. The tag push triggers the
 REM GitHub release workflow when one is configured.
@@ -32,7 +38,7 @@ choice /c YN /m "Bump, commit, tag v%VER% and push"
 if errorlevel 2 (echo Aborted, nothing changed. & exit /b 0)
 
 "%PY%" scripts\bump_version.py || (echo Bump failed. & exit /b 1)
-git add _version.py || (echo git add failed. & exit /b 1)
+git add _version.py server.json || (echo git add failed. & exit /b 1)
 git commit -m "chore(version): %VER%" || (echo git commit failed. & exit /b 1)
 git tag -a "v%VER%" -m "Cortex %VER%" || (echo git tag failed. & exit /b 1)
 git push origin HEAD || (echo git push branch failed. & exit /b 1)

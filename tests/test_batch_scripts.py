@@ -106,3 +106,9 @@ def test_release_push_error_handlers_are_batch_safe() -> None:
     assert 'git push origin "v%VER%" || (echo git push tag failed.' in script
     assert "git push (branch)" not in script
     assert "git push (tag)" not in script
+
+
+def test_release_commits_every_file_the_version_bump_writes() -> None:
+    script = RELEASE_BAT.read_text(encoding="utf-8")
+
+    assert "git add _version.py server.json ||" in script
