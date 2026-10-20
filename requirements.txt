@@ -1,9 +1,8 @@
-mcp[cli]==1.28.1
-cryptography==50.0.0
+mcp[cli]==1.30.0
+cryptography==50.0.2
 chromadb==1.5.7
 fastembed==0.8.0
 pydantic==2.12.5
-pdfplumber==0.11.9
+pdfplumber==0.11.10
 filelock==3.25.2
-truststore==0.10.4
-tomli==2.2.1; python_version < "3.11"
+truststore==0.10.5

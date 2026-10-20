@@ -203,7 +203,7 @@ def test_locked_build_tools_match_the_declared_exact_versions() -> None:
     for requirement in (
         "build==1.5.0",
         "pip-audit==2.10.1",
-        "pyinstaller==6.21.0",
+        "pyinstaller==6.22.3",
         "twine==7.0.0",
         "wheel==0.47.0",
     ):

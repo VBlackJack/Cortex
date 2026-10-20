@@ -84,10 +84,8 @@ def test_requirements_is_the_single_runtime_dependency_source() -> None:
         "pdfplumber",
         "filelock",
         "truststore",
-        "tomli",
     }
     assert all(str(requirement.specifier).startswith("==") for requirement in parsed)
-    assert next(requirement for requirement in parsed if requirement.name == "tomli").marker
 
 
 def test_standalone_distribution_contract_is_declared() -> None:
@@ -97,7 +95,7 @@ def test_standalone_distribution_contract_is_declared() -> None:
 
     assert project["project"]["optional-dependencies"]["build"] == [
         "build==1.5.0",
-        "pyinstaller==6.21.0",
+        "pyinstaller==6.22.3",
         "twine==7.0.0",
         "wheel==0.47.0",
     ]

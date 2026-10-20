@@ -20,6 +20,7 @@ available in [French](docs/fr/notes-de-version.md) and
 - Close Markdown front matter only at a `---` line that stands alone; a `----` or `---text` line no longer ends the metadata block early.
 
 ### Changed
+- Move to MCP Python SDK 1.30.0 (CVE-2026-59951) and regenerate the three hash-locked dependency trees, which clears the advisories reported against the previous locks; no runtime behaviour change.
 - Remember a failed reranker load for the life of the process, so `rerank` queries degrade immediately with the recorded reason instead of reloading the model on every request.
 - Describe the items excluded from a portable bundle in English.
 
