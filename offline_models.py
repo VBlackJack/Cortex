@@ -65,13 +65,17 @@ class ModelRuntime:
         return self.embedded
 
 
+# Directory under the local data home that holds the model payload. The Windows
+# installer owns its content, so a user-state reset must keep it.
+MODEL_CACHE_DIRNAME = "models"
+
 _VERIFIED_RUNTIMES: dict[Path, ModelRuntime] = {}
 _RUNTIME_LOCK = Lock()
 
 
 def model_cache_dir(environ: Mapping[str, str] | None = None) -> Path:
     """Return the single stable cache root shared by all model consumers."""
-    return local_data_home(environ) / "models"
+    return local_data_home(environ) / MODEL_CACHE_DIRNAME
 
 
 def manifest_entries(manifest_path: Path) -> list[tuple[str, str]]:

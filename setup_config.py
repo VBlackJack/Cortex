@@ -46,6 +46,7 @@ from data_home import (
     move_legacy_index,
 )
 from dependencies import REQUIRED_PACKAGES
+from offline_models import MODEL_CACHE_DIRNAME
 from user_config import (
     CortexConfigError,
     load_user_config,
@@ -132,11 +133,16 @@ _SETUP_PROMPT_EXPLANATIONS: Final[dict[_SetupPrompt, _SetupPromptExplanation]] =
         default="no, which preserves the current configuration, index, models, and logs.",
         consequence=(
             "Choosing yes removes Cortex state under %APPDATA%\\Cortex and "
-            "%LOCALAPPDATA%\\Cortex, but never deletes knowledge-base documents."
+            "%LOCALAPPDATA%\\Cortex, but keeps the installed model payload in "
+            "%LOCALAPPDATA%\\Cortex\\models and never deletes knowledge-base documents."
         ),
     ),
 }
 _TABLE_HEADER_RE = re.compile(r"^\s*\[\s*([^\]]+)\s*\]\s*(?:#.*)?$")
+# Any line whose first non-blank character is "[" opens a new table, either a
+# standard table "[x]" or an array-of-tables element "[[x]]".
+_TABLE_BOUNDARY_RE = re.compile(r"^\s*\[")
+_CORTEX_TABLE_NAME: Final = "mcp_servers.cortex"
 _TOML_ASSIGNMENT_RE = re.compile(r"^(\s*)(command|args)(\s*=).*$")
 
 
@@ -495,17 +501,7 @@ def _toml_with_entry(
         return None
 
     lines = text.splitlines(keepends=True)
-    header_index: int | None = None
-    end_index = len(lines)
-    for index, line in enumerate(lines):
-        match = _TABLE_HEADER_RE.match(line.rstrip("\r\n"))
-        if match and match.group(1).strip() == "mcp_servers.cortex":
-            header_index = index
-            for following in range(index + 1, len(lines)):
-                if _TABLE_HEADER_RE.match(lines[following].rstrip("\r\n")):
-                    end_index = following
-                    break
-            break
+    header_index, end_index = _cortex_table_bounds(lines)
 
     if header_index is None:
         if existing is not None:
@@ -523,7 +519,9 @@ def _toml_with_entry(
             + f"command = {_toml_value(entry['command'])}" + newline
             + f"args = {_toml_value(entry['args'])}" + newline
         )
-        return (text + separator + block).encode("utf-8")
+        return _verified_toml_rewrite(
+            parsed, text + separator + block, dict(entry), path=path
+        )
 
     newline = "\r\n" if any(line.endswith("\r\n") for line in lines) else "\n"
     found: set[str] = set()
@@ -556,7 +554,8 @@ def _toml_with_entry(
     ):
         lines[end_index - 1] += newline
     lines[end_index:end_index] = insertions
-    return "".join(lines).encode("utf-8")
+    expected = {**(existing if isinstance(existing, dict) else {}), **entry}
+    return _verified_toml_rewrite(parsed, "".join(lines), expected, path=path)
 
 
 def _toml_without_entry(
@@ -571,17 +570,7 @@ def _toml_without_entry(
         return None
 
     lines = text.splitlines(keepends=True)
-    header_index: int | None = None
-    end_index = len(lines)
-    for index, line in enumerate(lines):
-        match = _TABLE_HEADER_RE.match(line.rstrip("\r\n"))
-        if match and match.group(1).strip() == "mcp_servers.cortex":
-            header_index = index
-            for following in range(index + 1, len(lines)):
-                if _TABLE_HEADER_RE.match(lines[following].rstrip("\r\n")):
-                    end_index = following
-                    break
-            break
+    header_index, end_index = _cortex_table_bounds(lines)
 
     if header_index is None:
         raise ClientConfigError(
@@ -596,7 +585,70 @@ def _toml_without_entry(
     while content_end > header_index + 1 and not lines[content_end - 1].strip():
         content_end -= 1
     del lines[header_index:content_end]
-    return "".join(lines).encode("utf-8")
+    return _verified_toml_rewrite(parsed, "".join(lines), None, path=path)
+
+
+def _cortex_table_bounds(lines: Sequence[str]) -> tuple[int | None, int]:
+    """Return the Cortex table header index and the index of the next table.
+
+    The Cortex table ends at the next line that opens any table, including an
+    array-of-tables element, so neighbouring tables are never rewritten.
+    """
+    for index, line in enumerate(lines):
+        match = _TABLE_HEADER_RE.match(line.rstrip("\r\n"))
+        if match and match.group(1).strip() == _CORTEX_TABLE_NAME:
+            for following in range(index + 1, len(lines)):
+                if _TABLE_BOUNDARY_RE.match(lines[following]):
+                    return index, following
+            return index, len(lines)
+    return None, len(lines)
+
+
+def _without_cortex_table(parsed: Mapping[str, Any]) -> dict[str, Any]:
+    remainder = dict(parsed)
+    servers = remainder.get("mcp_servers")
+    if isinstance(servers, dict):
+        servers = {key: value for key, value in servers.items() if key != "cortex"}
+        if servers:
+            remainder["mcp_servers"] = servers
+        else:
+            remainder.pop("mcp_servers")
+    return remainder
+
+
+def _verified_toml_rewrite(
+    original: Mapping[str, Any],
+    rendered: str,
+    expected_cortex: Mapping[str, Any] | None,
+    *,
+    path: Path,
+) -> bytes:
+    """Refuse a rewrite unless it changes only the Cortex table.
+
+    The rendered text is parsed again: every table other than
+    ``mcp_servers.cortex`` must be identical to the original, and the Cortex
+    table must equal ``expected_cortex`` (or be absent when it is ``None``).
+    """
+    try:
+        updated = tomllib.loads(rendered)
+    except tomllib.TOMLDecodeError as exc:
+        raise ClientConfigError(
+            f"Cortex could not produce a valid update of '{path}': {exc}. The file "
+            "was left unchanged; edit the Cortex entry by hand, then retry."
+        ) from exc
+    servers = updated.get("mcp_servers")
+    actual_cortex = servers.get("cortex") if isinstance(servers, dict) else None
+    expected = dict(expected_cortex) if expected_cortex is not None else None
+    if (
+        _without_cortex_table(updated) != _without_cortex_table(original)
+        or actual_cortex != expected
+    ):
+        raise ClientConfigError(
+            f"Updating '{path}' would change TOML content outside "
+            f"[{_CORTEX_TABLE_NAME}]. The file was left unchanged; edit the Cortex "
+            "entry by hand, then retry."
+        )
+    return rendered.encode("utf-8")
 
 
 def _prepare_file_target(target: ClientTarget) -> bytes | None:
@@ -857,6 +909,27 @@ def _is_linked_directory(path: Path) -> bool:
     return path.is_symlink() or is_junction()
 
 
+def _reset_data_home(data_target: Path) -> bool:
+    """Remove generated state but keep the installer-owned model payload.
+
+    Returns whether anything was removed. The data home itself is removed only
+    when nothing remains in it.
+    """
+    removed = False
+    for child in data_target.iterdir():
+        if child.name == MODEL_CACHE_DIRNAME:
+            continue
+        if child.is_dir() and not _is_linked_directory(child):
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+        removed = True
+    if not any(data_target.iterdir()):
+        data_target.rmdir()
+        removed = True
+    return removed
+
+
 def reset_user_state(
     *,
     config_path: Path | None = None,
@@ -890,8 +963,7 @@ def reset_user_state(
     config_removed = False
     try:
         if data_target.exists():
-            shutil.rmtree(data_target)
-            data_home_removed = True
+            data_home_removed = _reset_data_home(data_target)
         if config_target.exists() or config_target.is_symlink():
             config_target.unlink()
             config_removed = True

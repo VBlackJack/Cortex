@@ -228,7 +228,7 @@ def run_setup(
 def _render_result(result: SetupResult) -> None:
     print("\n=== Cortex setup ===")
     if result.reset:
-        print("[OK] previous config and generated index reset")
+        print("[OK] previous config and generated index reset (model payload kept)")
     config_label = "OK" if result.config_created else "INFO"
     config_state = "created" if result.config_created else "already present"
     print(f"[{config_label}] config {config_state}")

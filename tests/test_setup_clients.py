@@ -321,6 +321,69 @@ def test_codex_unregistration_removes_only_cortex_table(tmp_path: Path) -> None:
     assert backups[0].read_bytes() == original
 
 
+_CODEX_NEIGHBOUR_SUFFIXES = {
+    "array_of_tables": (
+        '[[mcp_servers.other_list]]\ncommand = "C:/other/tool.exe"\nargs = ["--x"]\n'
+    ),
+    "standard_table": '[other]\ncommand = "C:/other/tool.exe"\nargs = ["--x"]\n',
+}
+
+
+@pytest.mark.parametrize("shape", sorted(_CODEX_NEIGHBOUR_SUFFIXES))
+def test_codex_registration_never_rewrites_following_table(
+    tmp_path: Path, shape: str
+) -> None:
+    tomllib = setup_config.tomllib
+    _, codex, _ = _make_detected_paths(tmp_path)
+    suffix = _CODEX_NEIGHBOUR_SUFFIXES[shape]
+    original = '[mcp_servers.cortex]\ncommand = "old"\nargs = ["old.py"]\n\n' + suffix
+    codex.write_text(original, encoding="utf-8", newline="\n")
+
+    results = _register(tmp_path, "codex")
+    updated = codex.read_text(encoding="utf-8")
+    parsed = tomllib.loads(updated)
+    before = tomllib.loads(original)
+
+    assert results[0].status == "OK"
+    assert updated.endswith("\n\n" + suffix)
+    assert parsed["mcp_servers"]["cortex"]["command"] != "old"
+    if shape == "array_of_tables":
+        assert parsed["mcp_servers"]["other_list"] == before["mcp_servers"]["other_list"]
+    else:
+        assert parsed["other"] == before["other"]
+
+
+@pytest.mark.parametrize("shape", sorted(_CODEX_NEIGHBOUR_SUFFIXES))
+def test_codex_unregistration_keeps_following_table(tmp_path: Path, shape: str) -> None:
+    _, codex, _ = _make_detected_paths(tmp_path)
+    suffix = _CODEX_NEIGHBOUR_SUFFIXES[shape]
+    original = '[mcp_servers.cortex]\ncommand = "old"\nargs = ["old.py"]\n\n' + suffix
+    codex.write_text(original, encoding="utf-8", newline="\n")
+
+    results = _unregister(tmp_path, "codex")
+
+    assert results[0].changed
+    assert codex.read_text(encoding="utf-8") == "\n" + suffix
+
+
+def test_codex_rewrite_that_would_corrupt_other_content_is_refused(
+    tmp_path: Path,
+) -> None:
+    _, codex, _ = _make_detected_paths(tmp_path)
+    # A nested array line starting with "[" ends the table early, so the
+    # missing "args" key would be inserted inside the array literal.
+    original = (
+        '[mcp_servers.cortex]\ncommand = "old"\nmatrix = [\n  ["a", "b"],\n]\n'
+    )
+    codex.write_text(original, encoding="utf-8", newline="\n")
+
+    results = _register(tmp_path, "codex")
+
+    assert results[0].status == "FAIL"
+    assert codex.read_text(encoding="utf-8") == original
+    assert list(codex.parent.glob(f"{codex.name}.*.bak")) == []
+
+
 @pytest.mark.parametrize(
     ("client", "content"),
     [

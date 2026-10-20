@@ -316,6 +316,32 @@ def test_reset_user_state_removes_only_config_and_generated_data(tmp_path: Path)
     )
 
 
+def test_reset_user_state_keeps_installer_model_payload(tmp_path: Path) -> None:
+    roaming = tmp_path / "roaming" / "Cortex"
+    data_home = tmp_path / "local" / "Cortex"
+    config_path = roaming / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text("schema_version = 1\n", encoding="utf-8")
+    models = data_home / "models"
+    models.mkdir(parents=True)
+    (models / "manifest.json").write_text("{}", encoding="utf-8")
+    (data_home / "chroma_db").mkdir()
+    (data_home / "chroma_db" / "chroma.sqlite3").write_text("index", encoding="utf-8")
+    (data_home / "lexical.db").write_text("lexical", encoding="utf-8")
+
+    result = setup_config.reset_user_state(config_path=config_path, data_home=data_home)
+
+    assert result == setup_config.ResetResult(config_removed=True, data_home_removed=True)
+    assert sorted(path.name for path in data_home.iterdir()) == ["models"]
+    assert (models / "manifest.json").read_text(encoding="utf-8") == "{}"
+
+
+def test_reset_explanation_says_model_payload_is_kept() -> None:
+    explanation = setup_config._SETUP_PROMPT_EXPLANATIONS[setup_config._SetupPrompt.RESET]
+
+    assert "keeps the installed model payload" in explanation.consequence
+
+
 def test_reset_user_state_rejects_unexpected_or_linked_targets(tmp_path: Path) -> None:
     with pytest.raises(CortexConfigError, match="unexpected config path"):
         setup_config.reset_user_state(
@@ -345,7 +371,7 @@ def test_reset_failure_keeps_config_and_reports_active_client(
     config_path = tmp_path / "roaming" / "Cortex" / "config.toml"
     data_home = tmp_path / "local" / "Cortex"
     config_path.parent.mkdir(parents=True)
-    data_home.mkdir(parents=True)
+    (data_home / "chroma_db").mkdir(parents=True)
     config_path.write_text("schema_version = 1\n", encoding="utf-8")
 
     def fail_remove(_path: Path) -> None:
