@@ -18,6 +18,8 @@ from __future__ import annotations
 import json
 import logging
 import re
+import socket
+import ssl
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any, Protocol, cast, final
@@ -49,6 +51,9 @@ _TRANSIENT_HTTP_STATUS = {408, 425, 429, 500, 502, 503, 504}
 _CQL_SPACE_KEY = re.compile(r"^[A-Za-z0-9._-]+$")
 _CQL_PAGE_ID = re.compile(r"^[0-9]+$")
 _REDIRECT_HTTP_STATUS = range(300, 400)
+_PERMANENT_TRANSPORT_ERRORS = (ssl.SSLError, socket.gaierror, ConnectionRefusedError)
+# SSLError subclasses that report a peer closing the stream, i.e. a reset.
+_TRANSIENT_TLS_ERRORS = (ssl.SSLEOFError, ssl.SSLZeroReturnError)
 
 
 class ConfluenceRestError(RuntimeError):
@@ -181,7 +186,7 @@ class UrlLibTransport:
         except HTTPError as exc:
             self._raise_http_error(exc)
         except (URLError, TimeoutError, OSError) as exc:
-            raise TransientIngestionError("Confluence request failed transiently.") from exc
+            raise _transport_error(exc) from exc
         except ValueError as exc:
             raise ConfluenceRestError("Confluence returned an invalid Content-Length.") from exc
         if len(payload) > maximum_bytes:
@@ -206,7 +211,7 @@ class UrlLibTransport:
             self._raise_http_error(exc)
             raise AssertionError("unreachable")
         except (URLError, TimeoutError, OSError) as exc:
-            raise TransientIngestionError("Confluence request failed transiently.") from exc
+            raise _transport_error(exc) from exc
         if final_uri == uri:
             raise ConfluenceRestError("Confluence tiny link did not redirect.")
         return final_uri
@@ -224,6 +229,24 @@ class UrlLibTransport:
                 f"Confluence returned transient HTTP status {exc.code}."
             ) from exc
         raise ConfluenceRestError(f"Confluence returned HTTP status {exc.code}.") from exc
+
+
+def _transport_error(exc: OSError) -> Exception:
+    """Classify a transport failure by its cause, never by its wrapper.
+
+    A rejected certificate, an unresolvable host or a refused connection does
+    not recover by waiting, so retrying it only delays the real diagnosis.
+    Timeouts, resets and a TLS stream closed mid-handshake stay transient.
+    """
+    reason: object = exc.reason if isinstance(exc, URLError) else exc
+    if isinstance(reason, _TRANSIENT_TLS_ERRORS):
+        return TransientIngestionError("Confluence request failed transiently.")
+    if isinstance(reason, _PERMANENT_TRANSPORT_ERRORS):
+        return ConfluenceRestError(
+            f"Confluence could not be reached ({type(reason).__name__}). Check base_url, "
+            "the proxy and certificate trust; retrying will not help."
+        )
+    return TransientIngestionError("Confluence request failed transiently.")
 
 
 def _object(value: object, label: str) -> dict[str, Any]:
@@ -492,7 +515,7 @@ class ConfluenceRestClient:
         Kazan answers `content/{id}/descendant/page` with HTTP 500 on the measured
         deployment, so the subtree is read through the CQL ancestor search instead.
         """
-        cql = f"ancestor={root_id} and type=page"
+        cql = f"ancestor={self._cql_page_id(root_id)} and type=page"
         uri: str | None = self._api_uri(
             "rest/api/content/search"
             f"?cql={quote(cql, safe='')}"

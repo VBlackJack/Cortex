@@ -17,18 +17,37 @@ from __future__ import annotations
 
 import logging
 import random
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TypeVar
 
+from ingestion.constants import LOGGED_CAUSE_MAX_CHARS
+
 _LOG = logging.getLogger("cortex.ingestion.scheduling")
 ResultT = TypeVar("ResultT")
 
 
+_URL_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://\S+")
+
+
 class TransientIngestionError(RuntimeError):
     """Signals an operation that is safe to retry with bounded backoff."""
+
+
+def describe_cause(exc: BaseException) -> tuple[str, str]:
+    """Return the type name and a log-safe message of the exception's cause.
+
+    URLs are replaced, because a query string may carry a credential, and the
+    message is bounded. Headers never reach an exception message here.
+    """
+    cause = exc.__cause__
+    if cause is None:
+        return "none", ""
+    message = _URL_PATTERN.sub("<url>", str(cause))
+    return type(cause).__name__, message[:LOGGED_CAUSE_MAX_CHARS]
 
 
 @dataclass(frozen=True)
@@ -83,23 +102,35 @@ def run_with_backoff(
     for attempt_number in range(1, policy.attempts + 1):
         try:
             return operation()
-        except TransientIngestionError:
+        except TransientIngestionError as exc:
+            cause_type, cause_message = describe_cause(exc)
             if attempt_number == policy.attempts:
                 _LOG.error(
-                    "ingestion_retry_exhausted attempts=%d",
+                    "ingestion_retry_exhausted attempts=%d cause_type=%s cause=%s",
                     policy.attempts,
+                    cause_type,
+                    cause_message,
                 )
                 raise
             centered_random = (random_unit() * 2.0) - 1.0
             wait_seconds = max(0.0, delay * (1.0 + policy.jitter_ratio * centered_random))
             _LOG.warning(
-                "ingestion_transient_retry attempt=%d next_delay_s=%.3f",
+                "ingestion_transient_retry attempt=%d next_delay_s=%.3f "
+                "cause_type=%s cause=%s",
                 attempt_number,
                 wait_seconds,
+                cause_type,
+                cause_message,
             )
             sleep(wait_seconds)
             delay = min(policy.maximum_seconds, delay * policy.multiplier)
     raise AssertionError("retry loop did not return or raise")
 
 
-__all__ = ["RetryPolicy", "TransientIngestionError", "catch_up_due", "run_with_backoff"]
+__all__ = [
+    "RetryPolicy",
+    "TransientIngestionError",
+    "catch_up_due",
+    "describe_cause",
+    "run_with_backoff",
+]

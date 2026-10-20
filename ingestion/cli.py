@@ -55,6 +55,7 @@ from ingestion.scheduling import (
     RetryPolicy,
     TransientIngestionError,
     catch_up_due,
+    describe_cause,
     run_with_backoff,
 )
 from ingestion.storage import IngestionStorage, IngestionStorageError
@@ -200,7 +201,15 @@ def execute_scheduled_attempt(
                     raise ValueError(
                         "attempt selection_fingerprint does not match the due decision"
                     )
-            except TransientIngestionError:
+            except TransientIngestionError as exc:
+                cause_type, cause_message = describe_cause(exc)
+                _LOG.error(
+                    "ingestion_transient_retries_exhausted source_kind=%s "
+                    "cause_type=%s cause=%s",
+                    storage.source_kind,
+                    cause_type,
+                    cause_message,
+                )
                 health = _failed_health(
                     storage,
                     now=observed_at,

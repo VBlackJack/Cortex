@@ -16,13 +16,15 @@
 from __future__ import annotations
 
 import hashlib
+import socket
+import ssl
 import threading
 from collections.abc import Iterator, Mapping
 from email.message import Message
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -36,6 +38,7 @@ from confluence_writer.rest import (
     UrlLibTransport,
 )
 from ingestion.credentials import SecretValue
+from ingestion.scheduling import TransientIngestionError
 
 _FAKE_SECRET = "fixture-only-fake-secret-confluence-rest-6d6f"
 _RESOURCES = Path(__file__).parents[1] / "confluence_writer" / "resources"
@@ -612,3 +615,100 @@ def test_catalog_refuses_foreign_pagination_before_following_it() -> None:
     with pytest.raises(ConfluenceRestError, match="origin"):
         client.page_catalog("DOC")
     assert len(transport.json_calls) == 1
+
+
+def test_subtree_enumeration_refuses_a_root_id_that_is_unsafe_inside_cql() -> None:
+    transport = QueueTransport([])
+    client = ConfluenceRestClient(
+        "https://confluence.example.test",
+        SecretValue(_FAKE_SECRET),
+        transport=transport,
+    )
+
+    with pytest.raises(ConfluenceRestError, match="not safe inside a CQL query"):
+        client.enumerate_subtree("1001 or type=blogpost", "DOC")
+    assert transport.json_calls == []
+
+
+_PERMANENT_TRANSPORT_FAILURES = (
+    pytest.param(
+        URLError(ssl.SSLCertVerificationError("certificate verify failed")),
+        id="certificate",
+    ),
+    pytest.param(URLError(ssl.SSLError("handshake failure")), id="tls"),
+    pytest.param(URLError(socket.gaierror(11001, "getaddrinfo failed")), id="dns"),
+    pytest.param(URLError(ConnectionRefusedError(10061, "refused")), id="refused"),
+)
+_TRANSIENT_TRANSPORT_FAILURES = (
+    pytest.param(URLError(TimeoutError("timed out")), id="url-timeout"),
+    pytest.param(TimeoutError("timed out"), id="timeout"),
+    pytest.param(URLError(ConnectionResetError(10054, "reset")), id="reset"),
+    pytest.param(ConnectionResetError(10054, "reset"), id="bare-reset"),
+    pytest.param(URLError(ssl.SSLEOFError("EOF occurred")), id="tls-eof"),
+)
+
+
+def _failing_opener(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
+    class FailingOpener:
+        def open(self, *_args: object, **_kwargs: object) -> None:
+            raise error
+
+    monkeypatch.setattr(rest_module, "build_opener", lambda *_handlers: FailingOpener())
+
+
+@pytest.mark.parametrize("error", _PERMANENT_TRANSPORT_FAILURES)
+def test_unrecoverable_transport_failure_is_permanent(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    _failing_opener(monkeypatch, error)
+
+    with pytest.raises(ConfluenceRestError, match="retrying will not help") as raised:
+        UrlLibTransport().get_redirect(
+            "https://confluence.example.test/x/AbC",
+            {"Authorization": f"Bearer {_FAKE_SECRET}"},
+        )
+
+    assert raised.value.__cause__ is error
+    assert _FAKE_SECRET not in str(raised.value)
+
+
+@pytest.mark.parametrize("error", _TRANSIENT_TRANSPORT_FAILURES)
+def test_recoverable_transport_failure_stays_transient(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    _failing_opener(monkeypatch, error)
+
+    with pytest.raises(TransientIngestionError) as raised:
+        UrlLibTransport().get_redirect(
+            "https://confluence.example.test/x/AbC",
+            {"Authorization": f"Bearer {_FAKE_SECRET}"},
+        )
+
+    assert raised.value.__cause__ is error
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        pytest.param(
+            URLError(socket.gaierror(11001, "getaddrinfo failed")),
+            ConfluenceRestError,
+            id="dns",
+        ),
+        pytest.param(URLError(TimeoutError("timed out")), TransientIngestionError, id="timeout"),
+    ],
+)
+def test_bounded_reads_classify_transport_failures_by_cause(
+    monkeypatch: pytest.MonkeyPatch, error: Exception, expected: type[Exception]
+) -> None:
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise error
+
+    monkeypatch.setattr(UrlLibTransport, "_open_same_origin", fail)
+
+    with pytest.raises(expected):
+        UrlLibTransport().get_bytes(
+            "https://confluence.example.test/rest/api/content/1",
+            {"Authorization": f"Bearer {_FAKE_SECRET}"},
+            maximum_bytes=16,
+        )

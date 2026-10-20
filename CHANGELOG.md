@@ -13,6 +13,7 @@ available in [French](docs/fr/notes-de-version.md) and
 - Run `cortex doctor` to completion on a malformed `config.toml`: it now reports `config.valid` as failed (valid JSON with `--json`) instead of crashing with a traceback, and skips the MCP handshake that cannot succeed with that configuration.
 - Report a sync whose only errors are unreadable source files as `partial` with a healthy Chroma index and the new `check_sources` recommendation, instead of `failed` with `retry_sync` on every run.
 - Give the human-mode `cortex sync` the same exception handling and exit codes as `--json` (2 when locked, 6 for invalid input, 1 otherwise), with a one-line `Cortex sync error:` message instead of a traceback.
+- Treat a rejected certificate, an unresolvable Confluence host and a refused connection as permanent failures instead of retrying them as transient, and log the underlying cause type and message at every retry and exhaustion point.
 
 ## [2026.0909.04] - 2026-09-09
 

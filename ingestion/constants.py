@@ -26,6 +26,8 @@ DEFAULT_BACKOFF_MAX_SECONDS = 60.0
 DEFAULT_BACKOFF_MULTIPLIER = 2.0
 DEFAULT_BACKOFF_JITTER_RATIO = 0.2
 DEFAULT_SCHEDULE_INTERVAL_SECONDS = 86_400.0
+# Longest exception message copied into a log line when a failure cause is logged.
+LOGGED_CAUSE_MAX_CHARS = 300
 
 INGESTION_DIRECTORY_NAME = "ingestion"
 CONFIG_FILE_NAME = "ingestion.toml"

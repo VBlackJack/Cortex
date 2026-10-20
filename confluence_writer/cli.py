@@ -73,7 +73,7 @@ from ingestion.credentials import (
 )
 from ingestion.engine import GenerationContractError
 from ingestion.models import AttemptResult, GenerationAttempt
-from ingestion.scheduling import TransientIngestionError
+from ingestion.scheduling import TransientIngestionError, describe_cause
 from ingestion.storage import IngestionStorage, IngestionStorageError
 from user_config import CortexConfigError
 
@@ -327,7 +327,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         sys.stderr.write(f"Cortex Confluence error: {exc}\n")
         return EXIT_ERROR
     except (TransientIngestionError, ConfluenceRestError) as exc:
-        _LOG.error("confluence_remote_failed error_type=%s", type(exc).__name__)
+        cause_type, cause_message = describe_cause(exc)
+        _LOG.error(
+            "confluence_remote_failed error_type=%s cause_type=%s cause=%s",
+            type(exc).__name__,
+            cause_type,
+            cause_message,
+        )
         sys.stderr.write(f"Cortex Confluence error: {exc}\n")
         return EXIT_REMOTE
     except (ConfluenceConfigError, IngestionConfigError) as exc:

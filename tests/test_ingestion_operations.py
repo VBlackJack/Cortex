@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -36,6 +37,7 @@ from ingestion.scheduling import (
     RetryPolicy,
     TransientIngestionError,
     catch_up_due,
+    describe_cause,
     run_with_backoff,
 )
 from ingestion.storage import IngestionStorage
@@ -396,6 +398,58 @@ def test_transient_backoff_is_exponential_with_jitter() -> None:
     )
     assert result == "ok"
     assert delays == [2.5, 5.0]
+
+
+class _RecordingHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__(level=logging.DEBUG)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+
+def test_transient_retry_logs_cause_without_urls() -> None:
+    handler = _RecordingHandler()
+    logger = logging.getLogger("cortex.ingestion.scheduling")
+    logger.addHandler(handler)
+    previous_level = logger.level
+    logger.setLevel(logging.DEBUG)
+
+    def operation() -> str:
+        try:
+            raise ConnectionResetError(
+                "reset by https://confluence.example.test/x?token=fixture-only-secret"
+            )
+        except ConnectionResetError as exc:
+            raise TransientIngestionError("fixture transient failure") from exc
+
+    try:
+        with pytest.raises(TransientIngestionError):
+            run_with_backoff(
+                operation,
+                RetryPolicy(
+                    attempts=2,
+                    initial_seconds=1.0,
+                    maximum_seconds=1.0,
+                    multiplier=1.0,
+                    jitter_ratio=0.0,
+                ),
+                sleep=lambda _seconds: None,
+            )
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(previous_level)
+
+    assert len(handler.messages) == 2
+    for message in handler.messages:
+        assert "cause_type=ConnectionResetError" in message
+        assert "cause=reset by <url>" in message
+        assert "fixture-only-secret" not in message
+
+
+def test_describe_cause_without_cause_is_explicit() -> None:
+    assert describe_cause(TransientIngestionError("no cause")) == ("none", "")
 
 
 def test_startup_catch_up_detects_missed_window() -> None:
