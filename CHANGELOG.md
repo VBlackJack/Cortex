@@ -18,10 +18,12 @@ available in [French](docs/fr/notes-de-version.md) and
 - Reject `inf` and `nan` for `write_lock_timeout_seconds`, in the file and in `CORTEX_WRITE_LOCK_TIMEOUT_SECONDS`, instead of waiting for the write lock forever.
 - Report a rejected embedded model payload in the standalone `cortex.exe` as one `[cortex] embedded model payload rejected:` line with the invalid-input exit code, instead of a traceback on every command.
 - Close Markdown front matter only at a `---` line that stands alone; a `----` or `---text` line no longer ends the metadata block early.
+- Stop leaving orphaned `_MEI*` extraction directories in `%TEMP%`: the standalone executable no longer unpacks itself at each start, so a `cortex.exe` killed by its MCP client or by a Companion timeout leaves nothing behind.
 
 ### Changed
 - Move to MCP Python SDK 1.30.0 (CVE-2026-59951) and regenerate the three hash-locked dependency trees, which clears the advisories reported against the previous locks; no runtime behaviour change.
 - Require Python 3.11 or newer: Python 3.10 reached end of life in October 2026. CI now tests 3.11 to 3.13, and the standalone executables embed CPython 3.13 instead of 3.12.
+- Build the standalone executable as a directory (`cortex.exe` beside `_internal\`) instead of a single self-extracting file, which removes the per-invocation extraction to `%TEMP%` from every start. The installer copies the whole directory into the installation folder and clears a previous `_internal\` first; the portable archives now unpack to a `cortex/` folder with the executable, its runtime and its licenses.
 - Remember a failed reranker load for the life of the process, so `rerank` queries degrade immediately with the recorded reason instead of reloading the model on every request.
 - Describe the items excluded from a portable bundle in English.
 

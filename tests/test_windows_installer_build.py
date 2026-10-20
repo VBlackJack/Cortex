@@ -62,7 +62,9 @@ _MAIN = cast(
 
 
 def _payload(tmp_path: Path) -> Path:
-    executable = tmp_path / "cortex.exe"
+    bundle = tmp_path / "cortex"
+    (bundle / "_internal").mkdir(parents=True)
+    executable = bundle / "cortex.exe"
     executable.write_bytes(b"placeholder")
     return executable
 
@@ -92,7 +94,16 @@ def test_missing_executable_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(_BUILD_ERROR, match="Installer payload is missing") as error:
         _VALIDATE_PAYLOAD(missing, "2026.0721.01")
-    assert "Rebuild dist/cortex.exe" in str(error.value)
+    assert "Rebuild dist/cortex/cortex.exe" in str(error.value)
+
+
+def test_payload_without_its_runtime_directory_is_rejected(tmp_path: Path) -> None:
+    onefile = tmp_path / "cortex.exe"
+    onefile.write_bytes(b"placeholder")
+
+    with pytest.raises(_BUILD_ERROR, match="no _internal runtime directory") as error:
+        _VALIDATE_PAYLOAD(onefile, "2026.0721.01")
+    assert "Rebuild dist/cortex/cortex.exe" in str(error.value)
 
 
 def test_payload_version_accepts_an_exact_match(
@@ -136,7 +147,7 @@ def test_payload_version_rejects_a_mismatch(
         _VALIDATE_PAYLOAD(executable, "2026.0721.01")
     assert "expected '2026.0721.01'" in str(error.value)
     assert "got '2026.0715.01'" in str(error.value)
-    assert "Rebuild dist/cortex.exe" in str(error.value)
+    assert "Rebuild dist/cortex/cortex.exe" in str(error.value)
 
 
 def test_missing_companion_payload_directory_is_rejected(tmp_path: Path) -> None:
@@ -172,6 +183,7 @@ def test_companion_payload_version_rejects_a_mismatch(
         "/DCompanionPayloadVersionVerified=2026.0721.99",
         "/DConverterPayloadDir=C:" + chr(92) + "untrusted",
         "/DConverterPayloadVerified=0",
+        "/DCortexPayloadDir=C:" + chr(92) + "untrusted",
         "/DModelPayloadDir=C:" + chr(92) + "untrusted",
         "/DPayloadVersionVerified=2026.0721.99",
     ],
@@ -279,6 +291,7 @@ def test_nominal_build_constructs_the_expected_iscc_command(
     assert commands[3] == [
         str(compiler.resolve()),
         "/DAppVersion=2026.0721.01",
+        f"/DCortexPayloadDir={executable.parent.resolve()}",
         "/DPayloadVersionVerified=2026.0721.01",
         f"/DCompanionPayloadDir={companion_payload_dir.resolve()}",
         "/DCompanionPayloadVersionVerified=2026.0721.01",

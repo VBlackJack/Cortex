@@ -29,7 +29,9 @@ from pathlib import Path
 from typing import Final
 
 _REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[2]
-_DEFAULT_PAYLOAD: Final[Path] = _REPO_ROOT / "dist" / "cortex.exe"
+_DEFAULT_PAYLOAD: Final[Path] = _REPO_ROOT / "dist" / "cortex" / "cortex.exe"
+# PyInstaller directory bundle: the executable needs this runtime beside it.
+_PAYLOAD_RUNTIME_DIR_NAME: Final[str] = "_internal"
 _DEFAULT_COMPANION_PAYLOAD_DIR: Final[Path] = _REPO_ROOT / "dist-companion"
 _DEFAULT_CONVERTER_PAYLOAD_DIR: Final[Path] = _REPO_ROOT / "dist-converter"
 _COMPANION_EXECUTABLE_NAME: Final[str] = "CortexCompanion.exe"
@@ -45,6 +47,7 @@ _RESERVED_ISCC_DEFINES: Final[tuple[str, ...]] = (
     "/dcompanionpayloadversionverified",
     "/dconverterpayloaddir",
     "/dconverterpayloadverified",
+    "/dcortexpayloaddir",
     "/dmodelpayloaddir",
     "/dpayloadversionverified",
 )
@@ -76,7 +79,13 @@ def validate_payload(executable: Path, app_version: str) -> str:
     if not executable.is_file():
         raise InstallerBuildError(
             f"Installer payload is missing: {executable}. "
-            "Rebuild dist/cortex.exe before compiling the installer."
+            "Rebuild dist/cortex/cortex.exe before compiling the installer."
+        )
+    runtime_dir = executable.parent / _PAYLOAD_RUNTIME_DIR_NAME
+    if not runtime_dir.is_dir():
+        raise InstallerBuildError(
+            f"Installer payload has no {_PAYLOAD_RUNTIME_DIR_NAME} runtime directory: "
+            f"{runtime_dir}. Rebuild dist/cortex/cortex.exe before compiling the installer."
         )
 
     try:
@@ -90,7 +99,7 @@ def validate_payload(executable: Path, app_version: str) -> str:
     except OSError as exc:
         raise InstallerBuildError(
             f"Could not execute installer payload '{executable}': {exc}. "
-            "Rebuild dist/cortex.exe before compiling the installer."
+            "Rebuild dist/cortex/cortex.exe before compiling the installer."
         ) from exc
 
     expected_output = app_version
@@ -100,14 +109,14 @@ def validate_payload(executable: Path, app_version: str) -> str:
         suffix = f" Output: {diagnostic}" if diagnostic else ""
         raise InstallerBuildError(
             f"Installer payload version check failed with exit code "
-            f"{completed.returncode}.{suffix} Rebuild dist/cortex.exe before "
+            f"{completed.returncode}.{suffix} Rebuild dist/cortex/cortex.exe before "
             "compiling the installer."
         )
     if actual_output != expected_output:
         displayed_output = actual_output or "<empty>"
         raise InstallerBuildError(
             f"Installer payload version mismatch: expected '{expected_output}', "
-            f"got '{displayed_output}'. Rebuild dist/cortex.exe before "
+            f"got '{displayed_output}'. Rebuild dist/cortex/cortex.exe before "
             "compiling the installer."
         )
     return actual_output
@@ -313,6 +322,7 @@ def build_installer(
     command = [
         str(compiler),
         f"/DAppVersion={app_version}",
+        f"/DCortexPayloadDir={executable.parent.resolve()}",
         f"/DPayloadVersionVerified={app_version}",
         f"/DCompanionPayloadDir={validated_companion_payload_dir}",
         f"/DCompanionPayloadVersionVerified={app_version}",
@@ -342,7 +352,7 @@ def build_installer(
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Validate dist/cortex.exe and build the Windows installer."
+        description="Validate dist/cortex/cortex.exe and build the Windows installer."
     )
     parser.add_argument("--app-version", required=True, help="Expected YYYY.MMDD.XX version.")
     parser.add_argument(

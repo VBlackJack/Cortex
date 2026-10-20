@@ -18,7 +18,8 @@
     Build the standalone Cortex executable on Windows with PyInstaller.
 .DESCRIPTION
     Delegates to the canonical Python builder, which derives every hidden
-    import from pyproject.toml and produces a single-file cortex.exe.
+    import from pyproject.toml and produces dist\cortex\cortex.exe beside its
+    _internal runtime directory.
 .PARAMETER Python
     Python interpreter used for the build. Defaults to the repository virtual
     environment and falls back to python on PATH.

@@ -258,9 +258,13 @@ def test_every_python_source_has_apache_header() -> None:
         "__pycache__",
         "local",
     }
+    # PyInstaller copies third-party sources into these build outputs.
+    build_outputs = {"build", "dist"}
     missing: list[str] = []
     for path in ROOT.rglob("*.py"):
         if any(part in excluded_parts for part in path.parts):
+            continue
+        if path.relative_to(ROOT).parts[0] in build_outputs:
             continue
         opening = "\n".join(path.read_text(encoding="utf-8").splitlines()[:8])
         if (

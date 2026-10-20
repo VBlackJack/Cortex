@@ -471,6 +471,8 @@ def test_python_sources_contain_no_machine_specific_path_literals() -> None:
     for path in root.rglob("*.py"):
         if any(part in {".git", "chroma_db", "local"} for part in path.parts):
             continue
+        if path.relative_to(root).parts[0] in {"build", "dist"}:
+            continue
         if drive_literal.search(path.read_text(encoding="utf-8")):
             offenders.append(path.relative_to(root).as_posix())
 

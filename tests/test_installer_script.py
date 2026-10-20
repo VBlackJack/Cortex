@@ -179,6 +179,21 @@ def test_release_uses_the_verified_pinned_converter_source_archive() -> None:
         assert required in entries
 
 
+def test_installer_copies_the_validated_executable_directory_into_app() -> None:
+    script = INSTALLER.read_text(encoding="utf-8")
+
+    assert "#ifndef CortexPayloadDir" in script
+    assert (
+        'Source: "{#CortexPayloadDir}\\*"; DestDir: "{app}"; '
+        "Flags: ignoreversion recursesubdirs createallsubdirs"
+    ) in script
+    assert 'dist\\cortex.exe"' not in script
+    install_delete = script[script.index("[InstallDelete]") : script.index("[Files]")]
+    assert 'Type: filesandordirs; Name: "{app}\\_internal"' in install_delete
+    assert "UninstallDisplayIcon={app}\\cortex.exe" in script
+    assert "ExpandConstant('{app}\\cortex.exe')" in script
+
+
 def test_installer_embeds_models_in_the_stable_per_user_cache() -> None:
     script = INSTALLER.read_text(encoding="utf-8")
 

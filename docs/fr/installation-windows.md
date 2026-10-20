@@ -39,6 +39,14 @@ L'installation ne demande pas de droits administrateur. Cortex est installé
 dans `%LOCALAPPDATA%\Programs\Cortex`. Les nouveaux terminaux ouverts après
 l'installation voient la commande `cortex` dans le PATH.
 
+`cortex.exe` est construit sous forme de dossier : il est accompagné d'un
+dossier `_internal` qui contient le moteur Python et ses bibliothèques, si bien
+que rien n'est extrait dans `%TEMP%` au démarrage. L'archive portable
+`cortex-windows-x64.zip` se décompresse de la même façon, dans un dossier
+`cortex\` qui contient `cortex.exe`, `_internal\` et `licenses\`. Garder ces
+éléments ensemble et lancer `cortex\cortex.exe`, ou ajouter le dossier `cortex`
+au PATH ; copier `cortex.exe` seul ne fonctionne pas.
+
 L'installeur embarque Cortex Companion, le convertisseur Confluence console et
 les modèles FastEmbed/ONNX vérifiés par manifeste. La première synchronisation
 fonctionne donc hors ligne et ne télécharge aucun modèle. Le corpus et l'index

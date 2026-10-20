@@ -135,19 +135,19 @@ jobs:
           - os: windows-latest
             artifact: cortex-windows-x64-portable
             archive: cortex-windows-x64.zip
-            binary: dist/cortex.exe
+            binary: dist/cortex/cortex.exe
             binary_name: cortex.exe
             expected_machine: AMD64
           - os: macos-latest
             artifact: cortex-macos-arm64-portable
             archive: cortex-macos-arm64.zip
-            binary: dist/cortex
+            binary: dist/cortex/cortex
             binary_name: cortex
             expected_machine: arm64
           - os: ubuntu-latest
             artifact: cortex-linux-x64-portable
             archive: cortex-linux-x64.zip
-            binary: dist/cortex
+            binary: dist/cortex/cortex
             binary_name: cortex
             expected_machine: x86_64
     steps:
@@ -467,7 +467,7 @@ jobs:
             throw "signtool.exe was not found on the Windows runner."
           }
           foreach ($executable in @(
-            "dist\cortex.exe",
+            "dist\cortex\cortex.exe",
             "dist-converter\ConfluenceRAGBuilder.Console.exe"
           )) {
             & $signTool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com `
@@ -614,6 +614,7 @@ jobs:
           $installedCompanionRoot = Join-Path $installedRoot "Companion"
           foreach ($required in @(
             $installed,
+            (Join-Path $installedRoot "_internal\base_library.zip"),
             $installedCompanion,
             $installedConverter,
             (Join-Path $installedLicenseRoot "Cortex-LICENSE.txt"),

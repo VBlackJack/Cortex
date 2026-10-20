@@ -15,11 +15,14 @@
 #ifndef AppVersion
   #error AppVersion must be provided with ISCC /DAppVersion=<version>
 #endif
+#ifndef CortexPayloadDir
+  #error CortexPayloadDir must be provided by build_installer.py
+#endif
 #ifndef PayloadVersionVerified
-  #error Compile through build_installer.py to validate dist/cortex.exe first
+  #error Compile through build_installer.py to validate dist/cortex/cortex.exe first
 #endif
 #if !SameStr(AppVersion, PayloadVersionVerified)
-  #error AppVersion does not match the validated dist/cortex.exe version
+  #error AppVersion does not match the validated dist/cortex/cortex.exe version
 #endif
 #ifndef CompanionPayloadDir
   #error CompanionPayloadDir must be provided by build_installer.py
@@ -38,7 +41,7 @@
 #endif
 
 ; Direct ISCC compilation is intentionally blocked above. The shared local and
-; CI wrapper validates dist/cortex.exe --version before supplying the proof.
+; CI wrapper validates dist/cortex/cortex.exe --version before supplying the proof.
 
 #ifndef ModelPayloadDir
   #error ModelPayloadDir must be provided with ISCC /DModelPayloadDir=<path>
@@ -136,8 +139,12 @@ french.ResetFailed=Cortex n'a pas pu réinitialiser sa configuration et son inde
 french.UnregisterFailed=Cortex n'a pas pu retirer toutes les entrées des clients MCP. La désinstallation continue ; vérifiez manuellement les configurations clientes.
 french.CompanionCleanupFailed=Cortex Companion n'a pas pu retirer de façon sûre sa tâche d'ingestion détenue. La désinstallation continue ; vérifiez manuellement le Planificateur de tâches.
 
+[InstallDelete]
+; Drop the runtime of a previous directory build so no stale module survives an upgrade.
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Files]
-Source: "..\..\dist\cortex.exe"; DestDir: "{app}"; DestName: "cortex.exe"; Flags: ignoreversion
+Source: "{#CortexPayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\dist\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#CompanionPayloadDir}\*"; DestDir: "{app}\Companion"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ConverterPayloadDir}\*"; DestDir: "{app}\Converters"; Flags: ignoreversion recursesubdirs createallsubdirs

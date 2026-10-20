@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import argparse
 import os
+import posixpath
 import shutil
 import stat
 import sys
 import tempfile
 import zipfile
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Final
 
@@ -34,6 +36,11 @@ _DEFAULT_LICENSES: Final[Path] = _REPO_ROOT / "dist" / "licenses"
 _ANALYSIS_TOC: Final[Path] = _REPO_ROOT / "build" / "pyinstaller" / "cortex" / "Analysis-00.toc"
 _OUTPUT_ROOT: Final[Path] = _REPO_ROOT / "out"
 _ZIP_TIMESTAMP: Final[tuple[int, int, int, int, int, int]] = (1980, 1, 1, 0, 0, 0)
+# Single top-level folder the archive unpacks to.
+_ARCHIVE_ROOT: Final[str] = "cortex"
+_LICENSE_DIR_NAME: Final[str] = "licenses"
+_RUNTIME_DIR_NAME: Final[str] = "_internal"
+_POSIX_EXECUTE_BITS: Final[int] = stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
 
 
 class PortableArchiveError(RuntimeError):
@@ -118,6 +125,69 @@ def _license_files(
     return tuple(sorted(files, key=lambda path: path.relative_to(license_dir).as_posix()))
 
 
+@dataclass(frozen=True)
+class _BundleEntry:
+    """One file or relative symbolic link of the executable directory."""
+
+    source: Path
+    relative: PurePosixPath
+    link_target: str | None = None
+
+
+def _bundle_entries(bundle: Path) -> tuple[_BundleEntry, ...]:
+    """Return every bundle entry sorted by archive path, refusing escaping links."""
+    entries: list[_BundleEntry] = []
+    pending = [bundle]
+    while pending:
+        directory = pending.pop()
+        try:
+            children = sorted(directory.iterdir())
+        except OSError as exc:
+            raise PortableArchiveError(
+                f"Could not list executable directory {directory}: {exc}"
+            ) from exc
+        for child in children:
+            relative = PurePosixPath(*child.relative_to(bundle).parts)
+            try:
+                child_status = child.lstat()
+            except OSError as exc:
+                raise PortableArchiveError(
+                    f"Could not inspect executable directory entry {child}: {exc}"
+                ) from exc
+            if stat.S_ISLNK(child_status.st_mode):
+                target = os.readlink(child)
+                resolved = posixpath.normpath(
+                    posixpath.join(relative.parent.as_posix(), target.replace("\\", "/"))
+                )
+                if (
+                    os.path.isabs(target)
+                    or posixpath.isabs(resolved)
+                    or resolved == ".."
+                    or resolved.startswith("../")
+                ):
+                    raise PortableArchiveError(
+                        f"Executable directory link escapes the bundle: {child} -> {target}"
+                    )
+                entries.append(
+                    _BundleEntry(child, relative, link_target=target.replace("\\", "/"))
+                )
+                continue
+            file_attributes = int(getattr(child_status, "st_file_attributes", 0))
+            if file_attributes & 0x400:
+                raise PortableArchiveError(
+                    f"Executable directory contains a reparse point: {child}"
+                )
+            if stat.S_ISDIR(child_status.st_mode):
+                pending.append(child)
+            elif stat.S_ISREG(child_status.st_mode):
+                entries.append(_BundleEntry(child, relative))
+            else:
+                raise PortableArchiveError(
+                    f"Executable directory entry is not a regular file: {child}"
+                )
+    return tuple(sorted(entries, key=lambda entry: entry.relative.as_posix()))
+
+
 def _zip_info(name: PurePosixPath, *, executable: bool) -> zipfile.ZipInfo:
     info = zipfile.ZipInfo(name.as_posix(), date_time=_ZIP_TIMESTAMP)
     info.compress_type = zipfile.ZIP_DEFLATED
@@ -141,6 +211,20 @@ def _write_zip_file(
         shutil.copyfileobj(input_stream, output_stream, length=1024 * 1024)
 
 
+def _write_zip_link(archive: zipfile.ZipFile, destination: PurePosixPath, target: str) -> None:
+    info = zipfile.ZipInfo(destination.as_posix(), date_time=_ZIP_TIMESTAMP)
+    info.compress_type = zipfile.ZIP_STORED
+    info.create_system = 3
+    info.external_attr = (stat.S_IFLNK | 0o777) << 16
+    archive.writestr(info, target)
+
+
+def _is_posix_executable(path: Path) -> bool:
+    if sys.platform == "win32":
+        return False
+    return bool(path.stat().st_mode & _POSIX_EXECUTE_BITS)
+
+
 def create_portable_archive(
     *,
     binary: Path,
@@ -149,8 +233,7 @@ def create_portable_archive(
     output: Path,
     python_license: Path | None = None,
 ) -> Path:
-    """Create and re-open a portable ZIP with an exact file inventory."""
-    source_binary = _regular_file(binary, label="portable executable")
+    """Create and re-open a portable ZIP of the executable directory with its licenses."""
     archive_binary = PurePosixPath(binary_name)
     if (
         archive_binary.is_absolute()
@@ -158,13 +241,33 @@ def create_portable_archive(
         or archive_binary.name not in {"cortex", "cortex.exe"}
     ):
         raise PortableArchiveError(f"Invalid portable executable name: {binary_name!r}")
+    source_binary = _regular_file(binary, label="portable executable")
+    if source_binary.name != archive_binary.name:
+        raise PortableArchiveError(
+            f"Portable executable must be named {binary_name!r} in its directory: {binary}"
+        )
+    bundle = source_binary.parent
+    if not (bundle / _RUNTIME_DIR_NAME).is_dir():
+        raise PortableArchiveError(
+            f"Portable executable directory has no {_RUNTIME_DIR_NAME} runtime: {bundle}"
+        )
+    bundle_entries = _bundle_entries(bundle)
+    if any(entry.relative.parts[0] == _LICENSE_DIR_NAME for entry in bundle_entries):
+        raise PortableArchiveError(
+            f"Executable directory already contains a {_LICENSE_DIR_NAME} entry: {bundle}"
+        )
     license_files = _license_files(
         license_dir,
         python_license=python_license,
     )
-    expected_names = [archive_binary.as_posix()]
+    root = PurePosixPath(_ARCHIVE_ROOT)
+    archive_executable = root / archive_binary
+    other_entries = [entry for entry in bundle_entries if entry.relative != archive_binary]
+    expected_names = [archive_executable.as_posix()]
+    expected_names.extend((root / entry.relative).as_posix() for entry in other_entries)
     expected_names.extend(
-        f"licenses/{path.relative_to(license_dir).as_posix()}" for path in license_files
+        (root / _LICENSE_DIR_NAME / path.relative_to(license_dir).as_posix()).as_posix()
+        for path in license_files
     )
 
     output = _reject_linked_path_chain(
@@ -191,12 +294,23 @@ def create_portable_archive(
             _write_zip_file(
                 archive,
                 source_binary,
-                archive_binary,
+                archive_executable,
                 executable=True,
             )
+            for entry in other_entries:
+                if entry.link_target is not None:
+                    _write_zip_link(archive, root / entry.relative, entry.link_target)
+                    continue
+                _write_zip_file(
+                    archive,
+                    entry.source,
+                    root / entry.relative,
+                    executable=_is_posix_executable(entry.source),
+                )
             for license_file in license_files:
                 relative = PurePosixPath(
-                    "licenses",
+                    _ARCHIVE_ROOT,
+                    _LICENSE_DIR_NAME,
                     *license_file.relative_to(license_dir).parts,
                 )
                 _write_zip_file(
@@ -235,7 +349,12 @@ def _validate_cli_output(path: Path) -> Path:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, required=True)
+    parser.add_argument(
+        "--binary",
+        type=Path,
+        required=True,
+        help="Executable inside the PyInstaller directory, such as dist/cortex/cortex.exe.",
+    )
     parser.add_argument("--binary-name", choices=("cortex", "cortex.exe"), required=True)
     parser.add_argument("--licenses", type=Path, default=_DEFAULT_LICENSES)
     parser.add_argument(

@@ -48,6 +48,19 @@ _RUNTIME_GLOBALS = cast(
 )
 
 
+_EXECUTABLE_NAME = "cortex.exe" if sys.platform == "win32" else "cortex"
+
+
+def _write_onedir_bundle(output: Path, *, with_runtime: bool = True) -> Path:
+    bundle = output / "cortex"
+    bundle.mkdir(parents=True)
+    executable = bundle / _EXECUTABLE_NAME
+    executable.write_bytes(b"executable")
+    if with_runtime:
+        (bundle / "_internal").mkdir()
+    return executable
+
+
 def _values_after(arguments: list[str], option: str) -> set[str]:
     return {
         arguments[index + 1]
@@ -77,6 +90,14 @@ def test_pyinstaller_arguments_cover_every_distributed_module_and_package() -> N
     assert {"chromadb", "fastembed", "onnxruntime", "tokenizers"} <= collected_packages
     assert _values_after(arguments, "--copy-metadata") == {"fastembed"}
     assert arguments[-1] == str(_ROOT / "packaging" / "cortex_launcher.py")
+
+
+def test_pyinstaller_builds_a_directory_bundle_that_never_extracts_to_temp() -> None:
+    arguments = _ARGUMENTS(_ROOT / "dist")
+
+    assert "--onedir" in arguments
+    assert "--onefile" not in arguments
+    assert _values_after(arguments, "--name") == {"cortex"}
 
 
 def test_analysis_toc_rejects_every_deferred_bundle_module(tmp_path: Path) -> None:
@@ -215,9 +236,7 @@ def test_builder_runs_the_license_generator_after_pyinstaller(
     def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         if len(calls) == 1:
-            output.mkdir(parents=True)
-            executable = output / ("cortex.exe" if sys.platform == "win32" else "cortex")
-            executable.write_bytes(b"executable")
+            _write_onedir_bundle(output)
             analysis.parent.mkdir(parents=True)
             analysis.write_text("([], )\n", encoding="utf-8")
         else:
@@ -243,6 +262,7 @@ def test_builder_runs_the_license_generator_after_pyinstaller(
 
     result = _BUILD_EXECUTABLE(output_dir=output, clean=False)
 
+    assert result == output / "cortex" / _EXECUTABLE_NAME
     assert result.is_file()
     assert calls == [
         [sys.executable, "build"],
@@ -275,9 +295,7 @@ def test_builder_fails_closed_when_license_generation_fails(
         nonlocal calls
         calls += 1
         if calls == 1:
-            output.mkdir(parents=True)
-            executable = output / ("cortex.exe" if sys.platform == "win32" else "cortex")
-            executable.write_bytes(b"executable")
+            _write_onedir_bundle(output)
             analysis = work / "cortex" / "Analysis-00.toc"
             analysis.parent.mkdir(parents=True)
             analysis.write_text("([], )\n", encoding="utf-8")
@@ -310,6 +328,44 @@ def test_builder_fails_closed_when_license_generation_fails(
 
     with pytest.raises(_BUILD_ERROR, match="license generation failed with exit code 7"):
         _BUILD_EXECUTABLE(output_dir=output, clean=False)
+
+
+def test_builder_rejects_a_bundle_without_its_runtime_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = tmp_path / "repository"
+    output = repository / "dist"
+    work = repository / "build" / "pyinstaller"
+    entry = repository / "packaging" / "cortex_launcher.py"
+    analysis = work / "cortex" / "Analysis-00.toc"
+    entry.parent.mkdir(parents=True)
+    entry.write_text("raise SystemExit(0)\n", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        _write_onedir_bundle(output, with_runtime=False)
+        analysis.parent.mkdir(parents=True)
+        analysis.write_text("([], )\n", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setitem(_RUNTIME_GLOBALS, "_REPO_ROOT", repository)
+    monkeypatch.setitem(_RUNTIME_GLOBALS, "_DEFAULT_OUTPUT_DIR", output)
+    monkeypatch.setitem(_RUNTIME_GLOBALS, "_WORK_DIR", work)
+    monkeypatch.setitem(_RUNTIME_GLOBALS, "_ENTRY_PATH", entry)
+    monkeypatch.setitem(_RUNTIME_GLOBALS, "_ANALYSIS_TOC", analysis)
+    monkeypatch.setitem(
+        _RUNTIME_GLOBALS,
+        "_dedicated_build_path",
+        lambda candidate, **_kwargs: Path(candidate),
+    )
+    monkeypatch.setitem(_RUNTIME_GLOBALS, "pyinstaller_arguments", lambda _output: ["build"])
+    monkeypatch.setitem(_RUNTIME_GLOBALS, "subprocess", SimpleNamespace(run=fake_run))
+
+    with pytest.raises(_BUILD_ERROR, match="runtime directory is missing"):
+        _BUILD_EXECUTABLE(output_dir=output, clean=False)
+    assert calls == [[sys.executable, "build"]]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell contract")

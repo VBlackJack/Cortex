@@ -202,9 +202,11 @@ def test_production_chroma_clients_use_the_central_factory() -> None:
     root = Path(__file__).resolve().parents[1]
     offenders: list[str] = []
     for path in root.rglob("*.py"):
+        relative_parts = path.relative_to(root).parts
         if (
             "tests" in path.parts
             or "local" in path.parts
+            or relative_parts[0] in {"build", "dist"}
             or path.name == "chroma_client.py"
         ):
             continue

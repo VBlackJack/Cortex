@@ -32,6 +32,9 @@ _REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
 _PYPROJECT_PATH: Final[Path] = _REPO_ROOT / "pyproject.toml"
 _ENTRY_PATH: Final[Path] = _REPO_ROOT / "packaging" / "cortex_launcher.py"
 _DEFAULT_OUTPUT_DIR: Final[Path] = _REPO_ROOT / "dist"
+_BUNDLE_NAME: Final[str] = "cortex"
+# PyInstaller 6 places the runtime next to the executable in this directory.
+_RUNTIME_DIR_NAME: Final[str] = "_internal"
 _WORK_DIR: Final[Path] = _REPO_ROOT / "build" / "pyinstaller"
 _ANALYSIS_TOC: Final[Path] = _WORK_DIR / "cortex" / "Analysis-00.toc"
 _LICENSE_BUNDLE_SCRIPT: Final[Path] = _REPO_ROOT / "packaging" / "license_bundle.py"
@@ -150,9 +153,9 @@ def pyinstaller_arguments(output_dir: Path) -> list[str]:
         "-m",
         "PyInstaller",
         "--noconfirm",
-        "--onefile",
+        "--onedir",
         "--name",
-        "cortex",
+        _BUNDLE_NAME,
         "--paths",
         str(_REPO_ROOT),
         "--copy-metadata",
@@ -235,11 +238,17 @@ def build_executable(
         )
     _assert_clean_analysis_toc(_ANALYSIS_TOC)
 
-    executable_name = "cortex.exe" if sys.platform == "win32" else "cortex"
-    executable = resolved_output / executable_name
+    executable_name = f"{_BUNDLE_NAME}.exe" if sys.platform == "win32" else _BUNDLE_NAME
+    bundle = resolved_output / _BUNDLE_NAME
+    executable = bundle / executable_name
     if not executable.is_file():
         raise ExecutableBuildError(
             f"PyInstaller reported success but the executable is missing: {executable}"
+        )
+    runtime_dir = bundle / _RUNTIME_DIR_NAME
+    if not runtime_dir.is_dir():
+        raise ExecutableBuildError(
+            f"PyInstaller reported success but the runtime directory is missing: {runtime_dir}"
         )
     if not _LICENSE_BUNDLE_SCRIPT.is_file():
         raise ExecutableBuildError(

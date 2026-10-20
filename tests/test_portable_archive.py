@@ -57,17 +57,32 @@ def _license_tree(tmp_path: Path) -> Path:
     return root
 
 
-def test_portable_archive_has_exact_layout_permissions_and_stable_bytes(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def _bundle(tmp_path: Path, executable_name: str = "cortex") -> Path:
+    """Create a PyInstaller-style directory and return its executable."""
+    bundle = tmp_path / "dist" / "cortex"
+    runtime = bundle / "_internal"
+    (runtime / "chromadb").mkdir(parents=True)
+    executable = bundle / executable_name
+    executable.write_bytes(b"executable")
+    (runtime / "base_library.zip").write_bytes(b"stdlib")
+    (runtime / "chromadb" / "__init__.pyc").write_bytes(b"module")
+    return executable
+
+
+def _no_license_verification(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
         _RUNTIME_GLOBALS,
         "verify_license_bundle",
         lambda *_args, **_kwargs: None,
     )
-    binary = tmp_path / "cortex"
-    binary.write_bytes(b"executable")
+
+
+def test_portable_archive_has_exact_layout_permissions_and_stable_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _no_license_verification(monkeypatch)
+    binary = _bundle(tmp_path)
     licenses = _license_tree(tmp_path)
     first = tmp_path / "first.zip"
     second = tmp_path / "second.zip"
@@ -81,17 +96,84 @@ def test_portable_archive_has_exact_layout_permissions_and_stable_bytes(
     ).digest()
     with zipfile.ZipFile(first) as archive:
         assert archive.namelist() == [
-            "cortex",
-            "licenses/Cortex-LICENSE.txt",
-            "licenses/PYTHON_LICENSE.txt",
-            "licenses/SHA256SUMS",
-            "licenses/THIRD_PARTY_LICENSES.json",
-            "licenses/python-packages/demo/LICENSE.txt",
+            "cortex/cortex",
+            "cortex/_internal/base_library.zip",
+            "cortex/_internal/chromadb/__init__.pyc",
+            "cortex/licenses/Cortex-LICENSE.txt",
+            "cortex/licenses/PYTHON_LICENSE.txt",
+            "cortex/licenses/SHA256SUMS",
+            "cortex/licenses/THIRD_PARTY_LICENSES.json",
+            "cortex/licenses/python-packages/demo/LICENSE.txt",
         ]
-        assert stat.S_IMODE(archive.getinfo("cortex").external_attr >> 16) == 0o755
+        assert stat.S_IMODE(archive.getinfo("cortex/cortex").external_attr >> 16) == 0o755
         for name in archive.namelist()[1:]:
             assert stat.S_IMODE(archive.getinfo(name).external_attr >> 16) == 0o644
+        assert archive.read("cortex/_internal/chromadb/__init__.pyc") == b"module"
         assert archive.testzip() is None
+
+
+def test_portable_archive_rejects_an_executable_without_its_runtime_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _no_license_verification(monkeypatch)
+    binary = tmp_path / "cortex.exe"
+    binary.write_bytes(b"onefile executable")
+
+    with pytest.raises(_ERROR, match="has no _internal runtime"):
+        _GLOBALS["create_portable_archive"](
+            binary=binary,
+            binary_name="cortex.exe",
+            license_dir=_license_tree(tmp_path),
+            output=tmp_path / "portable.zip",
+        )
+
+
+def test_portable_archive_rejects_an_executable_renamed_in_the_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _no_license_verification(monkeypatch)
+
+    with pytest.raises(_ERROR, match="must be named 'cortex.exe' in its directory"):
+        _GLOBALS["create_portable_archive"](
+            binary=_bundle(tmp_path),
+            binary_name="cortex.exe",
+            license_dir=_license_tree(tmp_path),
+            output=tmp_path / "portable.zip",
+        )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="PyInstaller links only on POSIX")
+def test_portable_archive_keeps_internal_links_and_rejects_escaping_ones(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _no_license_verification(monkeypatch)
+    binary = _bundle(tmp_path)
+    runtime = binary.parent / "_internal"
+    (runtime / "libdemo.so").symlink_to("chromadb/__init__.pyc")
+    output = tmp_path / "portable.zip"
+
+    _GLOBALS["create_portable_archive"](
+        binary=binary,
+        binary_name="cortex",
+        license_dir=_license_tree(tmp_path),
+        output=output,
+    )
+    with zipfile.ZipFile(output) as archive:
+        link = archive.getinfo("cortex/_internal/libdemo.so")
+        assert stat.S_ISLNK(link.external_attr >> 16)
+        assert archive.read(link) == b"chromadb/__init__.pyc"
+
+    (runtime / "escape.so").symlink_to("../../../outside")
+    with pytest.raises(_ERROR, match="link escapes the bundle"):
+        _GLOBALS["create_portable_archive"](
+            binary=binary,
+            binary_name="cortex",
+            license_dir=_license_tree(tmp_path / "second"),
+            output=output,
+        )
 
 
 def test_portable_archive_verifies_the_explicit_python_license(
@@ -104,8 +186,7 @@ def test_portable_archive_verifies_the_explicit_python_license(
         received.append(cast("Path | None", kwargs.get("python_license")))
 
     monkeypatch.setitem(_RUNTIME_GLOBALS, "verify_license_bundle", verify)
-    binary = tmp_path / "cortex"
-    binary.write_bytes(b"executable")
+    binary = _bundle(tmp_path)
     python_license = tmp_path / "CPython-LICENSE.txt"
     python_license.write_text("CPython terms\n", encoding="utf-8")
 
@@ -126,17 +207,11 @@ def test_portable_archive_rejects_noncanonical_binary_names(
     monkeypatch: pytest.MonkeyPatch,
     binary_name: str,
 ) -> None:
-    monkeypatch.setitem(
-        _RUNTIME_GLOBALS,
-        "verify_license_bundle",
-        lambda *_args, **_kwargs: None,
-    )
-    binary = tmp_path / "cortex"
-    binary.write_bytes(b"executable")
+    _no_license_verification(monkeypatch)
 
     with pytest.raises(_ERROR, match="Invalid portable executable name"):
         _GLOBALS["create_portable_archive"](
-            binary=binary,
+            binary=_bundle(tmp_path),
             binary_name=binary_name,
             license_dir=_license_tree(tmp_path),
             output=tmp_path / "portable.zip",
