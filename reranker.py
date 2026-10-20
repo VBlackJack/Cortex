@@ -42,13 +42,18 @@ class CrossEncoder(Protocol):
 
 _model: CrossEncoder | None = None
 _load_failure = "reranker is not warmed up"
+# Set once a load attempt failed, so later queries degrade immediately with the
+# recorded reason instead of repeating a full model load on every request.
+_load_attempt_failed = False
 
 
 def warmup_reranker() -> str | None:
     """Load the configured model once; return an explicit failure reason."""
-    global _load_failure, _model
+    global _load_attempt_failed, _load_failure, _model
     if _model is not None:
         return None
+    if _load_attempt_failed:
+        return _load_failure
     try:
         _model = TextCrossEncoder(
             RERANKER_MODEL,
@@ -59,6 +64,7 @@ def warmup_reranker() -> str | None:
         )
     except Exception as exc:  # noqa: BLE001 -- startup must degrade, never fail hard.
         _load_failure = f"reranker load failed: {type(exc).__name__}: {exc}"
+        _load_attempt_failed = True
         log.warning("reranker_warmup_failed reason=%s", _load_failure)
         return _load_failure
     _load_failure = ""

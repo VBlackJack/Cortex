@@ -123,14 +123,24 @@ def test_query_exception_preserves_rrf_order_with_reason(
     assert "ONNX unavailable" in str(failure)
 
 
-def test_load_failure_is_explicit_and_retryable(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_failure_is_explicit_and_not_retried_per_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts: list[str] = []
+
     def fail_load(*_args: object, **_kwargs: object) -> None:
+        attempts.append("load")
         raise OSError("model absent")
 
     monkeypatch.setattr(reranker, "TextCrossEncoder", fail_load)
+    monkeypatch.setattr(reranker, "_model", None)
+    monkeypatch.setattr(reranker, "_load_failure", "reranker is not warmed up")
+    monkeypatch.setattr(reranker, "_load_attempt_failed", False)
 
     assert "model absent" in str(reranker.warmup_reranker())
+    assert "model absent" in str(reranker.warmup_reranker())
     assert "model absent" in str(reranker.rerank_fused_hits("query", _hits(1))[1])
+    assert attempts == ["load"]
 
 
 def test_two_identical_executions_are_deterministic(

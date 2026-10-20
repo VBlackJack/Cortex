@@ -17,6 +17,11 @@ available in [French](docs/fr/notes-de-version.md) and
 - Write a knowledge-base path containing an emoji or another character outside the Basic Multilingual Plane as valid TOML; `cortex setup` and `cortex init` now read the new configuration back and refuse to commit one that Cortex could not load.
 - Reject `inf` and `nan` for `write_lock_timeout_seconds`, in the file and in `CORTEX_WRITE_LOCK_TIMEOUT_SECONDS`, instead of waiting for the write lock forever.
 - Report a rejected embedded model payload in the standalone `cortex.exe` as one `[cortex] embedded model payload rejected:` line with the invalid-input exit code, instead of a traceback on every command.
+- Close Markdown front matter only at a `---` line that stands alone; a `----` or `---text` line no longer ends the metadata block early.
+
+### Changed
+- Remember a failed reranker load for the life of the process, so `rerank` queries degrade immediately with the recorded reason instead of reloading the model on every request.
+- Describe the items excluded from a portable bundle in English.
 
 ## [2026.0909.04] - 2026-09-09
 

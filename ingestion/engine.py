@@ -219,8 +219,6 @@ class GenerationEngine:
             return attempt.global_error_code
         if not attempt.enumeration_succeeded:
             return ERROR_RUN_FAILED
-        if attempt.enumeration_complete and not attempt.enumeration_succeeded:
-            return ERROR_RUN_FAILED
         return None
 
     @staticmethod

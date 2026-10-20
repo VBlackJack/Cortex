@@ -202,6 +202,13 @@ def _rewrite_clear_header(
         stream.write(changed)
 
 
+def test_excluded_item_reasons_are_english_ascii() -> None:
+    french_markers = (" hors ", " de ", " sans ", " au ", " etat ")
+    for item, reason in EXCLUDED_ITEMS:
+        assert reason.isascii(), item
+        assert not any(marker in f" {reason} " for marker in french_markers), item
+
+
 def test_describe_and_verify_success_return_complete_envelopes(tmp_path: Path) -> None:
     archive = tmp_path / "valid.cortexbundle"
     _write_valid_archive(archive)

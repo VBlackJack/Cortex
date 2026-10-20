@@ -242,6 +242,8 @@ def _existing_by_path(
     source_kind: str | None,
 ) -> dict[str, tuple[list[str], list[dict[str, Any]]]]:
     existing: dict[str, tuple[list[str], list[dict[str, Any]]]] = {}
+    # Two filters may return the same chunk; a set keeps the check O(1).
+    seen_ids: set[str] = set()
     for where in _existing_filters(section):
         for page in iter_collection_pages(
             collection,
@@ -251,7 +253,7 @@ def _existing_by_path(
         ):
             ids = page.get("ids", [])
             metadata = page.get("metadatas", []) or []
-            for chunk_id, meta in zip(ids, metadata):
+            for chunk_id, meta in zip(ids, metadata, strict=True):
                 indexed_kind = meta.get("source_kind") if meta else None
                 if source_kind is None:
                     if indexed_kind not in {None, VAULT_SOURCE_KIND}:
@@ -265,9 +267,10 @@ def _existing_by_path(
                 # Their configurable target need not match the synthetic section.
                 if source_kind is None and not _section_owns(path, section):
                     continue
-                old_ids, old_metadata = existing.setdefault(path, ([], []))
-                if chunk_id in old_ids:
+                if chunk_id in seen_ids:
                     continue
+                seen_ids.add(chunk_id)
+                old_ids, old_metadata = existing.setdefault(path, ([], []))
                 old_ids.append(chunk_id)
                 old_metadata.append(meta)
     return existing
@@ -389,27 +392,6 @@ def sync_ingestion_documents_report(
             errors=error_samples,
             progress=progress,
         )
-
-
-def _sync_ingestion_documents_locked(
-    collection: Any,
-    ingestion_root: Path,
-    *,
-    retention_generations: int,
-    checkpoint: SyncCheckpoint | None = None,
-    verbose: bool = False,
-    lexical_index: LexicalIndex | None = None,
-) -> dict[str, int]:
-    """Resolve only the current pointer and fail closed on invalid published state."""
-    return _sync_ingestion_documents_locked_report(
-        collection,
-        ingestion_root,
-        retention_generations=retention_generations,
-        checkpoint=checkpoint,
-        verbose=verbose,
-        lexical_index=lexical_index,
-        errors=[],
-    )[0]
 
 
 def _sync_ingestion_documents_locked_report(

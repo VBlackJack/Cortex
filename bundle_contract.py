@@ -65,15 +65,15 @@ BundleRole = Literal[
 EXCLUDED_ITEMS = (
     (
         "confluence_pat",
-        "vit dans le Windows Credential Manager, hors du systeme de fichiers",
+        "lives in the Windows Credential Manager, outside the file system",
     ),
     (
         "vault",
-        "volume de donnees source, a copier ou rendre accessible separement",
+        "source data volume, to be copied or made reachable separately",
     ),
-    ("logs", "sans valeur sur un autre poste"),
-    ("locks", "etat de processus, invalide hors de sa machine"),
-    ("companion_settings", "appartient au depot CortexCompanion"),
+    ("logs", "of no value on another machine"),
+    ("locks", "process state, invalid outside its own machine"),
+    ("companion_settings", "belongs to the CortexCompanion repository"),
 )
 ExcludedItemName = Literal[
     "confluence_pat",

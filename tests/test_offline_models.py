@@ -214,6 +214,7 @@ def test_reranker_uses_shared_cache_and_manifest_gated_network_policy(
     )
     monkeypatch.setattr(reranker, "TextCrossEncoder", fake_cross_encoder)
     monkeypatch.setattr(reranker, "_MODEL_RUNTIME", runtime)
+    monkeypatch.setattr(reranker, "_load_attempt_failed", False)
 
     assert reranker.warmup_reranker() is None
     assert calls == [

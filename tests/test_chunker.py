@@ -188,6 +188,26 @@ def test_parse_frontmatter_valid_with_quotes():
     assert body == "body here"
 
 
+def test_parse_frontmatter_closing_fence_must_stand_alone():
+    content = "---\ntitle: foo\n----\nsummary: bar\n---text\n---\nbody"
+    meta, body = _parse_frontmatter(content)
+    assert meta == {"title": "foo", "summary": "bar"}
+    assert body == "body"
+
+
+def test_parse_frontmatter_closing_fence_at_end_of_text():
+    meta, body = _parse_frontmatter("---\ntitle: foo\n---")
+    assert meta == {"title": "foo"}
+    assert body == ""
+
+
+def test_parse_frontmatter_without_standalone_fence_is_body():
+    content = "---\ntitle: foo\n---- not a fence\nbody"
+    meta, body = _parse_frontmatter(content)
+    assert meta == {}
+    assert body == content
+
+
 # -- _split_by_headers ---------------------------------------------------------
 
 

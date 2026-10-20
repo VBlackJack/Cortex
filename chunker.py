@@ -57,6 +57,10 @@ _compute_hash = compute_hash
 _split_fixed_size = split_fixed_size
 
 
+# The closing fence is "---" alone on its line; "----" or "---text" is content.
+_FRONTMATTER_CLOSING_FENCE = re.compile(r"\n---(?=\r?\n|\Z)")
+
+
 def _parse_frontmatter(content: str) -> tuple[dict[str, object], str]:
     """
     Extract YAML frontmatter from markdown content.
@@ -66,9 +70,10 @@ def _parse_frontmatter(content: str) -> tuple[dict[str, object], str]:
     if not content.startswith("---"):
         return metadata, content
 
-    end = content.find("\n---", 3)
-    if end == -1:
+    closing = _FRONTMATTER_CLOSING_FENCE.search(content, 3)
+    if closing is None:
         return metadata, content
+    end = closing.start()
 
     frontmatter = content[3:end].strip()
     body = content[end + 4 :].lstrip("\n")
