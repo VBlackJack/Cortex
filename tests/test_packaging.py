@@ -136,7 +136,7 @@ def test_model_manifest_workflow_is_manual_and_uploads_only_attestation() -> Non
     assert "scripts/model_payload.py fetch" in workflow
     assert "scripts/model_payload.py smoke" in workflow
     assert "scripts/model_payload.py generate" in workflow
-    upload_action = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+    upload_action = "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f"
     assert upload_action in workflow
     assert "path: model-attestation" in workflow
     upload_step = workflow[workflow.index(f"uses: {upload_action}") :]

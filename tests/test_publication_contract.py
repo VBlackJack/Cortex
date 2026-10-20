@@ -282,3 +282,56 @@ def test_release_downloads_exclude_evaluation_reports() -> None:
         selected.update({options["name"]} if "name" in options else
                         fnmatch.filter(available, options["pattern"]))
     assert selected == available - {"bilingual-retrieval", "future-diagnostic-report"}
+
+
+def test_ci_scans_dependencies_weekly_without_running_the_heavy_gates() -> None:
+    import yaml
+
+    workflow = yaml.safe_load(_CI_WORKFLOW.read_text("utf-8"))
+    # PyYAML reads the bare "on" key as the boolean True.
+    triggers = workflow[True]
+    assert triggers["schedule"] == [{"cron": "0 6 * * 1"}]
+    assert "workflow_dispatch" in triggers
+    jobs = workflow["jobs"]
+    for name in ("gate", "retrieval"):
+        assert jobs[name]["if"] == "github.event_name != 'schedule'"
+    assert "if" not in jobs["dependency-audit"]
+
+
+def test_every_runner_job_has_a_timeout() -> None:
+    import yaml
+
+    for name in ("ci.yml", "interop.yml", "release-pair.yml", "release.yml"):
+        workflow = yaml.safe_load((_WORKFLOW_DIRECTORY / name).read_text("utf-8"))
+        for job_name, job in workflow["jobs"].items():
+            if "uses" in job:
+                continue
+            assert isinstance(job.get("timeout-minutes"), int), f"{name}:{job_name}"
+
+
+def test_release_signing_material_and_notes_are_contained() -> None:
+    import yaml
+
+    text = _RELEASE_WORKFLOW.read_text("utf-8")
+    workflow = yaml.safe_load(text)
+    jobs = workflow["jobs"]
+    assert jobs["release"]["if"] == "startsWith(github.ref, 'refs/tags/v')"
+    steps = jobs["build"]["steps"]
+    names = [step["name"] for step in steps]
+    installer_signing = names.index("Sign Windows installer when a certificate is configured")
+    cleanup = steps[installer_signing + 1]
+    assert cleanup["name"] == "Remove the Windows signing certificate"
+    assert cleanup["if"].startswith("always()")
+    assert "Remove-Item -LiteralPath $certificatePath" in cleanup["run"]
+    executable_signing = steps[
+        names.index("Sign Windows executable when a certificate is configured")
+    ]
+    assert '"dist-companion\\CortexCompanion.exe"' in executable_signing["run"]
+    installer_build = steps[names.index("Build Windows installer")]["run"]
+    assert '"/DInstallerSignTool=cortexsign"' in installer_build
+    assert "@signToolArguments" in installer_build
+    publish = next(
+        step for step in jobs["release"]["steps"]
+        if step.get("uses", "").startswith("softprops/action-gh-release@")
+    )
+    assert publish["with"]["generate_release_notes"] is False

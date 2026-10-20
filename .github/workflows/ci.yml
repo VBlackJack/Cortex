@@ -12,6 +12,11 @@ on:
     branches: ["**"]
   pull_request:
     branches: [main]
+  # Weekly vulnerability scan of the locked trees, so new advisories surface
+  # between releases. Only dependency-audit runs on this trigger.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,11 +28,14 @@ concurrency:
 jobs:
   retrieval:
     name: Bilingual retrieval gate
+    if: github.event_name != 'schedule'
     uses: ./.github/workflows/retrieval.yml
 
   gate:
     name: Quality gate (Py${{ matrix.python-version }} / ${{ matrix.os }})
+    if: github.event_name != 'schedule'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -55,6 +63,7 @@ jobs:
   dependency-audit:
     name: Dependency vulnerability scan (Py${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
