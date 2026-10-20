@@ -63,6 +63,7 @@ def _run_cli(
     *,
     config_body: str | None,
     python_path: Path | None = None,
+    extra_environment: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run the installed dispatcher against one isolated user configuration."""
     appdata = tmp_path / "appdata"
@@ -77,6 +78,7 @@ def _run_cli(
         **os.environ,
         "APPDATA": str(appdata),
         "LOCALAPPDATA": str(Path(appdata).parent / "localappdata"),
+        **(extra_environment or {}),
     }
     if python_path is not None:
         inherited_python_path = environment.get("PYTHONPATH")
@@ -198,3 +200,69 @@ def test_absent_confluence_config_classifies_resolve_as_invalid_input(
     assert completed.stdout == ""
     assert "Confluence resolve requires: base_url, auth_expires_at" in completed.stderr
     assert "Traceback" not in completed.stderr
+
+
+def _isolated_doctor_environment(tmp_path: Path) -> dict[str, str]:
+    """Keep doctor away from the developer's real clients and home directory."""
+    home = tmp_path / "home"
+    home.mkdir()
+    return {
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "PATH": str(Path(sys.executable).parent),
+    }
+
+
+@pytest.mark.parametrize("config_body", _INVALID_CONFIGURATIONS)
+def test_invalid_user_config_keeps_doctor_json_report_valid(
+    config_body: str, tmp_path: Path
+) -> None:
+    completed = _run_cli(
+        tmp_path,
+        ("doctor", "--json"),
+        config_body=config_body,
+        extra_environment=_isolated_doctor_environment(tmp_path),
+    )
+
+    assert "Traceback" not in completed.stderr
+    payload = json.loads(completed.stdout)
+    checks = {
+        check["id"]: check
+        for section in payload["sections"]
+        for check in section["checks"]
+    }
+    assert checks["config.valid"]["status"] == "FAIL"
+    assert checks["mcp.handshake"]["status"] == "SKIP"
+    assert completed.returncode == payload["summary"]["exit_code"] == 1
+
+
+def test_invalid_user_config_keeps_human_doctor_output_clean(tmp_path: Path) -> None:
+    completed = _run_cli(
+        tmp_path,
+        ("doctor",),
+        config_body="this is not toml\n",
+        extra_environment=_isolated_doctor_environment(tmp_path),
+    )
+
+    assert completed.returncode == 1
+    assert "Traceback" not in completed.stderr
+    assert "[FAIL] config.valid:" in completed.stdout
+
+
+def test_doctor_import_chain_never_loads_user_configuration() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys, cli, doctor; "
+            "loaded = sorted({'config', 'cortex_logging'} & set(sys.modules)); "
+            "print(','.join(loaded))",
+        ],
+        cwd=_REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == ""

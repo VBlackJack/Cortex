@@ -26,10 +26,9 @@ from config import (
     LOG_FILE_NAME,
     LOG_MAX_BYTES,
 )
+from data_home import LOG_TIMESTAMP_FORMAT
 
 _HANDLER_MARKER = "_cortex_managed_handler"
-LOG_TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
-"""Leading timestamp of every log line; readers such as doctor parse it back."""
 
 
 def configure_logging(

@@ -36,6 +36,7 @@ from doctor import (
     render_json,
     run_doctor,
 )
+from index_contract import LEXICAL_INDEX_CONTRACT_VERSION
 
 FINGERPRINT = {
     "embedding_model": "test-model",
@@ -122,7 +123,9 @@ def _create_index(
     connection.close()
 
 
-def _create_lexical(path: Path, *, count: int = 1, version: str = "v1") -> None:
+def _create_lexical(
+    path: Path, *, count: int = 1, version: str = LEXICAL_INDEX_CONTRACT_VERSION
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path)
     connection.execute(
@@ -244,6 +247,34 @@ def test_doctor_lexical_absent_is_warn(tmp_path: Path) -> None:
     check = _checks(report)["lexical.index"]
     assert check["status"] == "WARN"
     assert check["details"]["purge_scope"] is True
+
+
+def test_doctor_runtime_contract_defaults_to_current_lexical_version() -> None:
+    assert RuntimeContracts("cortex", FINGERPRINT).lexical_contract_version == (
+        LEXICAL_INDEX_CONTRACT_VERSION
+    )
+
+
+def test_doctor_handshake_title_uses_configured_timeout(tmp_path: Path) -> None:
+    context = _baseline(tmp_path)
+    context.handshake_timeout_seconds = 7.5
+
+    report = run_doctor(context)
+    titles = {section["id"]: section["title"] for section in report["sections"]}
+
+    assert "(7.5s timeout;" in titles["mcp"]
+
+
+def test_doctor_reranker_probe_failure_is_reported_in_english(tmp_path: Path) -> None:
+    def failing_probe() -> Any:
+        raise RuntimeError("cache unreadable")
+
+    context = _baseline(tmp_path)
+    context.reranker_probe = failing_probe
+
+    check = _checks(run_doctor(context))["reranker.runtime"]
+
+    assert check["message"] == "Reranker health is not inspectable: cache unreadable"
 
 
 def test_doctor_lexical_matching_is_ok(tmp_path: Path) -> None:

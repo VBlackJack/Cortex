@@ -36,9 +36,9 @@ from pathlib import Path
 from typing import Any
 
 from _version import __version__
-from cortex_logging import LOG_TIMESTAMP_FORMAT
-from data_home import migration_state
+from data_home import LOG_TIMESTAMP_FORMAT, migration_state
 from dependencies import REQUIRED_PACKAGES
+from index_contract import COLLECTION_NAME, LEXICAL_INDEX_CONTRACT_VERSION
 from user_config import (
     CortexConfigError,
     CortexUserConfig,
@@ -50,6 +50,7 @@ from user_config import (
 DOCTOR_SCHEMA_VERSION = 1
 DOCTOR_STATUSES = ("OK", "WARN", "FAIL", "SKIP", "UNKNOWN", "INFO")
 DEFAULT_HANDSHAKE_TIMEOUT_SECONDS = 20.0
+TYPICAL_HANDSHAKE_WARMUP_SECONDS = 15.0
 DEFAULT_ERROR_LINE_LIMIT = 10
 DEFAULT_ERROR_MAX_AGE_DAYS = 7
 _FINGERPRINT_KEYS = ("embedding_model", "fastembed_version", "pooling")
@@ -87,7 +88,7 @@ class RuntimeContracts:
 
     collection_name: str
     fingerprint: Mapping[str, str]
-    lexical_contract_version: str = "v1"
+    lexical_contract_version: str = LEXICAL_INDEX_CONTRACT_VERSION
 
 
 PackageFinder = Callable[[str], object | None]
@@ -149,7 +150,6 @@ def default_context(
 
 
 def _default_contracts() -> RuntimeContracts:
-    from config import COLLECTION_NAME, LEXICAL_INDEX_CONTRACT_VERSION
     from embedding_fingerprint import current_embedding_fingerprint
 
     return RuntimeContracts(
@@ -258,7 +258,7 @@ def _reranker_check(context: DoctorContext) -> DiagnosticCheck:
         return _check(
             "reranker.runtime",
             "UNKNOWN",
-            f"Reranker health is not sondable: {exc}",
+            f"Reranker health is not inspectable: {exc}",
             read_only=True,
         )
 
@@ -1238,9 +1238,13 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
 
     index_checks.append(_reranker_check(current))
     clients = _client_checks(current)
-    handshake_allowed = Path(current.python_exe).is_file() and (
-        current.script_dir / "server.py"
-    ).is_file()
+    # The server loads the same configuration at import, so an invalid one can
+    # only fail the probe after the full timeout and leak its traceback.
+    handshake_allowed = (
+        config is not None
+        and Path(current.python_exe).is_file()
+        and (current.script_dir / "server.py").is_file()
+    )
     handshake = [_handshake_check(current, handshake_allowed)]
     sections = [
         _section("system", "System", system),
@@ -1251,7 +1255,8 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
         _section("clients", "Client layers", clients),
         _section(
             "mcp",
-            "Global MCP handshake (20s timeout; normal warmup may take ~15s)",
+            f"Global MCP handshake ({current.handshake_timeout_seconds:g}s timeout; "
+            f"normal warmup may take ~{TYPICAL_HANDSHAKE_WARMUP_SECONDS:g}s)",
             handshake,
         ),
     ]

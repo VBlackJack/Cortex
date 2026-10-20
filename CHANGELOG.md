@@ -10,6 +10,7 @@ available in [French](docs/fr/notes-de-version.md) and
 ### Fixed
 - Stop the Codex client registration at the next `[[array.of.tables]]` header: `cortex setup` no longer rewrites the command of a following table and `--unregister` no longer deletes everything after the Cortex entry. A rewrite that would change any other table is refused.
 - Keep the installer-owned model payload in `%LOCALAPPDATA%\Cortex\models` during `cortex setup --reset`, and say so in the reset explanation.
+- Run `cortex doctor` to completion on a malformed `config.toml`: it now reports `config.valid` as failed (valid JSON with `--json`) instead of crashing with a traceback, and skips the MCP handshake that cannot succeed with that configuration.
 
 ## [2026.0909.04] - 2026-09-09
 

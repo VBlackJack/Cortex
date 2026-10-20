@@ -194,9 +194,15 @@ def _dispatch(namespace: argparse.Namespace, arguments: list[str]) -> int:
 
         return config_main(arguments)
     if namespace.command == "doctor":
-        from doctor import main as doctor_main
+        from user_config import CortexConfigError
 
-        return doctor_main(arguments)
+        try:
+            from doctor import main as doctor_main
+
+            return doctor_main(arguments)
+        except CortexConfigError as exc:
+            sys.stderr.write(f"Cortex doctor error: {exc}\n")
+            return EXIT_INVALID_INPUT
     if namespace.command == "setup":
         from setup_wizard import main as setup_wizard_main
 

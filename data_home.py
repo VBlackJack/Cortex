@@ -21,6 +21,12 @@ from pathlib import Path
 
 _LOG = logging.getLogger("cortex.data_home")
 
+# Logs live in the data home. The line format is defined here, not next to the
+# writer in cortex_logging, because cortex_logging loads the user configuration
+# at import and cortex doctor must read logs when that configuration is invalid.
+LOG_TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
+"""Leading timestamp of every log line; readers such as doctor parse it back."""
+
 
 class CortexDataHomeError(RuntimeError):
     """Base error for an unsafe or incomplete Cortex data-home transition."""
