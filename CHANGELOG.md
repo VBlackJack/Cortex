@@ -16,6 +16,7 @@ available in [French](docs/fr/notes-de-version.md) and
 - Treat a rejected certificate, an unresolvable Confluence host and a refused connection as permanent failures instead of retrying them as transient, and log the underlying cause type and message at every retry and exhaustion point.
 - Write a knowledge-base path containing an emoji or another character outside the Basic Multilingual Plane as valid TOML; `cortex setup` and `cortex init` now read the new configuration back and refuse to commit one that Cortex could not load.
 - Reject `inf` and `nan` for `write_lock_timeout_seconds`, in the file and in `CORTEX_WRITE_LOCK_TIMEOUT_SECONDS`, instead of waiting for the write lock forever.
+- Report a rejected embedded model payload in the standalone `cortex.exe` as one `[cortex] embedded model payload rejected:` line with the invalid-input exit code, instead of a traceback on every command.
 
 ## [2026.0909.04] - 2026-09-09
 

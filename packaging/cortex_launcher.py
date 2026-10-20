@@ -41,9 +41,16 @@ try:
 except Exception as exc:  # noqa: BLE001 -- bootstrap failure must not prevent startup.
     print(f"[cortex] truststore injection failed: {exc}", file=sys.stderr)
 
-from offline_models import activate_if_embedded  # noqa: E402
+from confluence_writer.constants import EXIT_INVALID_INPUT  # noqa: E402
+from offline_models import OfflineModelsError, activate_if_embedded  # noqa: E402
 
-activate_if_embedded()
+try:
+    activate_if_embedded()
+except OfflineModelsError as exc:
+    # A rejected payload must not surface as a traceback: Companion's handshake
+    # and every scripted caller read one stable line and exit code instead.
+    print(f"[cortex] embedded model payload rejected: {exc}", file=sys.stderr)
+    raise SystemExit(EXIT_INVALID_INPUT) from None
 
 from cli import main  # noqa: E402
 

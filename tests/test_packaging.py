@@ -31,6 +31,8 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 acceptance
     import tomli as tomllib
 
 from _version import __version__
+from confluence_writer.constants import EXIT_INVALID_INPUT
+from offline_models import ModelManifestError, OfflineModelsError
 
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
@@ -159,6 +161,7 @@ def test_launcher_injects_truststore_before_importing_cli(
         calls.append("offline")
 
     offline_models_module.activate_if_embedded = activate  # type: ignore[attr-defined]
+    offline_models_module.OfflineModelsError = OfflineModelsError  # type: ignore[attr-defined]
     cli_module = ModuleType("cli")
     cli_module.main = lambda: 0  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "truststore", truststore_module)
@@ -206,6 +209,7 @@ def test_launcher_reports_truststore_injection_failure_without_crashing(
     truststore_module.inject_into_ssl = fail_injection  # type: ignore[attr-defined]
     offline_models_module = ModuleType("offline_models")
     offline_models_module.activate_if_embedded = lambda: None  # type: ignore[attr-defined]
+    offline_models_module.OfflineModelsError = OfflineModelsError  # type: ignore[attr-defined]
     cli_module = ModuleType("cli")
     cli_module.main = lambda: 0  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "truststore", truststore_module)
@@ -218,6 +222,37 @@ def test_launcher_reports_truststore_injection_failure_without_crashing(
         capsys.readouterr().err
         == "[cortex] truststore injection failed: native store unavailable\n"
     )
+
+
+def test_launcher_reports_rejected_model_payload_without_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[str] = []
+    truststore_module = ModuleType("truststore")
+    truststore_module.inject_into_ssl = lambda: None  # type: ignore[attr-defined]
+    offline_models_module = ModuleType("offline_models")
+
+    def reject() -> None:
+        raise ModelManifestError("hash mismatch for model.onnx")
+
+    offline_models_module.activate_if_embedded = reject  # type: ignore[attr-defined]
+    offline_models_module.OfflineModelsError = OfflineModelsError  # type: ignore[attr-defined]
+    cli_module = ModuleType("cli")
+    cli_module.main = lambda: calls.append("cli") or 0  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "truststore", truststore_module)
+    monkeypatch.setitem(sys.modules, "offline_models", offline_models_module)
+    monkeypatch.setitem(sys.modules, "cli", cli_module)
+    monkeypatch.setattr(sys, "argv", ["cortex.exe", "handshake"])
+
+    with pytest.raises(SystemExit) as raised:
+        runpy.run_path(str(LAUNCHER), run_name="test_cortex_launcher")
+
+    assert raised.value.code == EXIT_INVALID_INPUT
+    assert capsys.readouterr().err == (
+        "[cortex] embedded model payload rejected: hash mismatch for model.onnx\n"
+    )
+    assert calls == []
 
 
 def test_every_python_source_has_apache_header() -> None:
