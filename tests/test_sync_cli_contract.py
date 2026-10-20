@@ -272,13 +272,73 @@ def test_error_samples_are_truncated_without_truncating_exact_counter() -> None:
             "empty_files": 0,
             "errors": len(errors),
         },
-        indexes=SyncIndexes(chroma="failed", lexical="ok"),
+        indexes=SyncIndexes(chroma="ok", lexical="ok"),
         errors=errors,
     )
 
     assert len(report.errors) == 50
     assert report.errors_truncated is True
     assert report.counters.errors == 51
+    assert report.status == "partial"
+    assert report.recommendation == "check_sources"
+
+
+_NO_MUTATION_ONE_ERROR = {
+    "published_files": 0,
+    "added_chunks": 0,
+    "deleted_chunks": 0,
+    "removed_files": 0,
+    "skipped_files": 3,
+    "empty_files": 0,
+    "errors": 1,
+}
+
+
+def test_unreadable_source_in_steady_state_is_partial_with_healthy_chroma(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    error = SyncError(code="extraction_failed", phase="extract", path="knowledge/bad.pdf")
+    report = indexer._build_sync_report(
+        section=None,
+        section_names=["knowledge"],
+        should_sync_documents=False,
+        stats=dict(_NO_MUTATION_ONE_ERROR),
+        errors=[error],
+        lexical_prepared=True,
+        indexed_generation_id=None,
+    )
+    monkeypatch.setattr(indexer, "sync_report", lambda **_kwargs: report)
+
+    assert indexer.main(["--json"]) == EXIT_ERROR
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["status"] == "partial"
+    assert payload["indexes"] == {"chroma": "ok", "lexical": "ok"}
+    assert payload["recommendation"] == "check_sources"
+    assert payload["errors"] == [
+        {"code": "extraction_failed", "phase": "extract", "path": "knowledge/bad.pdf"}
+    ]
+
+
+def test_source_error_mixed_with_index_error_stays_failed() -> None:
+    errors = [
+        SyncError(code="extraction_failed", phase="extract", path="knowledge/bad.pdf"),
+        SyncError(code="chroma_publication_failed", phase="publish_chroma", path="k/a.md"),
+    ]
+    report = indexer._build_sync_report(
+        section=None,
+        section_names=["knowledge"],
+        should_sync_documents=False,
+        stats={**_NO_MUTATION_ONE_ERROR, "errors": 2},
+        errors=errors,
+        lexical_prepared=True,
+        indexed_generation_id=None,
+    )
+
+    assert report.status == "failed"
+    assert report.indexes.chroma == "failed"
+    assert report.recommendation == "retry_sync"
 
 
 def test_human_sync_keeps_stdout_empty(
@@ -509,6 +569,33 @@ def test_json_exception_funnel_maps_known_failures(
 
     assert payload["errors"][0]["code"] == expected_error
     assert payload["changed"] is False
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_code"),
+    [
+        pytest.param(CortexWriteLockedError("index busy"), EXIT_LOCKED, id="write-lock"),
+        pytest.param(CortexConfigError("bad config"), EXIT_INVALID_INPUT, id="config"),
+        pytest.param(IngestionStorageError("bad generation"), EXIT_ERROR, id="storage"),
+        pytest.param(RuntimeError("boom"), EXIT_ERROR, id="unexpected"),
+    ],
+)
+def test_human_sync_shares_the_exception_funnel(
+    error: Exception,
+    expected_code: int,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fail_sync(**_kwargs: object) -> SyncReport:
+        raise error
+
+    monkeypatch.setattr(indexer, "sync_report", fail_sync)
+
+    assert indexer.main([]) == expected_code
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert captured.err == f"Cortex sync error: {error}\n"
 
 
 def test_mcp_sync_survives_ingestion_lock_contention(monkeypatch: pytest.MonkeyPatch) -> None:

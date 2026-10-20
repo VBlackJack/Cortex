@@ -22,6 +22,10 @@ from pydantic import BaseModel, ConfigDict
 
 SYNC_CLI_CONTRACT_VERSION: Literal[1] = 1
 SYNC_ERROR_SAMPLE_LIMIT = 50
+# Errors raised by an unreadable source file. They never damage either index,
+# so a sync whose only errors are these is partial, not failed.
+SOURCE_ERROR_CODES = frozenset({"extraction_failed"})
+SyncRecommendation = Literal["retry_sync", "repair_lexical", "check_sources", "none"]
 
 
 class SyncContractModel(BaseModel):  # type: ignore[misc]
@@ -112,7 +116,7 @@ class SyncReport(SyncContractModel):
     errors: tuple[SyncError, ...]
     errors_truncated: bool
     restart_required: Literal[False] = False
-    recommendation: Literal["retry_sync", "repair_lexical", "none"]
+    recommendation: SyncRecommendation
 
 
 def build_sync_report(
@@ -133,7 +137,20 @@ def build_sync_report(
         > 0
     )
     successful_mutations = counter_model.published_files + counter_model.removed_files
-    if successful_mutations == 0 and counter_model.errors > 0:
+    # Error samples are bounded, as is the index health derived from them; an
+    # unsampled index error would already have marked an index unhealthy.
+    source_errors_only = (
+        counter_model.errors > 0
+        and bool(errors)
+        and all(error.code in SOURCE_ERROR_CODES for error in errors)
+        and indexes.chroma == "ok"
+        and indexes.lexical == "ok"
+    )
+    status: Literal["succeeded", "partial", "failed"]
+    recommendation: SyncRecommendation
+    if source_errors_only:
+        status = "partial"
+    elif successful_mutations == 0 and counter_model.errors > 0:
         status = "failed"
     elif successful_mutations > 0 and (
         counter_model.errors > 0 or indexes.chroma != "ok" or indexes.lexical != "ok"
@@ -146,6 +163,9 @@ def build_sync_report(
 
     if indexes.lexical != "ok":
         recommendation = "repair_lexical"
+    elif source_errors_only:
+        # The error samples name the unreadable sources; retrying cannot help.
+        recommendation = "check_sources"
     elif counter_model.errors > 0:
         recommendation = "retry_sync"
     else:

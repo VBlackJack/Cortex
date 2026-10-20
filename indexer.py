@@ -25,12 +25,11 @@ import os
 import sqlite3
 import sys
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, ClassVar, Literal, TextIO
 
-_LOG = logging.getLogger("cortex.indexer")
-log = _LOG
+log = logging.getLogger("cortex.indexer")
 
 # Force CPU-only - avoid GPU driver crashes
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -459,9 +458,10 @@ def _build_sync_report(
 ) -> SyncReport:
     """Build one report from counters and ordered error samples."""
     error_codes = {error.code for error in errors}
+    # Source-side codes such as extraction_failed leave Chroma intact; the
+    # report contract classifies them separately.
     chroma_failure_codes = {
         "chroma_publication_failed",
-        "extraction_failed",
         "inconsistent_generation",
         "section_unavailable",
         "vault_unavailable",
@@ -836,14 +836,29 @@ def _log_indexation_progress(current: int, total: int) -> None:
 
 def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
     """Run sync behind the machine-mode exception funnel."""
+    report, exit_code, _failure = _run_sync_funnel(section, _emit_indexation_progress)
+    return report, exit_code
+
+
+def _run_sync_funnel(
+    section: str | None,
+    progress: Callable[[int, int], None],
+) -> tuple[SyncReport, int, str | None]:
+    """Run sync behind the exception funnel shared by human and machine modes.
+
+    Returns the report, its exit code, and the message of the exception the
+    funnel converted into a failure report, or ``None`` when sync returned.
+    """
+    failure: str | None = None
     try:
         report = sync_report(
             section=section,
             verbose=True,
-            progress=_emit_indexation_progress,
+            progress=progress,
         )
     except (CortexConfigError, IngestionConfigError) as exc:
-        _LOG.error("sync_invalid_configuration error_type=%s", type(exc).__name__)
+        failure = str(exc)
+        log.error("sync_invalid_configuration error_type=%s", type(exc).__name__)
         report = _sync_failure_report(
             section=section,
             code="invalid_configuration",
@@ -851,8 +866,9 @@ def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
             status="failed",
             recommendation="none",
         )
-    except EmbeddingFingerprintMismatchError:
-        _LOG.error("sync_incompatible_index")
+    except EmbeddingFingerprintMismatchError as exc:
+        failure = str(exc)
+        log.error("sync_incompatible_index")
         report = _sync_failure_report(
             section=section,
             code="incompatible_index",
@@ -861,7 +877,8 @@ def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
             recommendation="none",
         )
     except (CortexWriteLockedError, IngestionLockedError) as exc:
-        _LOG.warning("sync_lock_unavailable error_type=%s", type(exc).__name__)
+        failure = str(exc)
+        log.warning("sync_lock_unavailable error_type=%s", type(exc).__name__)
         report = _sync_failure_report(
             section=section,
             code="lock_unavailable",
@@ -869,8 +886,9 @@ def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
             status="locked",
             recommendation="retry_sync",
         )
-    except IngestionStorageError:
-        _LOG.error("sync_inconsistent_generation")
+    except IngestionStorageError as exc:
+        failure = str(exc)
+        log.error("sync_inconsistent_generation")
         report = _sync_failure_report(
             section=section,
             code="inconsistent_generation",
@@ -878,8 +896,9 @@ def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
             status="failed",
             recommendation="retry_sync",
         )
-    except Exception:  # noqa: BLE001 -- final machine-contract boundary.
-        _LOG.exception("sync_unexpected_error")
+    except Exception as exc:  # noqa: BLE001 -- final machine-contract boundary.
+        failure = str(exc) or type(exc).__name__
+        log.exception("sync_unexpected_error")
         report = _sync_failure_report(
             section=section,
             code="unexpected_error",
@@ -887,7 +906,7 @@ def _run_json_sync(section: str | None) -> tuple[SyncReport, int]:
             status="failed",
             recommendation="retry_sync",
         )
-    return report, _sync_report_exit_code(report)
+    return report, _sync_report_exit_code(report), failure
 
 
 def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int:
@@ -925,12 +944,10 @@ def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int
 
     # The human run shares the machine exit contract: a partial or failed
     # sync must not exit 0, or batch drivers and shortcuts never see it.
-    report = sync_report(
-        section=args.section,
-        verbose=True,
-        progress=_log_indexation_progress,
-    )
-    return _sync_report_exit_code(report)
+    _report, exit_code, failure = _run_sync_funnel(args.section, _log_indexation_progress)
+    if failure is not None:
+        sys.stderr.write(f"Cortex sync error: {failure}\n")
+    return exit_code
 
 
 def search_main(
