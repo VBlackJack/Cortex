@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import tempfile
@@ -143,8 +144,9 @@ def _positive_int(data: dict[str, Any], key: str, path: Path) -> int:
 
 def _positive_number(data: dict[str, Any], key: str, path: Path) -> float:
     value = data[key]
-    if type(value) not in {int, float} or value <= 0:
-        raise _error(f"'{key}' must be a positive number.", path)
+    # inf and nan both pass "value <= 0" and would make a lock wait forever.
+    if type(value) not in {int, float} or not math.isfinite(value) or value <= 0:
+        raise _error(f"'{key}' must be a positive finite number.", path)
     return float(value)
 
 
@@ -249,8 +251,10 @@ def _environment_float(
         value = float(raw)
     except ValueError as exc:
         raise _error(f"Environment variable {key} must be a number.", path) from exc
-    if value <= 0:
-        raise _error(f"Environment variable {key} must be greater than zero.", path)
+    if not math.isfinite(value) or value <= 0:
+        raise _error(
+            f"Environment variable {key} must be a finite number greater than zero.", path
+        )
     return value
 
 
@@ -375,22 +379,55 @@ def require_kb_path(value: str | None, *, config_path: Path | None = None) -> st
     )
 
 
+def _toml_literal(value: object) -> str:
+    """Render a string or string list as a TOML-compatible JSON literal.
+
+    ``ensure_ascii=False`` keeps characters outside the Basic Multilingual
+    Plane as themselves: ASCII escaping would split them into UTF-16
+    surrogate escapes, which TOML rejects.
+    """
+    return json.dumps(value, ensure_ascii=False)
+
+
 def render_user_config(config: CortexUserConfig) -> str:
     """Serialize schema v1 using TOML-compatible JSON string/list literals."""
     lines = [
         f"schema_version = {SCHEMA_VERSION}",
-        f"kb_path = {json.dumps(require_kb_path(config.kb_path))}",
-        f"chroma_path = {json.dumps(config.chroma_path)}",
+        f"kb_path = {_toml_literal(require_kb_path(config.kb_path))}",
+        f"chroma_path = {_toml_literal(config.chroma_path)}",
         f"index_whole_folder = {'true' if config.index_whole_folder else 'false'}",
-        "included_sections = " + json.dumps(sorted(config.included_sections)),
-        "excluded_dirs = " + json.dumps(sorted(config.excluded_dirs)),
-        "exclude_files = " + json.dumps(sorted(config.exclude_files)),
+        "included_sections = " + _toml_literal(sorted(config.included_sections)),
+        "excluded_dirs = " + _toml_literal(sorted(config.excluded_dirs)),
+        "exclude_files = " + _toml_literal(sorted(config.exclude_files)),
         f"max_markdown_file_size_bytes = {config.max_markdown_file_size_bytes}",
         f"max_pdf_size_bytes = {config.max_pdf_size_bytes}",
-        f"write_lock_path = {json.dumps(config.write_lock_path)}",
+        f"write_lock_path = {_toml_literal(config.write_lock_path)}",
         f"write_lock_timeout_seconds = {config.write_lock_timeout_seconds:g}",
     ]
     return "\n".join(lines) + "\n"
+
+
+def _validate_rendered_config(
+    rendered_path: Path, config: CortexUserConfig, *, target: Path
+) -> None:
+    """Refuse to commit bytes that Cortex itself could not load back.
+
+    Environment overrides are ignored on purpose: the file alone must
+    reproduce the requested configuration.
+    """
+    try:
+        reloaded = load_user_config(path=rendered_path, environ={})
+    except CortexConfigError as exc:
+        raise _error(
+            f"Rendered configuration could not be read back ({exc}); nothing was written.",
+            target,
+        ) from exc
+    if reloaded != config:
+        raise _error(
+            "Rendered configuration did not round-trip to the requested values; "
+            "nothing was written.",
+            target,
+        )
 
 
 def write_user_config_atomic(path: Path, config: CortexUserConfig) -> bool:
@@ -414,6 +451,7 @@ def write_user_config_atomic(path: Path, config: CortexUserConfig) -> bool:
             handle.write(render_user_config(config))
             handle.flush()
             os.fsync(handle.fileno())
+        _validate_rendered_config(temporary_path, config, target=path)
         if path.exists():
             return False
         os.replace(temporary_path, path)

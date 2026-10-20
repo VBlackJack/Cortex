@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -183,6 +184,59 @@ def test_invalid_types_are_rejected(tmp_path: Path, value: str) -> None:
 
     with pytest.raises(CortexConfigError, match="Invalid type|must be"):
         load_user_config(path=path, environ={})
+
+
+@pytest.mark.parametrize("value", ["inf", "nan", "-inf"])
+def test_non_finite_write_lock_timeout_is_rejected(tmp_path: Path, value: str) -> None:
+    path = tmp_path / "config.toml"
+    _write_config(path, f'kb_path = "kb"\nwrite_lock_timeout_seconds = {value}\n')
+
+    with pytest.raises(CortexConfigError, match="positive finite number"):
+        load_user_config(path=path, environ={})
+
+
+@pytest.mark.parametrize("value", ["inf", "nan"])
+def test_non_finite_write_lock_timeout_environment_is_rejected(
+    tmp_path: Path, value: str
+) -> None:
+    path = tmp_path / "config.toml"
+    _write_config(path, 'kb_path = "kb"\n')
+
+    with pytest.raises(CortexConfigError, match="finite number greater than zero"):
+        load_user_config(
+            path=path, environ={"CORTEX_WRITE_LOCK_TIMEOUT_SECONDS": value}
+        )
+
+
+def test_astral_kb_path_round_trips_through_atomic_write(tmp_path: Path) -> None:
+    source = tmp_path / "source.toml"
+    kb = str(tmp_path / "notes \U0001f600")
+    _write_config(source, f"kb_path = {json.dumps(kb, ensure_ascii=False)}\n")
+    config = load_user_config(path=source, environ={})
+    target = tmp_path / "written" / "config.toml"
+
+    assert user_config.write_user_config_atomic(target, config) is True
+
+    assert "\\ud83d" not in target.read_text(encoding="utf-8")
+    assert load_user_config(path=target, environ={}).kb_path == kb
+
+
+def test_atomic_write_refuses_bytes_it_cannot_load_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.toml"
+    _write_config(source, 'kb_path = "kb"\n')
+    config = load_user_config(path=source, environ={})
+    target = tmp_path / "written" / "config.toml"
+    monkeypatch.setattr(
+        user_config, "render_user_config", lambda _config: 'kb_path = "\\ud83d"\n'
+    )
+
+    with pytest.raises(CortexConfigError, match="could not be read back"):
+        user_config.write_user_config_atomic(target, config)
+
+    assert not target.exists()
+    assert list(target.parent.iterdir()) == []
 
 
 def test_missing_kb_path_has_actionable_typed_error(tmp_path: Path) -> None:

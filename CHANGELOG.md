@@ -14,6 +14,8 @@ available in [French](docs/fr/notes-de-version.md) and
 - Report a sync whose only errors are unreadable source files as `partial` with a healthy Chroma index and the new `check_sources` recommendation, instead of `failed` with `retry_sync` on every run.
 - Give the human-mode `cortex sync` the same exception handling and exit codes as `--json` (2 when locked, 6 for invalid input, 1 otherwise), with a one-line `Cortex sync error:` message instead of a traceback.
 - Treat a rejected certificate, an unresolvable Confluence host and a refused connection as permanent failures instead of retrying them as transient, and log the underlying cause type and message at every retry and exhaustion point.
+- Write a knowledge-base path containing an emoji or another character outside the Basic Multilingual Plane as valid TOML; `cortex setup` and `cortex init` now read the new configuration back and refuse to commit one that Cortex could not load.
+- Reject `inf` and `nan` for `write_lock_timeout_seconds`, in the file and in `CORTEX_WRITE_LOCK_TIMEOUT_SECONDS`, instead of waiting for the write lock forever.
 
 ## [2026.0909.04] - 2026-09-09
 
