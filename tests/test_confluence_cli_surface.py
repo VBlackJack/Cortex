@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -61,7 +61,7 @@ from ingestion.scheduling import TransientIngestionError
 from ingestion.storage import IngestionStorage
 
 _FAKE_SECRET = "fixture-only-fake-secret-confluence-surface-19a2"
-_NOW = datetime(2026, 8, 5, 10, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 5, 10, 0, tzinfo=UTC)
 
 
 @pytest.mark.parametrize(
@@ -195,7 +195,7 @@ def _settings(
             schema_version=3,
             base_url="https://kazan.example.test",
             credential_target="cortex-spike",
-            auth_expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+            auth_expires_at=datetime(2099, 1, 1, tzinfo=UTC),
             console_path=Path("fixture-console.exe"),
             spaces=(
                 SpaceMapping(
@@ -215,7 +215,7 @@ def _settings(
         schema_version=2,
         base_url="https://kazan.example.test",
         credential_target="cortex-spike",
-        auth_expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+        auth_expires_at=datetime(2099, 1, 1, tzinfo=UTC),
         console_path=Path("fixture-console.exe"),
         spaces=(
             SpaceMapping(

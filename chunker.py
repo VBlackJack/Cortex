@@ -19,7 +19,7 @@ Splits .md files into semantically meaningful chunks with metadata.
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from chunker_utils import (
@@ -197,9 +197,9 @@ def chunk_markdown_file(file_path: Path) -> ChunkResult:
         and re.fullmatch(r"[0-9a-fA-F]{64}", explicit_content_hash)
         else content_hash
     )
-    captured_at = datetime.now(timezone.utc)
+    captured_at = datetime.now(UTC)
     file_modified_at = normalize_rfc3339(
-        datetime.fromtimestamp(source_stat.st_mtime, timezone.utc)
+        datetime.fromtimestamp(source_stat.st_mtime, UTC)
     )
     contract = build_contract_metadata(
         frontmatter,

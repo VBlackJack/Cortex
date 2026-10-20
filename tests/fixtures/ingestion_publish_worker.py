@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -52,7 +52,7 @@ def main() -> int:
             enumeration_complete=True,
             enumeration_succeeded=True,
         ),
-        now=datetime.now(timezone.utc),
+        now=datetime.now(UTC),
         before_pointer_switch=block_before_pointer,
     )
     return 0

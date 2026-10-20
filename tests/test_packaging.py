@@ -18,17 +18,13 @@ from __future__ import annotations
 import re
 import runpy
 import sys
+import tomllib
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 from packaging.requirements import Requirement
 from packaging.version import Version
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10 acceptance
-    import tomli as tomllib
 
 from _version import __version__
 from confluence_writer.constants import EXIT_INVALID_INPUT
@@ -111,9 +107,9 @@ def test_standalone_distribution_contract_is_declared() -> None:
     assert '"--python-license"' in canonical_builder
     assert (
         "https://raw.githubusercontent.com/python/cpython/"
-        "3bb231a6a5dc02b95658877318bf61501a7209e9/LICENSE"
+        "cbc944f4bc59639a444dd971c737788ba2283a91/LICENSE"
     ) in release
-    assert "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf" in release
+    assert "78b12c3a81360b357002334f0e70ea0e92eebf7a9b358805c03c48484945f3bb" in release
     assert release.count('--python-license "${CORTEX_CPYTHON_LICENSE}"') == 2
     assert "packaging\\build_executable.py" in WINDOWS_BUILD_SCRIPT.read_text(
         encoding="utf-8"

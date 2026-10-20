@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import filelock
@@ -38,7 +38,7 @@ def _settings(label: str) -> ConfluenceSettings:
         schema_version=2,
         base_url=f"https://{label}.example.test:8443",
         credential_target=f"Cortex {label}",
-        auth_expires_at=datetime(2026, 12, 1, tzinfo=timezone.utc),
+        auth_expires_at=datetime(2026, 12, 1, tzinfo=UTC),
         console_path=Path(f"C:/Tools/{label}/console.exe"),
         spaces=(
             SpaceMapping(

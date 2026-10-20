@@ -132,7 +132,7 @@ def test_dependency_audit_covers_oldest_and_release_python_variants() -> None:
     workflow = _CI_WORKFLOW.read_text(encoding="utf-8")
     release = _RELEASE_WORKFLOW.read_text(encoding="utf-8")
 
-    assert 'python-version: ["3.10", "3.12"]' in workflow
+    assert 'python-version: ["3.11", "3.13"]' in workflow
     for lock in (
         "requirements.lock",
         "requirements-dev.lock",

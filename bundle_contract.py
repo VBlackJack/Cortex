@@ -18,7 +18,7 @@ from __future__ import annotations
 import base64
 import binascii
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Literal, cast
 
@@ -232,7 +232,7 @@ class BundleHeader(BundleContractModel):
             parsed = datetime.fromisoformat(candidate)
         except ValueError as exc:
             raise ValueError("created_at must be an ISO-8601 UTC instant") from exc
-        if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+        if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
             raise ValueError("created_at must use UTC")
         return value
 

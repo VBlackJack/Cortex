@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ingestion.engine import GenerationEngine
@@ -23,7 +23,7 @@ from ingestion.freshness import augment_freshness_report
 from ingestion.models import CollectedDocument, DocumentFailure, GenerationAttempt
 from ingestion.storage import IngestionStorage
 
-_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=UTC)
 
 
 def test_doc_source_is_worst_stage_and_exposes_stale_carry_forward(tmp_path: Path) -> None:

@@ -20,6 +20,7 @@ import json
 import os
 import re
 import sys
+import tomllib
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -46,11 +47,6 @@ from confluence_writer.constants import (
     SUPPORTED_CONFIG_SCHEMA_VERSIONS,
 )
 from user_config import user_config_path
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised on Python 3.10
-    import tomli as tomllib
 
 _SPACE_KEY = re.compile(r"^[A-Za-z0-9._-]+$")
 _PAGE_ID = re.compile(r"^[0-9]+$")
@@ -314,7 +310,7 @@ def _parse_toml_bytes(content: bytes, source: Path) -> dict[str, Any]:
         raise ConfluenceConfigError(
             f"Unsupported Confluence schema_version={version!r}; expected one of: {supported}."
         )
-    return cast(dict[str, Any], raw)
+    return raw
 
 
 def parse_confluence_settings_bytes(content: bytes, *, source: Path) -> ConfluenceSettings:

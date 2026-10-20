@@ -21,7 +21,7 @@ import random
 import sys
 import time
 from collections.abc import Callable, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -69,7 +69,7 @@ _EXIT_ERROR = 1
 
 
 def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _retry_policy(settings: IngestionSettings) -> RetryPolicy:

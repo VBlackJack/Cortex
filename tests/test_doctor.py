@@ -21,7 +21,7 @@ import os
 import sqlite3
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -202,7 +202,7 @@ def _context(
         handshake_probe=handshake_probe,
         contracts_provider=lambda: RuntimeContracts("cortex", FINGERPRINT),
         lock_probe=lock_probe,
-        now=lambda: datetime(2026, 7, 12, 12, 0, tzinfo=timezone.utc),
+        now=lambda: datetime(2026, 7, 12, 12, 0, tzinfo=UTC),
     )
 
 

@@ -31,7 +31,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from contextlib import closing
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +53,7 @@ DEFAULT_HANDSHAKE_TIMEOUT_SECONDS = 20.0
 TYPICAL_HANDSHAKE_WARMUP_SECONDS = 15.0
 DEFAULT_ERROR_LINE_LIMIT = 10
 DEFAULT_ERROR_MAX_AGE_DAYS = 7
+MINIMUM_PYTHON_VERSION = (3, 11)
 _FINGERPRINT_KEYS = ("embedding_model", "fastembed_version", "pooling")
 _FRESHNESS_KEYS = (
     "path",
@@ -120,7 +121,7 @@ class DoctorContext:
     handshake_timeout_seconds: float = DEFAULT_HANDSHAKE_TIMEOUT_SECONDS
     error_line_limit: int = DEFAULT_ERROR_LINE_LIMIT
     error_max_age_days: int = DEFAULT_ERROR_MAX_AGE_DAYS
-    now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
+    now: Callable[[], datetime] = lambda: datetime.now(UTC)
 
 
 def default_context(
@@ -265,15 +266,17 @@ def _reranker_check(context: DoctorContext) -> DiagnosticCheck:
 
 def _system_checks(context: DoctorContext) -> list[DiagnosticCheck]:
     version = context.python_version
+    supported = version >= MINIMUM_PYTHON_VERSION
+    minimum_label = ".".join(map(str, MINIMUM_PYTHON_VERSION))
     checks = [
         _check(
             "python.version",
-            "OK" if version >= (3, 10, 0) else "FAIL",
+            "OK" if supported else "FAIL",
             f"Python {'.'.join(map(str, version))}"
-            + (" is supported" if version >= (3, 10, 0) else " is too old; require >= 3.10"),
+            + (" is supported" if supported else f" is too old; require >= {minimum_label}"),
             executable=context.python_exe,
             version=list(version),
-            minimum=[3, 10],
+            minimum=list(MINIMUM_PYTHON_VERSION),
         )
     ]
     for package in REQUIRED_PACKAGES:
@@ -753,7 +756,7 @@ def _log_error_check(
             lines=[],
         )
     if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
+        now = now.replace(tzinfo=UTC)
     cutoff = now - timedelta(days=max_age_days)
 
     def rotation_order(path: Path) -> tuple[int, int, float]:
@@ -1272,7 +1275,7 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
         "tool": "cortex doctor",
         "version": __version__,
         "read_only": True,
-        "generated_at_utc": current.now().astimezone(timezone.utc).isoformat(),
+        "generated_at_utc": current.now().astimezone(UTC).isoformat(),
         "summary": summary,
         "sections": sections,
     }

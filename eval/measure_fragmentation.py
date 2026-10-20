@@ -25,7 +25,7 @@ import json
 import statistics
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -314,7 +314,7 @@ def main() -> None:
     # indexer.get_collection: this measurement must never create/migrate index state.
     collection = client.get_collection(name=config.COLLECTION_NAME)
     selected_sections = set(args.sections) if args.sections else None
-    measured_at = datetime.now(timezone.utc)
+    measured_at = datetime.now(UTC)
     result = {
         "schema_version": 1,
         "label": args.label,

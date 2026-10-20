@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from re import Pattern
 from re import compile as re_compile
@@ -118,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--date", help="Override today as YYYY-MM-DD UTC (for testing).")
     args = parser.parse_args(argv)
 
-    today = date.fromisoformat(args.date) if args.date else datetime.now(tz=timezone.utc).date()
+    today = date.fromisoformat(args.date) if args.date else datetime.now(tz=UTC).date()
     current = args.current if args.current else read_current_version(_VERSION_PATH)
     new_version = next_calver(current, today)
 

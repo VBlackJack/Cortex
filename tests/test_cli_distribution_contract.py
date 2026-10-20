@@ -21,13 +21,9 @@ import os
 import shutil
 import subprocess
 import sys
+import tomllib
 import zipfile
 from pathlib import Path
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10 acceptance
-    import tomli as tomllib
 
 from _version import __version__
 

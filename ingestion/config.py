@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import os
-import sys
+import tomllib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -38,11 +38,6 @@ from ingestion.constants import (
     INGESTION_DIRECTORY_NAME,
 )
 from user_config import local_data_home, user_config_path
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised on Python 3.10
-    import tomli as tomllib
 
 _SETTING_FIELDS = {
     "schema_version",
@@ -138,7 +133,7 @@ def _read_toml(path: Path) -> dict[str, Any]:
             f"Unsupported ingestion schema_version={version!r}; expected "
             f"{CONFIG_SCHEMA_VERSION}. Configuration file: '{path}'."
         )
-    return cast(dict[str, Any], raw)
+    return raw
 
 
 def _parse_environment_value(field: str, value: str) -> object:

@@ -39,7 +39,7 @@ for %%C in (python python3) do (
 
 if "!PYTHON_EXE!"=="" (
     echo [FAIL] Python not found in PATH.
-    echo        Install Python 3.10+ from https://python.org and rerun.
+    echo        Install Python 3.11+ from https://python.org and rerun.
     pause
     exit /b 1
 )

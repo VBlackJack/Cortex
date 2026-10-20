@@ -21,6 +21,7 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ### Changed
 - Move to MCP Python SDK 1.30.0 (CVE-2026-59951) and regenerate the three hash-locked dependency trees, which clears the advisories reported against the previous locks; no runtime behaviour change.
+- Require Python 3.11 or newer: Python 3.10 reached end of life in October 2026. CI now tests 3.11 to 3.13, and the standalone executables embed CPython 3.13 instead of 3.12.
 - Remember a failed reranker load for the life of the process, so `rerank` queries degrade immediately with the recorded reason instead of reloading the model on every request.
 - Describe the items excluded from a portable bundle in English.
 

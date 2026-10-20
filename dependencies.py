@@ -15,8 +15,6 @@
 
 from __future__ import annotations
 
-import sys
-
 REQUIRED_PACKAGES = [
     "mcp",
     "chromadb",
@@ -25,5 +23,3 @@ REQUIRED_PACKAGES = [
     "pdfplumber",
     "filelock",
 ]
-if sys.version_info < (3, 11):
-    REQUIRED_PACKAGES.append("tomli")

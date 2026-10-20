@@ -26,17 +26,13 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Final
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised on Python 3.10
-    import tomli as tomllib
 
 from data_home import (
     CortexDataHomeError,
@@ -431,7 +427,7 @@ def _read_toml_config(path: Path) -> tuple[str, dict[str, Any]]:
 
 
 def _backup_path(path: Path) -> Path:
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
     return path.with_name(f"{path.name}.{timestamp}.bak")
 
 

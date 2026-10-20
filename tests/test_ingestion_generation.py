@@ -21,7 +21,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -40,7 +40,7 @@ from ingestion.models import (
 )
 from ingestion.storage import IngestionStorage, IngestionStorageError
 
-_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=UTC)
 _WORKER = Path(__file__).parent / "fixtures" / "ingestion_publish_worker.py"
 
 

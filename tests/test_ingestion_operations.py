@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -42,7 +42,7 @@ from ingestion.scheduling import (
 )
 from ingestion.storage import IngestionStorage
 
-_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=UTC)
 _FAKE_SECRET = "fixture-only-fake-secret-4e552cc8"
 
 

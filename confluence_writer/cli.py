@@ -20,7 +20,7 @@ import getpass
 import logging
 import sys
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -223,7 +223,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise OutsideAllowlistError("Space is not allowlisted.")
             if settings.base_url is None or settings.auth_expires_at is None:
                 raise ConfluenceConfigError("Catalogue requires base_url and auth_expires_at.")
-            if settings.auth_expires_at <= datetime.now(timezone.utc):
+            if settings.auth_expires_at <= datetime.now(UTC):
                 return EXIT_AUTH
             secret = WindowsCredentialReader().read(settings.credential_target)
             client = ConfluenceRestClient(settings.base_url, secret)
@@ -245,7 +245,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "Confluence resolve requires: base_url, auth_expires_at"
                 )
             validate_page_reference(namespace.reference, base_url=settings.base_url)
-            if settings.auth_expires_at <= datetime.now(timezone.utc):
+            if settings.auth_expires_at <= datetime.now(UTC):
                 sys.stderr.write("Cortex Confluence error: credential unavailable or expired.\n")
                 return EXIT_AUTH
             secret = WindowsCredentialReader().read(settings.credential_target)

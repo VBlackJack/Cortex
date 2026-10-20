@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -24,7 +24,7 @@ from confluence_writer.config import ConfluenceSettings, PageSelection, SpaceMap
 from confluence_writer.models import RemotePage
 from confluence_writer.resolver import preview_scope
 
-_NOW = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
 
 
 def _page(page_id: str, title: str) -> RemotePage:

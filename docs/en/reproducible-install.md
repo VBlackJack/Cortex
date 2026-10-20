@@ -57,7 +57,7 @@ As soon as `requirements.txt` changes (bumping a dependency, adding, removing),
 exact command is in the header of `requirements.lock`:
 
 ```powershell
-uv pip compile --universal --generate-hashes --python-version 3.10 requirements.txt -o requirements.lock
+uv pip compile --universal --generate-hashes --python-version 3.11 requirements.txt -o requirements.lock
 ```
 
 Things to watch:
@@ -66,8 +66,10 @@ Things to watch:
   `pip`: neither the standard install nor CI needs `uv`.
 - `--universal` produces the single cross-platform file; do not drop it,
   otherwise the lock becomes specific to the generating platform.
-- `--python-version 3.10` targets the minimum supported version, which
-  guarantees the lock stays valid across the whole 3.10 to 3.12 matrix.
+- `--python-version 3.11` targets the minimum supported version, which
+  guarantees the lock stays valid across the whole 3.11 to 3.13 matrix.
+- `uv` keeps the versions already pinned in the output file. To refresh the
+  whole transitive tree, delete the lock before running the command.
 - Commit `requirements.lock` together with the matching `requirements.txt` in
   the same commit.
 
@@ -75,7 +77,7 @@ When the `dev` or `build` extras in `pyproject.toml` change, or after regenerati
 the runtime lock, regenerate the build lock too:
 
 ```powershell
-uv pip compile --universal --generate-hashes --python-version 3.10 --extra dev --extra build pyproject.toml -o requirements-dev.lock
+uv pip compile --universal --generate-hashes --python-version 3.11 --extra dev --extra build pyproject.toml -o requirements-dev.lock
 ```
 
 CI installs `requirements-dev.lock` with `--require-hashes`, then installs the
@@ -86,7 +88,7 @@ When `fastembed_version` or `huggingface_hub_version` changes in `models.lock`,
 align `requirements-model.txt`, then regenerate its lock:
 
 ```powershell
-uv pip compile --universal --generate-hashes --python-version 3.10 requirements-model.txt -o requirements-model.lock
+uv pip compile --universal --generate-hashes --python-version 3.11 requirements-model.txt -o requirements-model.lock
 ```
 
 The release installs this lock in an isolated virtual environment and rejects
@@ -95,7 +97,7 @@ the payload unless the installed version exactly matches `models.lock`.
 ## Supply-chain audit in CI
 
 The CI `dependency-audit` job runs `pip-audit` on `requirements.lock` with
-Python 3.10 and 3.12, covering both variants of the full transitive tree rather
+Python 3.11 and 3.13, covering both variants of the full transitive tree rather
 than the direct dependencies alone. This maximizes
 coverage for known vulnerabilities. One vulnerability is explicitly ignored and
 documented in the workflow (`PYSEC-2026-311`, the ChromaDB HTTP server path that

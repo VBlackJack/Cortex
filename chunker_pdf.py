@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -86,10 +86,10 @@ def chunk_pdf_file(file_path: Path) -> ChunkResult:
         section=section,
         fallback_title=title,
         content_hash=content_hash,
-        captured_at=datetime.now(timezone.utc),
+        captured_at=datetime.now(UTC),
     )
     file_modified_at = normalize_rfc3339(
-        datetime.fromtimestamp(source_stat.st_mtime, timezone.utc)
+        datetime.fromtimestamp(source_stat.st_mtime, UTC)
     )
     chunks: list[dict[str, Any]] = []
 

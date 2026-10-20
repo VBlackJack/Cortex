@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -128,7 +128,7 @@ def normalize_rfc3339(value: Any) -> str | None:
     if isinstance(value, datetime):
         parsed = value
     elif isinstance(value, date):
-        parsed = datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+        parsed = datetime(value.year, value.month, value.day, tzinfo=UTC)
     elif isinstance(value, str):
         candidate = value.strip()
         if not candidate:
@@ -140,7 +140,7 @@ def normalize_rfc3339(value: Any) -> str | None:
                     parsed_date.year,
                     parsed_date.month,
                     parsed_date.day,
-                    tzinfo=timezone.utc,
+                    tzinfo=UTC,
                 )
             else:
                 parsed = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
@@ -150,7 +150,7 @@ def normalize_rfc3339(value: Any) -> str | None:
         return None
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         return None
-    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def timestamp_epoch_ms(value: str | None) -> int | None:

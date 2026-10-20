@@ -23,14 +23,10 @@ import shutil
 import stat
 import subprocess
 import sys
+import tomllib
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Final, cast
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised by the Python 3.10 CI job
-    import tomli as tomllib
 
 _REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
 _PYPROJECT_PATH: Final[Path] = _REPO_ROOT / "pyproject.toml"

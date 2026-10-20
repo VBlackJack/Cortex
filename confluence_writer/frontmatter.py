@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from confluence_writer.constants import FRONTMATTER_SCHEMA_VERSION, SOURCE_KIND, SOURCE_SYSTEM
@@ -47,7 +47,7 @@ def _timestamp(value: datetime | None) -> str | None:
         return None
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("frontmatter timestamps must include a UTC offset")
-    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def render_document(page: RemotePage, *, path: str, body: str, captured_at: datetime) -> bytes:

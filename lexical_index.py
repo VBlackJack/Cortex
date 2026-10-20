@@ -19,7 +19,7 @@ import re
 import sqlite3
 from collections.abc import Sequence
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -82,7 +82,7 @@ class LexicalIndex:
         values = {
             "schema_version": LEXICAL_SCHEMA_VERSION,
             "contract_version": LEXICAL_INDEX_CONTRACT_VERSION,
-            "created_utc": datetime.now(timezone.utc).isoformat(),
+            "created_utc": datetime.now(UTC).isoformat(),
             "source_collection": COLLECTION_NAME,
         }
         connection.executemany(

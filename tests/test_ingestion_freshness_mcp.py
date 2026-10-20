@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -33,7 +33,7 @@ from ingestion.models import (
 )
 from ingestion.storage import IngestionStorage
 
-_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=UTC)
 
 
 def _prepare_stale_source(root: Path) -> IngestionStorage:

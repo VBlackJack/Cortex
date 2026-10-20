@@ -24,7 +24,7 @@ import tempfile
 import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -80,7 +80,7 @@ ClientFactory = Callable[[SecretValue], ConfluenceRestClient]
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @contextmanager
@@ -174,7 +174,7 @@ def _log_collected_scopes(scope_summaries: Sequence[ScopeSummary]) -> None:
 def _rfc3339(value: datetime) -> str:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ConfluenceWriterError("Confluence source timestamp lacks a UTC offset.")
-    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _safe_file_name(value: str) -> bool:

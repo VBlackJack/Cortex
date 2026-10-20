@@ -20,7 +20,7 @@ import logging
 import os
 import subprocess
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -40,7 +40,7 @@ from ingestion.engine import GenerationEngine, _degraded_error_code
 from ingestion.models import DocumentStatus, GenerationAttempt, HealthStatus, TombstoneKind
 from ingestion.storage import IngestionStorage
 
-_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=UTC)
 _FAKE_SECRET = "fixture-only-fake-secret-confluence-writer-f37c"
 _RESOURCES = Path(__file__).parents[1] / "confluence_writer" / "resources"
 

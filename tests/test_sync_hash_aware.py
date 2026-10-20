@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -42,7 +42,7 @@ from sync_hash_aware import (
     sync_ingestion_documents,
 )
 
-_NOW = datetime(2026, 8, 4, 12, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 4, 12, 0, tzinfo=UTC)
 
 
 class Collection:

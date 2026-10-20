@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -40,7 +40,7 @@ def test_note_without_information_date_omits_nulls_and_keeps_mtime_separate(
 ) -> None:
     root = tmp_path / "vault"
     note = _note(root)
-    modified = datetime(2025, 5, 4, 12, 30, tzinfo=timezone.utc)
+    modified = datetime(2025, 5, 4, 12, 30, tzinfo=UTC)
     os.utime(note, (modified.timestamp(), modified.timestamp()))
     monkeypatch.setattr(chunker, "KB_PATH", str(root))
 

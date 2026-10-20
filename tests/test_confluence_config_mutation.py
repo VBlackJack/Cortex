@@ -20,7 +20,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -42,7 +42,7 @@ from confluence_writer.config_mutation import (
     write_confluence_config_cas,
 )
 
-_NOW = datetime(2026, 8, 5, 12, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 5, 12, 0, tzinfo=UTC)
 _WORKER = Path(__file__).parent / "fixtures" / "confluence_config_mutation_worker.py"
 
 
@@ -122,7 +122,7 @@ def _worker_settings(label: str) -> ConfluenceSettings:
         schema_version=2,
         base_url=f"https://{label}.example.test:8443",
         credential_target=f"Cortex {label}",
-        auth_expires_at=datetime(2026, 12, 1, tzinfo=timezone.utc),
+        auth_expires_at=datetime(2026, 12, 1, tzinfo=UTC),
         console_path=Path(f"C:/Tools/{label}/console.exe"),
         spaces=(
             SpaceMapping(

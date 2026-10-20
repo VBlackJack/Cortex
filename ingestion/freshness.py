@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -61,7 +61,7 @@ def augment_freshness_report(
     directories = _source_directories(Path(ingestion_root))
     if not directories:
         return report
-    observed_at = datetime.now(timezone.utc) if checked_at is None else checked_at
+    observed_at = datetime.now(UTC) if checked_at is None else checked_at
     if observed_at.tzinfo is None or observed_at.utcoffset() is None:
         raise ValueError("checked_at must include a UTC offset")
 

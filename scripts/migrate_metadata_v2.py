@@ -26,7 +26,7 @@ import tempfile
 import time
 from collections.abc import Sequence
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -43,7 +43,7 @@ _LOG = logging.getLogger("cortex.migration.metadata_v2")
 
 
 def _timestamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _sha256(path: Path) -> str:
@@ -84,7 +84,7 @@ def backup_indexes(
         _sqlite_backup(lexical_path, backup_path / "lexical.db")
     manifest = {
         "schema_version": 1,
-        "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "chroma_files": _directory_manifest(backup_path / "chroma"),
         "lexical_sha256": (
             _sha256(backup_path / "lexical.db")

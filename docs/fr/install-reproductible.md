@@ -57,7 +57,7 @@ faut régénérer `requirements.lock`, sinon les deux divergent. La commande exa
 figure en tête du fichier `requirements.lock` :
 
 ```powershell
-uv pip compile --universal --generate-hashes --python-version 3.10 requirements.txt -o requirements.lock
+uv pip compile --universal --generate-hashes --python-version 3.11 requirements.txt -o requirements.lock
 ```
 
 Points d'attention :
@@ -66,8 +66,10 @@ Points d'attention :
   reste `pip` : ni l'install standard ni la CI n'ont besoin d'`uv`.
 - `--universal` produit le fichier cross-plateforme unique ; ne pas le retirer,
   sinon le lock devient spécifique à la plateforme de génération.
-- `--python-version 3.10` cible la version minimale supportée, ce qui garantit
-  que le lock reste valide sur toute la matrice 3.10 à 3.12.
+- `--python-version 3.11` cible la version minimale supportée, ce qui garantit
+  que le lock reste valide sur toute la matrice 3.11 à 3.13.
+- `uv` conserve les versions déjà épinglées dans le fichier de sortie. Pour
+  rafraîchir tout l'arbre transitif, supprimer le lock avant de lancer la commande.
 - Committer `requirements.lock` avec le `requirements.txt` correspondant dans
   le même commit.
 
@@ -75,7 +77,7 @@ Quand les extras `dev` ou `build` de `pyproject.toml` changent, ou après la
 régénération du lock d'exécution, régénérer aussi le lock de fabrication :
 
 ```powershell
-uv pip compile --universal --generate-hashes --python-version 3.10 --extra dev --extra build pyproject.toml -o requirements-dev.lock
+uv pip compile --universal --generate-hashes --python-version 3.11 --extra dev --extra build pyproject.toml -o requirements-dev.lock
 ```
 
 La CI installe `requirements-dev.lock` avec `--require-hashes`, puis le projet
@@ -86,7 +88,7 @@ Quand `fastembed_version` ou `huggingface_hub_version` change dans `models.lock`
 aligner `requirements-model.txt`, puis régénérer son lock :
 
 ```powershell
-uv pip compile --universal --generate-hashes --python-version 3.10 requirements-model.txt -o requirements-model.lock
+uv pip compile --universal --generate-hashes --python-version 3.11 requirements-model.txt -o requirements-model.lock
 ```
 
 La release installe ce lock dans un environnement virtuel isolé et refuse le
@@ -95,7 +97,7 @@ payload si la version installée ne correspond pas exactement à `models.lock`.
 ## Audit supply-chain en CI
 
 Le job `dependency-audit` de la CI lance `pip-audit` sur `requirements.lock`
-avec Python 3.10 et 3.12, donc sur les deux variantes de l'arbre transitif et
+avec Python 3.11 et 3.13, donc sur les deux variantes de l'arbre transitif et
 non sur les seules dépendances directes.
 Cela maximise la couverture de détection des vulnérabilités connues. Une
 vulnérabilité est ignorée explicitement et documentée dans le workflow

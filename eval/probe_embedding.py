@@ -27,7 +27,7 @@ import statistics
 import sys
 import time
 from collections.abc import Iterable, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol, cast
 
@@ -495,7 +495,7 @@ def build_parallel_index(
             "count": len(source_ids),
             "ids_sha256": source_sha,
             "embedding_seconds": elapsed,
-            "completed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "completed_at_utc": datetime.now(UTC).isoformat(),
         }
         checkpoint["cumulative_embedding_seconds"] = sum(
             float(item["embedding_seconds"])
@@ -761,7 +761,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         reranker,
         str(queries[4]["query"]),
     )
-    measured_at = datetime.now(timezone.utc)
+    measured_at = datetime.now(UTC)
     pipeline = quality[f"{candidate_key}_full_pipeline"]
     gate = {
         "strict_mrr_improvement": pipeline["mrr_at_5"] > 0.7307692307692307,

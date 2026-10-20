@@ -15,14 +15,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ingestion.engine import GenerationEngine
 from ingestion.models import CollectedArtifact, CollectedDocument, GenerationAttempt
 from ingestion.storage import IngestionStorage
 
-_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 3, 12, 0, tzinfo=UTC)
 
 
 def test_document_artifacts_follow_carry_forward_and_tombstone(tmp_path: Path) -> None:

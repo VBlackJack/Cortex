@@ -28,7 +28,7 @@ import platform
 import statistics
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -227,7 +227,7 @@ def main() -> None:
             result.pop("_reranked_ranks"), baseline_ranks
         )
 
-    measured_at = datetime.now(timezone.utc)
+    measured_at = datetime.now(UTC)
     report = {
         "schema_version": 1,
         "lot": "6e-fusion-diversity",

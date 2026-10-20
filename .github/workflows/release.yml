@@ -46,10 +46,10 @@ env:
   MCP_CURL_CONNECT_TIMEOUT_SECONDS: "10"
   MCP_CURL_MAX_TIME_SECONDS: "30"
   MCP_DOWNLOAD_MAX_TIME_SECONDS: "120"
-  CPYTHON_LICENSE_URL: https://raw.githubusercontent.com/python/cpython/3bb231a6a5dc02b95658877318bf61501a7209e9/LICENSE
+  CPYTHON_LICENSE_URL: https://raw.githubusercontent.com/python/cpython/cbc944f4bc59639a444dd971c737788ba2283a91/LICENSE
   CONFLUENCE_CONVERTER_ARCHIVE: packaging/dependencies/confluence-console-source-v1.2.0.zip
   CONFLUENCE_CONVERTER_ARCHIVE_SHA256: 8ea2b538b44022fd32bd2f06add6f3c21c15a9cd29b9e1a60c6e234c8421e86d
-  CPYTHON_LICENSE_SHA256: 3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf
+  CPYTHON_LICENSE_SHA256: 78b12c3a81360b357002334f0e70ea0e92eebf7a9b358805c03c48484945f3bb
 
 jobs:
   retrieval:
@@ -69,7 +69,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
           cache: pip
           cache-dependency-path: requirements-dev.lock
 
@@ -165,7 +165,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
           cache: pip
           cache-dependency-path: requirements-dev.lock
 
@@ -213,7 +213,7 @@ jobs:
               raise SystemExit(
                   f"CPython license SHA-256 mismatch: expected {expected}, got {actual}."
               )
-          destination = Path(os.environ["RUNNER_TEMP"]) / "CPython-3.12.13-LICENSE.txt"
+          destination = Path(os.environ["RUNNER_TEMP"]) / "CPython-3.13.16-LICENSE.txt"
           destination.write_bytes(content)
           with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as output:
               output.write(f"CORTEX_CPYTHON_LICENSE={destination}\n")
@@ -773,7 +773,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
           cache: pip
           cache-dependency-path: requirements-dev.lock
 

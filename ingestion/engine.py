@@ -21,7 +21,7 @@ import os
 import shutil
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from ingestion.constants import (
@@ -60,7 +60,7 @@ class GenerationContractError(RuntimeError):
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _write_document(path: Path, content: bytes) -> None:

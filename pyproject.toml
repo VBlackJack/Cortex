@@ -7,7 +7,7 @@ name = "cortex-local-rag"
 dynamic = ["version", "dependencies"]
 description = "Local multi-client RAG server over the Model Context Protocol"
 readme = { file = "README.md", content-type = "text/markdown" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Julien Bombled" }]
@@ -18,9 +18,9 @@ classifiers = [
   "Intended Audience :: End Users/Desktop",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Text Processing :: Indexing",
 ]
 
@@ -98,15 +98,17 @@ version = { attr = "_version.__version__" }
 dependencies = { file = ["requirements.txt"] }
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 99
 extend-exclude = ["local"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "BLE001", "S110"]
+# StrEnum changes str() and format() of members, which persisted values rely on.
+ignore = ["UP042"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 no_site_packages = true
 files = [
@@ -135,7 +137,6 @@ module = [
   "pytest",
   "setuptools",
   "setuptools.*",
-  "tomli",
 ]
 ignore_missing_imports = true
 

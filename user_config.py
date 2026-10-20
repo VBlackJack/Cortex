@@ -18,17 +18,12 @@ from __future__ import annotations
 import json
 import math
 import os
-import sys
 import tempfile
+import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - exercised on Python 3.10
-    import tomli as tomllib
 
 SCHEMA_VERSION = 1
 DEFAULT_INCLUDED_SECTIONS = frozenset(
@@ -223,7 +218,7 @@ def _read_toml(path: Path) -> dict[str, Any]:
         raise _error(
             f"Unsupported schema_version={version}; expected {SCHEMA_VERSION}.", path
         )
-    return cast(dict[str, Any], data)
+    return data
 
 
 def _environment_int(
