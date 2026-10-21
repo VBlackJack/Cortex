@@ -11,12 +11,6 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ### Fixed
 - Cover tokenizers 0.23.3 in the vendored redistribution licenses: the refreshed lock moved the embedded version while the reviewed manifest still named 0.23.1, and the license bundle refused the release build on every platform. A test now holds every vendored license to the version requirements.lock pins.
-
-The 2026.1021.00 build failed in the release workflow before publication. Published artifacts use 2026.1021.01.
-
-## [2026.1021.00] - 2026-10-21
-
-### Fixed
 - Stop the Codex client registration at the next `[[array.of.tables]]` header: `cortex setup` no longer rewrites the command of a following table and `--unregister` no longer deletes everything after the Cortex entry. A rewrite that would change any other table is refused.
 - Keep the installer-owned model payload in `%LOCALAPPDATA%\Cortex\models` during `cortex setup --reset`, and say so in the reset explanation.
 - Run `cortex doctor` to completion on a malformed `config.toml`: it now reports `config.valid` as failed (valid JSON with `--json`) instead of crashing with a traceback, and skips the MCP handshake that cannot succeed with that configuration.
@@ -28,6 +22,8 @@ The 2026.1021.00 build failed in the release workflow before publication. Publis
 - Report a rejected embedded model payload in the standalone `cortex.exe` as one `[cortex] embedded model payload rejected:` line with the invalid-input exit code, instead of a traceback on every command.
 - Close Markdown front matter only at a `---` line that stands alone; a `----` or `---text` line no longer ends the metadata block early.
 - Stop leaving orphaned `_MEI*` extraction directories in `%TEMP%`: the standalone executable no longer unpacks itself at each start, so a `cortex.exe` killed by its MCP client or by a Companion timeout leaves nothing behind.
+
+The 2026.1021.00 build failed in the release workflow before publication, on the vendored license check above. Published artifacts use 2026.1021.01.
 
 ### Changed
 - Move to MCP Python SDK 1.30.0 (CVE-2026-59951) and regenerate the three hash-locked dependency trees, which clears the advisories reported against the previous locks; no runtime behaviour change.
