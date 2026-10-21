@@ -26,6 +26,7 @@ import json
 import os
 import sqlite3
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -63,18 +64,19 @@ from daemon_transport import (
 )
 
 _TOKEN = "ab" * 32
-_REAL_ENDPOINT = pytest.mark.skipif(
-    sys.platform != "win32",
-    reason="the endpoint proofs run on the Windows named pipe; the Unix socket is unproved",
-)
 
 
 def _environ(tmp_path: Path) -> dict[str, str]:
-    return {
+    environ = {
         "APPDATA": str(tmp_path / "appdata"),
         "LOCALAPPDATA": str(tmp_path / "local"),
         daemon_contract.ENDPOINT_SUFFIX_ENV: uuid.uuid4().hex[:16],
     }
+    if sys.platform != "win32":
+        # A Unix socket path is limited to about 100 bytes, and pytest's temporary
+        # paths are long: the socket goes to a short private runtime directory.
+        environ["XDG_RUNTIME_DIR"] = tempfile.mkdtemp(prefix="cx", dir="/tmp")
+    return environ
 
 
 # -- Contract ------------------------------------------------------------------------
@@ -128,7 +130,6 @@ def test_pipe_name_carries_the_user_sid_and_protocol(tmp_path: Path) -> None:
 # -- Endpoint ------------------------------------------------------------------------
 
 
-@_REAL_ENDPOINT
 async def test_endpoint_round_trip_identifies_the_peer_and_is_exclusive(
     tmp_path: Path,
 ) -> None:
@@ -147,7 +148,9 @@ async def test_endpoint_round_trip_identifies_the_peer_and_is_exclusive(
         with pytest.raises(EndpointForeignError):
             await rival.start()
         client = await connect(address)
-        assert client.peer_pid == os.getpid()
+        # Windows reads the pipe server pid and Linux SO_PEERCRED; macOS
+        # LOCAL_PEERCRED carries the uid only.
+        assert client.peer_pid == (None if sys.platform == "darwin" else os.getpid())
         client.writer.write(b"hello\n")
         await client.writer.drain()
         assert await client.reader.readline() == b"echo hello\n"
@@ -228,7 +231,6 @@ class _Runtime:
             raise
 
 
-@_REAL_ENDPOINT
 async def test_wrong_token_and_malformed_frames_are_rejected(tmp_path: Path) -> None:
     from daemon_client import DaemonRejectedError
 
@@ -250,7 +252,6 @@ async def test_wrong_token_and_malformed_frames_are_rejected(tmp_path: Path) -> 
         await connection.close()
 
 
-@_REAL_ENDPOINT
 async def test_status_and_session_go_through_the_opening_exchange(tmp_path: Path) -> None:
     async with _Runtime(tmp_path) as runtime:
         connection, reply = await runtime.open("status")
@@ -269,7 +270,6 @@ async def test_status_and_session_go_through_the_opening_exchange(tmp_path: Path
         await connection.close()
 
 
-@_REAL_ENDPOINT
 async def test_stop_request_drains_and_ends_the_runtime(tmp_path: Path) -> None:
     async with _Runtime(tmp_path) as runtime:
         connection, _reply = await runtime.open("stop")
@@ -279,7 +279,6 @@ async def test_stop_request_drains_and_ends_the_runtime(tmp_path: Path) -> None:
         assert runtime.runtime.stop_reason == "stop"
 
 
-@_REAL_ENDPOINT
 async def test_draining_runtime_refuses_new_sessions(tmp_path: Path) -> None:
     from daemon_client import DaemonRejectedError
 
@@ -290,7 +289,6 @@ async def test_draining_runtime_refuses_new_sessions(tmp_path: Path) -> None:
         assert rejected.value.reason == "draining"
 
 
-@_REAL_ENDPOINT
 async def test_config_change_drains_the_runtime(tmp_path: Path) -> None:
     async with _Runtime(tmp_path) as runtime:
         runtime.config.write_text("schema_version = 1\n# changed\n", encoding="utf-8")
@@ -299,7 +297,6 @@ async def test_config_change_drains_the_runtime(tmp_path: Path) -> None:
         assert runtime.runtime.stop_reason == "config_changed"
 
 
-@_REAL_ENDPOINT
 async def test_idle_runtime_stops_after_its_delay(tmp_path: Path) -> None:
     async with _Runtime(tmp_path, idle=1) as runtime:
         assert runtime.task is not None

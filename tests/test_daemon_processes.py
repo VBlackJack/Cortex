@@ -27,6 +27,7 @@ import json
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -40,15 +41,33 @@ from typing import Any
 
 import pytest
 
+from offline_models import model_cache_dir
+
 pytestmark = pytest.mark.skipif(
-    sys.platform != "win32",
-    reason="the cross-process proofs run on the Windows named pipe",
+    sys.platform != "win32" and not hasattr(socket, "AF_UNIX"),
+    reason="the platform has neither named pipes nor Unix domain sockets",
 )
 
 _REPOSITORY = Path(__file__).resolve().parents[1]
 _CLI = _REPOSITORY / "cli.py"
-_MODELS = Path(os.environ.get("LOCALAPPDATA", "")) / "Cortex" / "models"
+_MODELS = model_cache_dir()
 _WAIT_SECONDS = 30.0
+# The daemon is started outside the test's process group, as a relay would.
+_DETACHED: dict[str, Any] = (
+    {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+    if sys.platform == "win32"
+    else {"start_new_session": True}
+)
+
+
+def _link_models(link: Path) -> None:
+    """Reach the developer's model cache from the throwaway data home."""
+    if sys.platform == "win32":
+        import _winapi
+
+        _winapi.CreateJunction(str(_MODELS), str(link))
+    else:
+        link.symlink_to(_MODELS, target_is_directory=True)
 _POLL_SECONDS = 0.2
 
 
@@ -74,7 +93,7 @@ class SharedHome:
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+            **_DETACHED,
         )
         self.daemons.append(daemon)
         self.wait_state("running")
@@ -125,13 +144,12 @@ class SharedHome:
 
 
 def _make_home(idle_timeout_seconds: int, mode: str = "shared") -> SharedHome:
-    import _winapi
-
     # Every test here starts the real server, which needs the embedding model; a
     # fresh runner has no cache to link, and these tests must not download one.
     if not _MODELS.is_dir():
         pytest.skip("no local model cache to share with the throwaway data home")
-    root = Path(tempfile.mkdtemp(prefix="cortex-daemon-"))
+    # Short on Unix, where the socket path below XDG_RUNTIME_DIR must stay short.
+    root = Path(tempfile.mkdtemp(prefix="cx", dir=None if sys.platform == "win32" else "/tmp"))
     appdata = root / "appdata"
     local = root / "local"
     kb = root / "kb"
@@ -142,7 +160,7 @@ def _make_home(idle_timeout_seconds: int, mode: str = "shared") -> SharedHome:
     )
     (appdata / "Cortex").mkdir(parents=True)
     (local / "Cortex").mkdir(parents=True)
-    _winapi.CreateJunction(str(_MODELS), str(local / "Cortex" / "models"))
+    _link_models(local / "Cortex" / "models")
     (appdata / "Cortex" / "config.toml").write_text(
         "schema_version = 1\n"
         f"kb_path = {json.dumps(str(kb))}\n"
@@ -158,13 +176,19 @@ def _make_home(idle_timeout_seconds: int, mode: str = "shared") -> SharedHome:
         LOCALAPPDATA=str(local),
         CORTEX_DAEMON_ENDPOINT_SUFFIX=uuid.uuid4().hex[:16],
     )
+    if sys.platform != "win32":
+        environ["XDG_RUNTIME_DIR"] = str(root / "run")
     return SharedHome(root=root, environ=environ, kb=kb)
 
 
 def _remove_home(home: SharedHome) -> None:
     junction = Path(home.environ["LOCALAPPDATA"]) / "Cortex" / "models"
     with suppress(OSError):
-        os.rmdir(junction)  # Removes the junction itself, never the model cache.
+        # Removes the link itself, never the model cache it points to.
+        if junction.is_symlink():
+            junction.unlink()
+        else:
+            os.rmdir(junction)
     shutil.rmtree(home.root, ignore_errors=True)
 
 

@@ -442,6 +442,8 @@ async def connect(address: str) -> Connection:
         )
     except (FileNotFoundError, ConnectionRefusedError) as exc:
         raise EndpointUnavailableError(str(exc)) from exc
+    except PermissionError as exc:
+        raise EndpointForeignError(f"socket refused this user: {path}") from exc
     allowed, pid = _unix_peer_allowed(writer)
     if not allowed:
         writer.close()
