@@ -57,6 +57,8 @@ DEFAULT_ERROR_LINE_LIMIT = 10
 DEFAULT_ERROR_MAX_AGE_DAYS = 7
 MINIMUM_PYTHON_VERSION = (3, 11)
 SECTION_ROOTS_CHECK_ID = "config.section_roots"
+# The client probes and the MCP handshake, which run concurrently.
+_SUBPROCESS_PROBE_WORKERS = 2
 _FINGERPRINT_KEYS = ("embedding_model", "fastembed_version", "pooling")
 _FRESHNESS_KEYS = (
     "path",
@@ -583,15 +585,22 @@ def _inspect_index(
                 )
             )
 
+            # SQLite pivots the key/value rows into one row per chunk, which
+            # avoids building a dictionary entry per metadata row in Python.
+            # COALESCE keeps _metadata_value's order: string, int, float, bool.
+            pivot_columns = ", ".join(
+                "MAX(CASE WHEN m.key = ? THEN COALESCE("
+                "m.string_value, m.int_value, m.float_value, m.bool_value) END)"
+                for _ in _FRESHNESS_KEYS
+            )
             metadata_rows = connection.execute(
-                "SELECT e.id, m.key, m.string_value, m.int_value, "
-                "m.float_value, m.bool_value FROM embeddings e "
+                f"SELECT {pivot_columns} FROM embeddings e "
                 "JOIN segments s ON s.id = e.segment_id "
                 "JOIN embedding_metadata m ON m.id = e.id "
                 "WHERE s.collection = ? AND s.scope = 'METADATA' "
                 f"AND m.key IN ({','.join('?' for _ in _FRESHNESS_KEYS)}) "
-                "ORDER BY e.id",
-                (collection_id, *_FRESHNESS_KEYS),
+                "GROUP BY e.id ORDER BY e.id",
+                (*_FRESHNESS_KEYS, collection_id, *_FRESHNESS_KEYS),
             ).fetchall()
     except (OSError, sqlite3.Error) as exc:
         checks.append(
@@ -604,10 +613,11 @@ def _inspect_index(
         )
         return checks, None
 
-    by_id: dict[int, dict[str, Any]] = {}
-    for embedding_id, key, *values in metadata_rows:
-        by_id.setdefault(int(embedding_id), {})[str(key)] = _metadata_value(values)
-    return checks, list(by_id.values())
+    metadatas = [
+        {key: value for key, value in zip(_FRESHNESS_KEYS, row, strict=True) if value is not None}
+        for row in metadata_rows
+    ]
+    return checks, metadatas
 
 
 def _freshness_check(
@@ -1168,6 +1178,22 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
     current = default_context() if context is None else context
     system = _system_checks(current)
     configuration, config, kb_accessible = _configuration_checks(current)
+    # The server loads the same configuration at import, so an invalid one can
+    # only fail the probe after the full timeout and leak its traceback.
+    handshake_allowed = (
+        config is not None
+        and Path(current.python_exe).is_file()
+        and (current.script_dir / "server.py").is_file()
+    )
+    # The client and handshake probes mostly wait on child processes, up to
+    # their timeouts; they run beside the index inspection instead of after it.
+    # The reranker probe stays on this thread so its latency is measured alone.
+    probes = ThreadPoolExecutor(
+        max_workers=_SUBPROCESS_PROBE_WORKERS, thread_name_prefix="cortex-doctor"
+    )
+    clients_future = probes.submit(_client_checks, current)
+    handshake_future = probes.submit(_handshake_check, current, handshake_allowed)
+    probes.shutdown(wait=False)
     data_checks: list[DiagnosticCheck] = []
     index_checks: list[DiagnosticCheck] = []
     operational: list[DiagnosticCheck] = []
@@ -1269,15 +1295,8 @@ def run_doctor(context: DoctorContext | None = None) -> dict[str, Any]:
         )
 
     index_checks.append(_reranker_check(current))
-    clients = _client_checks(current)
-    # The server loads the same configuration at import, so an invalid one can
-    # only fail the probe after the full timeout and leak its traceback.
-    handshake_allowed = (
-        config is not None
-        and Path(current.python_exe).is_file()
-        and (current.script_dir / "server.py").is_file()
-    )
-    handshake = [_handshake_check(current, handshake_allowed)]
+    clients = clients_future.result()
+    handshake = [handshake_future.result()]
     sections = [
         _section("system", "System", system),
         _section("configuration", "Configuration and knowledge base", configuration),

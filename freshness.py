@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -24,8 +25,7 @@ from time import perf_counter
 from typing import Any
 
 from chroma_client import iter_collection_pages
-from chunker import chunk_markdown_file
-from chunker_pdf import chunk_pdf_file
+from chunker import markdown_body_is_empty
 from chunker_utils import discover_out_of_policy_dirs, is_excluded_path, sha256_bytes
 from config import (
     EXCLUDE_FILES,
@@ -38,6 +38,8 @@ from config import (
     INGESTION_DOCUMENT_SOURCE_KIND,
     INGESTION_DOCUMENT_SUFFIX,
     KB_PATH,
+    MAX_MARKDOWN_FILE_SIZE_BYTES,
+    MAX_PDF_SIZE_BYTES,
     ROOT_SECTION,
     SECTION_ROOTS,
     VAULT_SOURCE_KIND,
@@ -51,6 +53,7 @@ from section_roots import SectionLocation, locate_section, resolve_logical_path
 
 _LOG = logging.getLogger("cortex.freshness")
 _HASH_LENGTH = 64
+_SOURCE_SUFFIXES = frozenset({".md", ".pdf"})
 
 
 @dataclass(frozen=True)
@@ -98,7 +101,18 @@ def read_source_snapshot(
     ``kb_root`` is the root the source must stay inside: kb_path, or the mount
     of a mounted section, whose name is then given as ``logical_prefix``.
     """
-    root = kb_root.resolve(strict=True)
+    return _read_snapshot_within(
+        path, kb_root.resolve(strict=True), logical_prefix=logical_prefix
+    )
+
+
+def _read_snapshot_within(
+    path: Path, root: Path, *, logical_prefix: str | None = None
+) -> FileSnapshot:
+    """Snapshot one source against an already resolved containment root.
+
+    A report resolves each root once instead of once per source file.
+    """
     resolved = path.resolve(strict=True)
     try:
         rel_path = resolved.relative_to(root)
@@ -155,17 +169,21 @@ def cortex_freshness_report(
             emit_log=emit_log,
         )
 
-    for excluded, location in _discover_excluded(root, section, active):
+    walked: dict[Path, list[Path]] = {}
+    for excluded, location in _discover_excluded(root, section, active, walked):
         rel_path = location.logical_path(excluded)
         seen_paths.add(rel_path)
         entries.append({"path": rel_path, "status": "excluded"})
 
-    for source, location in _discover_sources(root, section, active):
+    resolved_bases: dict[Path, Path] = {}
+    for source, location in _discover_sources(root, section, active, walked):
         rel_path = location.logical_path(source)
         seen_paths.add(rel_path)
         try:
-            snapshot = read_source_snapshot(
-                source, location.base, logical_prefix=location.prefix
+            if location.base not in resolved_bases:
+                resolved_bases[location.base] = location.base.resolve(strict=True)
+            snapshot = _read_snapshot_within(
+                source, resolved_bases[location.base], logical_prefix=location.prefix
             )
         except (OSError, UnicodeDecodeError, ValueError) as exc:
             entries.append({"path": rel_path, "status": "error", "reason": str(exc)})
@@ -243,42 +261,76 @@ def _excluded_scan_bases(
     return _locations(root, sorted(scope.included_sections | scope.excluded_dirs), scope)
 
 
+def _source_candidates(base: Path, walked: dict[Path, list[Path]] | None) -> list[Path]:
+    """Return every Markdown or PDF file under ``base``, walking it once.
+
+    One ``os.scandir`` walk reuses the file type each directory entry already
+    carries, where ``rglob`` plus ``is_file`` costs one more stat per entry.
+    Like ``rglob``, it does not descend into symbolic links to directories.
+    The excluded and source scans share ``walked`` so that a section is
+    walked once per report.
+    """
+    if walked is not None and base in walked:
+        return walked[base]
+    found: list[Path] = []
+    pending = [base]
+    while pending:
+        directory = pending.pop()
+        try:
+            iterator = os.scandir(directory)
+        except OSError:
+            continue
+        with iterator:
+            for entry in iterator:
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(Path(entry.path))
+                    elif entry.is_file() and Path(entry.name).suffix.lower() in _SOURCE_SUFFIXES:
+                        found.append(Path(entry.path))
+                except OSError:
+                    continue
+    if walked is not None:
+        walked[base] = found
+    return found
+
+
 def _discover_sources(
-    root: Path, section: str | None, scope: FreshnessScope
+    root: Path,
+    section: str | None,
+    scope: FreshnessScope,
+    walked: dict[Path, list[Path]] | None = None,
 ) -> list[tuple[Path, SectionLocation]]:
     paths: list[tuple[Path, SectionLocation]] = []
     for location in _source_scan_bases(root, section, scope):
         if not location.directory.is_dir():
             continue
-        for path in sorted(location.directory.rglob("*")):
-            if not path.is_file() or path.suffix.lower() not in {".md", ".pdf"}:
-                continue
-            if is_excluded_path(
+        paths.extend(
+            (path, location)
+            for path in _source_candidates(location.directory, walked)
+            if not is_excluded_path(
                 Path(location.logical_path(path)),
                 excluded_dirs=scope.excluded_dirs,
                 exclude_files=scope.exclude_files,
-            ):
-                continue
-            paths.append((path, location))
+            )
+        )
     return sorted(paths, key=lambda item: item[0])
 
 
 def _discover_excluded(
-    root: Path, section: str | None, scope: FreshnessScope
+    root: Path,
+    section: str | None,
+    scope: FreshnessScope,
+    walked: dict[Path, list[Path]] | None = None,
 ) -> list[tuple[Path, SectionLocation]]:
     paths: dict[Path, SectionLocation] = {}
     for location in _excluded_scan_bases(root, section, scope):
         if not location.directory.is_dir():
             continue
-        for path in location.directory.rglob("*"):
-            if (
-                path.is_file()
-                and path.suffix.lower() in {".md", ".pdf"}
-                and is_excluded_path(
-                    Path(location.logical_path(path)),
-                    excluded_dirs=scope.excluded_dirs,
-                    exclude_files=scope.exclude_files,
-                )
+        for path in _source_candidates(location.directory, walked):
+            if is_excluded_path(
+                Path(location.logical_path(path)),
+                excluded_dirs=scope.excluded_dirs,
+                exclude_files=scope.exclude_files,
             ):
                 paths.setdefault(path, location)
     return sorted(paths.items(), key=lambda item: item[0])
@@ -312,7 +364,8 @@ def _indexed_metadata(
             if normalized is None:
                 invalid[str(raw_path)] = "untrusted indexed path"
                 continue
-            indexed[normalized].append(dict(metadata))
+            # Read-only use: the rows are never mutated, so no copy is made.
+            indexed[normalized].append(metadata)
     return indexed, invalid
 
 
@@ -502,22 +555,33 @@ def _classify_present(
     snapshot: FileSnapshot, metadata: list[dict[str, Any]], source: Path
 ) -> dict[str, str]:
     if not metadata:
-        result = (
-            chunk_pdf_file(source)
-            if source.suffix.lower() == ".pdf"
-            else chunk_markdown_file(source)
-        )
-        if result.status == "ok":
-            return {"path": snapshot.path, "status": "unindexed"}
-        if result.status in {"empty", "too_large"}:
-            return {"path": snapshot.path, "status": "no_chunks"}
-        return {
-            "path": snapshot.path,
-            "status": "error",
-            "reason": result.error or result.status,
-        }
+        return _classify_unindexed(snapshot, source)
     status = classify_hash(snapshot.content_hash, metadata)
     return {"path": snapshot.path, "status": status, "chunks": str(len(metadata))}
+
+
+def _classify_unindexed(snapshot: FileSnapshot, source: Path) -> dict[str, str]:
+    """Tell ``unindexed`` from ``no_chunks`` without chunking the source.
+
+    A diagnostic never extracts a PDF: a PDF is ``no_chunks`` only when it is
+    empty or above the size limit, and otherwise ``unindexed`` even if a sync
+    would find no text in it. A note applies the chunker's own size and body
+    emptiness rules, which need no chunking.
+    """
+    is_pdf = source.suffix.lower() == ".pdf"
+    size_limit = MAX_PDF_SIZE_BYTES if is_pdf else MAX_MARKDOWN_FILE_SIZE_BYTES
+    try:
+        size = source.stat().st_size
+        empty = size == 0 or (
+            not is_pdf
+            and size <= size_limit
+            and markdown_body_is_empty(source.read_bytes().decode("utf-8", errors="strict"))
+        )
+    except (OSError, UnicodeDecodeError) as exc:
+        return {"path": snapshot.path, "status": "error", "reason": str(exc)}
+    if empty or size > size_limit:
+        return {"path": snapshot.path, "status": "no_chunks"}
+    return {"path": snapshot.path, "status": "unindexed"}
 
 
 def annotate_search_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:

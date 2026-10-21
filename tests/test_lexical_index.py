@@ -21,7 +21,12 @@ from typing import Any
 import pytest
 
 from config import LEXICAL_INDEX_CONTRACT_VERSION
-from lexical_index import LexicalIndex, prepare_lexical_index, sanitize_fts5_query
+from lexical_index import (
+    LexicalIndex,
+    chroma_ids,
+    prepare_lexical_index,
+    sanitize_fts5_query,
+)
 
 
 class Collection:
@@ -163,3 +168,17 @@ def test_legacy_note_rows_are_replaced_without_removing_documents(tmp_path: Path
     note["metadata"]["source_kind"] = "note"
     index.replace_file([note])
     assert index.ids() == {"note", "document"}
+
+
+def test_chroma_ids_reads_ids_without_metadata() -> None:
+    requested: list[list[str]] = []
+
+    class IdsOnlyCollection(Collection):
+        def get(self, *, limit: int, offset: int, include: list[str]) -> dict[str, Any]:
+            requested.append(include)
+            return {"ids": [row["id"] for row in self.rows[offset : offset + limit]]}
+
+    ids = chroma_ids(IdsOnlyCollection([_chunk("one", "a"), _chunk("two", "b")]))
+
+    assert ids == {"one", "two"}
+    assert requested == [[]]

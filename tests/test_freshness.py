@@ -564,3 +564,128 @@ def test_controlled_byte_mutations_have_no_false_freshness(
         FakeCollection(metadatas), section="_memory"
     )
     assert {entry["status"] for entry in stale["entries"]} == {"stale"}
+
+
+def _refuse_chunking(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make any chunking or PDF extraction during a freshness report fail the test."""
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("freshness must not chunk or extract a source")
+
+    import chunker
+    import chunker_pdf
+
+    monkeypatch.setattr(chunker, "chunk_markdown_file", refuse)
+    monkeypatch.setattr(chunker_pdf, "chunk_pdf_file", refuse)
+    monkeypatch.setattr(chunker_pdf.pdfplumber, "open", refuse)
+
+
+def _unindexed_statuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, files: dict[str, bytes]
+) -> dict[str, str]:
+    root = tmp_path / "kb"
+    section = root / "knowledge"
+    section.mkdir(parents=True)
+    for name, content in files.items():
+        (section / name).write_bytes(content)
+    monkeypatch.setattr(freshness, "KB_PATH", str(root))
+    _refuse_chunking(monkeypatch)
+    report = freshness.cortex_freshness_report(FakeCollection([]), section="knowledge")
+    return {entry["path"]: entry["status"] for entry in report["entries"]}
+
+
+def test_empty_and_whitespace_notes_are_no_chunks_without_chunking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    statuses = _unindexed_statuses(
+        tmp_path,
+        monkeypatch,
+        {
+            "empty.md": b"",
+            "blank.md": b"  \r\n\t\n   \n",
+            "front-matter-only.md": b"---\ntitle: Stub\n---\n\n",
+            "real.md": b"# Real\nThis body is long enough to produce a chunk.\n",
+        },
+    )
+
+    assert statuses == {
+        "knowledge/blank.md": "no_chunks",
+        "knowledge/empty.md": "no_chunks",
+        "knowledge/front-matter-only.md": "no_chunks",
+        "knowledge/real.md": "unindexed",
+    }
+
+
+def test_pdf_without_metadata_is_unindexed_without_extraction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    statuses = _unindexed_statuses(
+        tmp_path,
+        monkeypatch,
+        {"scan.pdf": b"%PDF-1.7\nnot a real document", "empty.pdf": b""},
+    )
+
+    assert statuses == {
+        "knowledge/empty.pdf": "no_chunks",
+        "knowledge/scan.pdf": "unindexed",
+    }
+
+
+def test_sources_above_the_size_limits_are_no_chunks_without_reading_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(freshness, "MAX_PDF_SIZE_BYTES", 8)
+    monkeypatch.setattr(freshness, "MAX_MARKDOWN_FILE_SIZE_BYTES", 8)
+
+    statuses = _unindexed_statuses(
+        tmp_path,
+        monkeypatch,
+        {"large.pdf": b"%PDF-1.7 large", "large.md": b"# Large note body"},
+    )
+
+    assert statuses == {
+        "knowledge/large.md": "no_chunks",
+        "knowledge/large.pdf": "no_chunks",
+    }
+
+
+def test_note_with_invalid_utf8_stays_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    statuses = _unindexed_statuses(tmp_path, monkeypatch, {"bad.md": b"# Bad \xff\n"})
+
+    assert statuses == {"knowledge/bad.md": "error"}
+
+
+def test_excluded_and_source_scans_walk_each_folder_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "kb"
+    (root / "knowledge" / "_archive").mkdir(parents=True)
+    (root / "knowledge" / "note.md").write_bytes(b"# Note\nLong enough body to chunk.\n")
+    (root / "knowledge" / "_archive" / "old.md").write_bytes(b"# Old\nArchived.\n")
+    (root / "knowledge" / "image.png").write_bytes(b"\x89PNG")
+    scanned: list[str] = []
+    real_scandir = freshness.os.scandir
+
+    def counting_scandir(path: Any) -> Any:
+        scanned.append(Path(path).name)
+        return real_scandir(path)
+
+    monkeypatch.setattr(freshness.os, "scandir", counting_scandir)
+    scope = freshness.FreshnessScope(
+        kb_path=str(root),
+        included_sections=frozenset({"knowledge"}),
+        excluded_dirs=frozenset({"_archive"}),
+        exclude_files=frozenset(),
+    )
+
+    report = freshness.cortex_freshness_report(FakeCollection([]), scope=scope)
+
+    statuses = {entry["path"]: entry["status"] for entry in report["entries"]}
+    assert statuses == {
+        "knowledge/_archive/old.md": "excluded",
+        "knowledge/note.md": "unindexed",
+    }
+    assert scanned.count("knowledge") == 1
+    assert scanned.count("_archive") == 1

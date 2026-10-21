@@ -160,11 +160,11 @@ additionally be valid UTF-8.
 | `fresh` | All indexed chunks use the current contract and their hash equals the live snapshot |
 | `stale` | The contract is coherent but the live hash differs |
 | `unknown` | Legacy, incomplete, inconsistent, or out-of-contract metadata |
-| `unindexed` | Eligible source that produces chunks, but has no indexed chunk |
-| `no_chunks` | Present source that is empty or above the size limit |
+| `unindexed` | Eligible source with no indexed chunk that is not `no_chunks`; a PDF is never extracted to decide, so one whose text a sync cannot read still counts here |
+| `no_chunks` | Present source with no indexed chunk that is empty, above the size limit, or a note whose body after front matter is too short to chunk |
 | `missing` | Indexed path absent from the live corpus |
 | `excluded` | Live source or indexed path now excluded by policy |
-| `error` | Untrusted indexed path, unreadable source, invalid UTF-8, or extraction error |
+| `error` | Untrusted indexed path, unreadable source, or invalid UTF-8 |
 
 The report always contains `contract_id`, `read_only: true`,
 `freshness_is_not_completeness: true`, the scope, a per-status summary, and

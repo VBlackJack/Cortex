@@ -50,6 +50,8 @@ OVERLAP_CHARS = CHUNK_OVERLAP
 
 # Skip files larger than this (bytes) - avoids loading huge index pages
 MAX_FILE_SIZE_BYTES = MAX_MARKDOWN_FILE_SIZE_BYTES
+# A note whose body after front matter is shorter than this yields no chunk.
+MIN_MARKDOWN_BODY_CHARS = 20
 
 
 # Keep private aliases so existing tests can import them
@@ -88,6 +90,16 @@ def _parse_frontmatter(content: str) -> tuple[dict[str, object], str]:
                 metadata[key.strip()] = raw_value.strip("'\"")
 
     return metadata, body
+
+
+def markdown_body_is_empty(content: str) -> bool:
+    """Return whether a note holds too little body text to yield any chunk.
+
+    This is the chunker's own emptiness rule, exposed so that a diagnostic can
+    apply it without chunking.
+    """
+    _frontmatter, body = _parse_frontmatter(content)
+    return len(body.strip()) < MIN_MARKDOWN_BODY_CHARS
 
 
 def _split_by_headers(content: str) -> list[tuple[str, str]]:
@@ -211,7 +223,7 @@ def chunk_markdown_file(file_path: Path) -> ChunkResult:
         captured_at=captured_at,
     )
 
-    if len(body.strip()) < 20:
+    if len(body.strip()) < MIN_MARKDOWN_BODY_CHARS:
         return ChunkResult(status="empty")
 
     header_sections = _merge_small_header_sections(_split_by_headers(body))

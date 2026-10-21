@@ -800,3 +800,72 @@ def test_freshness_does_not_report_ingestion_documents_as_missing(tmp_path: Path
     check = _checks(report)["freshness.summary"]
     assert check["status"] == "OK", check
     assert check["details"]["summary"].get("missing", 0) == 0
+
+
+def test_index_metadata_is_one_dictionary_per_chunk(tmp_path: Path) -> None:
+    _baseline(tmp_path)
+    chroma = tmp_path / "local" / "Cortex" / "chroma_db"
+    _add_document_chunk(chroma, "sources/confluence-sync/CCSP/markdown/1.md")
+    connection = sqlite3.connect(chroma / "chroma.sqlite3")
+    connection.execute("INSERT INTO embeddings VALUES (3, 'metadata', 'chunk-3')")
+    connection.execute(
+        "INSERT INTO embedding_metadata VALUES (3, 'path', NULL, 7, NULL, NULL)"
+    )
+    connection.execute(
+        "INSERT INTO embedding_metadata VALUES (3, 'unrelated', 'ignored', NULL, NULL, NULL)"
+    )
+    connection.commit()
+    connection.close()
+
+    _checks_found, metadatas = doctor._inspect_index(
+        chroma, RuntimeContracts("cortex", FINGERPRINT)
+    )
+
+    assert metadatas is not None
+    assert [metadata.get("path") for metadata in metadatas] == [
+        "knowledge/note.md",
+        "sources/confluence-sync/CCSP/markdown/1.md",
+        7,
+    ]
+    assert metadatas[1]["source_kind"] == "doc"
+    assert "source_kind" not in metadatas[0]
+    assert metadatas[2] == {"path": 7}
+
+
+def test_doctor_counts_an_unindexed_pdf_without_extracting_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import chunker
+    import chunker_pdf
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("doctor must not chunk or extract a source")
+
+    monkeypatch.setattr(chunker, "chunk_markdown_file", refuse)
+    monkeypatch.setattr(chunker_pdf, "chunk_pdf_file", refuse)
+    monkeypatch.setattr(chunker_pdf.pdfplumber, "open", refuse)
+    context = _baseline(tmp_path)
+    (tmp_path / "kb" / "knowledge" / "scan.pdf").write_bytes(b"%PDF-1.7\nbody")
+
+    report = run_doctor(context)
+
+    check = _checks(report)["freshness.summary"]
+    assert check["details"]["summary"] == {"fresh": 1, "unindexed": 1}
+
+
+def test_handshake_and_client_probes_run_beside_the_index_inspection(
+    tmp_path: Path,
+) -> None:
+    import threading
+
+    threads: list[str] = []
+
+    def handshake(*args: Any) -> DiagnosticCheck:
+        threads.append(threading.current_thread().name)
+        return _ok_handshake(*args)
+
+    report = run_doctor(_baseline(tmp_path, handshake_probe=handshake))
+
+    assert threads and threads[0] != threading.main_thread().name
+    assert _checks(report)["mcp.handshake"]["status"] == "OK"
+    assert [section["id"] for section in report["sections"]][-2:] == ["clients", "mcp"]

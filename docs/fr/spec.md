@@ -167,11 +167,11 @@ plus être un UTF-8 valide.
 | `fresh` | Tous les chunks indexés partagent le contrat courant et leur hash égale le snapshot vivant |
 | `stale` | Le contrat est cohérent mais le hash vivant diffère |
 | `unknown` | Métadonnées legacy, incomplètes, incohérentes ou hors contrat courant |
-| `unindexed` | Source éligible produisant des chunks, mais aucun chunk indexé |
-| `no_chunks` | Source présente mais vide ou au-dessus de la limite de taille |
+| `unindexed` | Source éligible sans chunk indexé qui n'est pas `no_chunks` ; un PDF n'est jamais extrait pour en décider, si bien qu'un PDF dont un sync ne peut pas lire le texte compte ici |
+| `no_chunks` | Source présente sans chunk indexé, vide, au-dessus de la limite de taille, ou note dont le corps après le front matter est trop court pour être découpé |
 | `missing` | Chemin indexé absent du corpus vivant |
 | `excluded` | Source vivante ou chemin indexé maintenant exclu par la politique |
-| `error` | Chemin indexé non fiable, lecture impossible, UTF-8 invalide ou extraction en erreur |
+| `error` | Chemin indexé non fiable, lecture impossible ou UTF-8 invalide |
 
 Le rapport contient toujours `contract_id`, `read_only: true`,
 `freshness_is_not_completeness: true`, le scope, un résumé par statut et

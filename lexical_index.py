@@ -282,8 +282,9 @@ class LexicalIndex:
 
 
 def chroma_ids(collection: Any) -> set[str]:
+    """Return every chunk id in the collection, reading ids only."""
     ids: set[str] = set()
-    for page in iter_collection_pages(collection, include=["metadatas"]):
+    for page in iter_collection_pages(collection, include=[]):
         ids.update(str(chunk_id) for chunk_id in page.get("ids") or [])
     return ids
 
