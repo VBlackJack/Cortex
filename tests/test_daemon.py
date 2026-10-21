@@ -450,7 +450,9 @@ def test_shared_index_reopens_only_after_an_observed_external_write(tmp_path: Pa
     database.write_bytes(b"abc")
     assert index.client() is second
     index.end_write()
-    assert index.client() is not second
+    # The daemon's own write went through this very client: no reopen after it.
+    assert index.client() is second
+    assert index.reopen_count == 1
 
 
 def test_held_lexical_index_keeps_one_connection_until_the_file_changes(

@@ -93,10 +93,12 @@ class SharedIndex:
         return False
 
     def _open(self) -> None:
-        # The signature is taken before opening, so a write that lands while the
-        # client loads is seen as a change at the next read.
-        self._signature = self._current_signature()
+        # Opening a PersistentClient itself rewrites the SQLite files, so the
+        # signature is taken once the client is open. A write by another process
+        # cannot land meanwhile unnoticed: the reopen only happens while the write
+        # lock is free, and a writer that starts later changes the files again.
         self._client = self._factory()
+        self._signature = self._current_signature()
 
     def _close(self) -> None:
         from chromadb.api.shared_system_client import SharedSystemClient
@@ -130,9 +132,11 @@ class SharedIndex:
             self._writers += 1
 
     def end_write(self) -> None:
-        """End a write by this process."""
+        """End a write by this process; its own writes need no reopen."""
         with self._guard:
             self._writers -= 1
+            if self._writers == 0 and self._client is not None:
+                self._signature = self._current_signature()
 
 
 def _shared_read_only_connection(path: Path) -> sqlite3.Connection:
