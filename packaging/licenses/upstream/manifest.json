@@ -21,11 +21,11 @@
     },
     {
       "distribution": "tokenizers",
-      "version": "0.23.1",
-      "file": "tokenizers-0.23.1.LICENSE",
-      "source_url": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.23.1/LICENSE",
-      "git_ref": "v0.23.1",
-      "git_commit": "7f1623b90b5adfb9bc327d4c3468d2f70bbce262",
+      "version": "0.23.3",
+      "file": "tokenizers-0.23.3.LICENSE",
+      "source_url": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.23.3/LICENSE",
+      "git_ref": "v0.23.3",
+      "git_commit": "301277072263fb3830eb66eec7e47adadf76f1dc",
       "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
     }
   ]

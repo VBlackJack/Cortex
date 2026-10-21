@@ -162,12 +162,47 @@ def test_vendored_exceptions_are_exact_reviewed_upstream_versions() -> None:
             "sha256": "b35d026cc7aca9d5859a02eb87ddf7a386a24c986838651bd1f283f94e003327",
         },
         "tokenizers": {
-            "version": "0.23.1",
-            "git_ref": "v0.23.1",
-            "git_commit": "7f1623b90b5adfb9bc327d4c3468d2f70bbce262",
+            "version": "0.23.3",
+            "git_ref": "v0.23.3",
+            "git_commit": "301277072263fb3830eb66eec7e47adadf76f1dc",
             "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
         },
     }
+
+
+def _locked_versions(lock: Path) -> dict[str, str]:
+    """Return the distribution pins of a hash-locked requirements file."""
+    pins: dict[str, str] = {}
+    for line in lock.read_text(encoding="utf-8").splitlines():
+        head = line.split(";", maxsplit=1)[0].split("\\", maxsplit=1)[0].strip()
+        if "==" not in head or head.startswith(("#", "-")):
+            continue
+        name, _, version = head.partition("==")
+        pins.setdefault(name.strip().lower().replace("_", "-"), version.strip())
+    return pins
+
+
+def test_vendored_exceptions_follow_the_locked_runtime_versions() -> None:
+    """A lock refresh that moves a vendored distribution must move its reviewed license.
+
+    The release build embeds whatever requirements.lock pins; generate_license_bundle
+    refuses a vendored license whose version differs from the embedded one, so a drift
+    between the two files only surfaces in the release workflow. 2026.1021.00 failed
+    there: the lock moved tokenizers to 0.23.3 while the manifest still covered 0.23.1.
+    """
+    manifest = json.loads((_UPSTREAM_ROOT / "manifest.json").read_text(encoding="utf-8"))
+    pins = _locked_versions(_ROOT / "requirements.lock")
+    mismatches = {
+        item["distribution"]: (item["version"], pins.get(item["distribution"]))
+        for item in manifest["licenses"]
+        if pins.get(item["distribution"]) != item["version"]
+    }
+    assert mismatches == {}, (
+        "vendored license versions differ from requirements.lock (manifest, lock): "
+        f"{mismatches}"
+    )
+    for item in manifest["licenses"]:
+        assert (_UPSTREAM_ROOT / item["file"]).is_file(), item["file"]
 
 
 def test_vendored_exception_hash_mutation_is_rejected(tmp_path: Path) -> None:

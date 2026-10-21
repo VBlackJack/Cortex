@@ -7,6 +7,13 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.1021.01] - 2026-10-21
+
+### Fixed
+- Cover tokenizers 0.23.3 in the vendored redistribution licenses: the refreshed lock moved the embedded version while the reviewed manifest still named 0.23.1, and the license bundle refused the release build on every platform. A test now holds every vendored license to the version requirements.lock pins.
+
+The 2026.1021.00 build failed in the release workflow before publication. Published artifacts use 2026.1021.01.
+
 ## [2026.1021.00] - 2026-10-21
 
 ### Fixed
