@@ -28,6 +28,8 @@ available in [French](docs/fr/notes-de-version.md) and
 - Build the standalone executable as a directory (`cortex.exe` beside `_internal\`) instead of a single self-extracting file, which removes the per-invocation extraction to `%TEMP%` from every start. The installer copies the whole directory into the installation folder and clears a previous `_internal\` first; the portable archives now unpack to a `cortex/` folder with the executable, its runtime and its licenses.
 - Remember a failed reranker load for the life of the process, so `rerank` queries degrade immediately with the recorded reason instead of reloading the model on every request.
 - Describe the items excluded from a portable bundle in English.
+- Scan the three locked dependency trees every Monday in CI, in addition to every push, so an advisory published between two releases is seen before the next tag. Accept the eight Pillow 12.3.0 image-decoder advisories with a written justification until fastembed accepts Pillow 13: Cortex never decodes images and only extracts PDF text.
+- Guard the documentation, workflows and sources against typographic substitutes (dashes, curly quotes, ellipsis and no-break characters) with a recursive test, and present `install.bat` and `sync.bat` as the source-checkout development path rather than a supported installation.
 
 ## [2026.0909.04] - 2026-09-09
 
