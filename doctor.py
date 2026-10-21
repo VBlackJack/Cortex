@@ -347,6 +347,15 @@ def _configuration_checks(
             schema_version=config.schema_version,
         )
     )
+    checks.append(
+        _check(
+            "server.mode",
+            "INFO",
+            f"cortex serve runs in {config.server_mode} mode",
+            mode=config.server_mode,
+            idle_timeout_seconds=config.server_idle_timeout_seconds,
+        )
+    )
     if not config.kb_path:
         checks.extend(
             [

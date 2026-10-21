@@ -258,3 +258,24 @@ def test_set_server_mode_without_valid_configuration_fails(tmp_path: Path) -> No
         "phase": "validate",
         "path": None,
     }
+
+
+def test_doctor_reports_the_server_mode_as_information(tmp_path: Path) -> None:
+    import sys
+
+    import doctor
+
+    path = tmp_path / "config.toml"
+    path.write_text(_BASE + '\n[server]\nmode = "shared"\nidle_timeout_seconds = 60\n')
+    context = doctor.DoctorContext(
+        script_dir=tmp_path,
+        config_path=path,
+        environ={},
+        home=tmp_path,
+        python_exe=sys.executable,
+        python_version=(3, 11, 0),
+    )
+    checks, _config, _accessible = doctor._configuration_checks(context)
+    mode = {check.id: check for check in checks}["server.mode"]
+    assert mode.status == "INFO"
+    assert mode.details == {"mode": "shared", "idle_timeout_seconds": 60}

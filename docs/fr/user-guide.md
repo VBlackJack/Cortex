@@ -107,6 +107,54 @@ l'identifiant de génération courant et le statut disk-to-index. Le résumé d�
 `ingestion_index` est omis lorsqu'aucune génération documentaire n'est
 disponible.
 
+## Serveur partagé (sur option)
+
+Chaque client MCP lance normalement son propre serveur Cortex, qui charge pour
+lui seul le modèle et l'index. Avec beaucoup d'éditeurs et d'agents ouverts, ces
+copies s'additionnent. Le mode partagé fait tourner à la place un démon unique
+par utilisateur ; chaque `cortex serve` lancé par un client devient un relais
+léger vers lui. Rien ne change dans les clients : pas de réenregistrement, les
+mêmes quatre outils, les mêmes résultats.
+
+Activez-le dans le fichier de configuration, `%APPDATA%\Cortex\config.toml` :
+
+```toml
+[server]
+mode = "shared"
+```
+
+ou avec la commande machine, qui refuse d'écraser un fichier modifié depuis
+votre lecture :
+
+```powershell
+cortex config server --json          # noter "content_hash"
+cortex config set-server-mode shared --json --expected-hash <content_hash>
+```
+
+Le nouveau mode s'applique aux sessions MCP ouvertes ensuite : redémarrez les
+clients, ou laissez-les ouvrir de nouvelles sessions. Le premier relais lance le
+démon ; celui-ci s'arrête seul après 15 minutes sans session
+(`idle_timeout_seconds`).
+
+```powershell
+cortex daemon status          # actif ou arrêté, pid, sessions, version
+cortex daemon status --json   # la même chose, en document contract_version 1
+cortex daemon stop --wait     # drainer et arrêter maintenant, avant une mise à jour par exemple
+```
+
+Pour revenir en arrière, mettez `mode = "per-client"` (ou supprimez la table
+`[server]`), ou lancez
+`cortex config set-server-mode per-client --json --expected-hash <empreinte>`,
+puis redémarrez les clients et lancez `cortex daemon stop`. Les sessions déjà
+rattachées au démon le gardent jusqu'à leur fermeture.
+
+Une modification de `config.toml` fait se drainer et s'arrêter le démon ; la
+requête suivante en relance un neuf avec les nouveaux réglages. Si le démon
+reste injoignable 10 secondes, ou si un client passe des variables `CORTEX_*`
+différentes, la session concernée repasse d'elle-même en mode par client.
+Détails : [Configuration](configuration.md#serveur-partagé) et
+[Architecture](architecture.md#mode-par-client-ou-mode-partagé).
+
 ## Opérations d'ingestion
 
 Le CLI d'ingestion générique rapporte le dernier état de santé atomique de la

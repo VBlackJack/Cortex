@@ -35,6 +35,68 @@ publish immutable Markdown generations under the ingestion data root with
 `indexer.py` writes both ChromaDB and SQLite FTS5, then `server.py` exposes
 structured hybrid search and read-only freshness to MCP clients.
 
+## Per-client or shared server
+
+By default (`[server] mode = "per-client"`), every MCP client session starts its
+own `cortex serve`, which loads the embedding model, opens the index and serves
+that one client. Thirty open sessions mean thirty complete processes.
+
+With `mode = "shared"`, the command line written into the clients stays
+`cortex serve`, but it becomes a light relay:
+
+```
+MCP client --stdio--> cortex serve (relay) --+
+MCP client --stdio--> cortex serve (relay) --+--> local endpoint --> cortex daemon run
+MCP client --stdio--> cortex serve (relay) --+                         (one per user)
+```
+
+**What is shared.** The daemon hosts the single FastMCP instance and its four
+tools, the embedding model, the reranker, one Chroma client and one read-only
+lexical connection, the write lock and the logs. Each connection keeps its own
+MCP session: initialization, request ids and cancellation. Synchronous tools run
+in worker threads, so a long `cortex_sync` never freezes the other sessions;
+reads run one at a time, and a second sync started from another session gets the
+same "locked" answer as a sync blocked by another process.
+
+**Seeing other writers.** A long-lived Chroma client does not see vectors that
+another process wrote: its vector segment stays as it was loaded. The daemon
+therefore reopens its client before a read once the index files have changed and
+the write lock is free again, so a `cortex sync` run from a console or a
+scheduled task is visible to the next search.
+
+**Endpoint security.** No TCP port is ever opened. On Windows the endpoint is
+the named pipe `\\.\pipe\cortex-<user SID>-v1`, created with a DACL that grants
+access to the current user only, `FILE_FLAG_FIRST_PIPE_INSTANCE` and
+`PIPE_REJECT_REMOTE_CLIENTS`; the daemon checks that every client process belongs
+to the same user, and the relay checks the same of the serving process. Elsewhere
+it is a Unix socket in a 0700 directory owned by the user, the socket itself
+0600, with the peer uid checked where the platform exposes it. Every connection
+opens with a versioned frame, at most 4 KiB, carrying a random 32-byte token that
+the daemon writes to `<data home>\daemon\token` at each start; JSON-RPC lines are
+then limited to 8 MiB. The token is never logged.
+
+**Lifecycle.**
+
+- One daemon per user, held by `<data home>\daemon\daemon.lock`; the operating
+  system releases it if the process dies.
+- The first relay that finds no daemon starts one detached, then waits for it at
+  most 10 seconds; failing that, it serves the session itself in per-client mode.
+- The daemon drains and exits after `idle_timeout_seconds` without a session,
+  when `config.toml` changes (it resolves the configuration once at start, like
+  every Cortex process), on `cortex daemon stop`, or when a relay of a newer
+  version asks for it. A drain lets in-flight requests finish, a sync always.
+- When the connection closes, the relay answers a JSON-RPC error for a request
+  in flight, never replays it, then reconnects and replays the session's
+  `initialize` exchange. After three losses within five minutes it serves the
+  rest of the session in its own process.
+- A relay whose `CORTEX_*` environment differs from the daemon's, or that meets
+  a newer daemon or an endpoint held by another process, serves its session in
+  per-client mode. It never takes over an endpoint.
+
+Known limit: a client that puts its servers in a kill-on-close Windows job
+without allowing breakaway (the MCP Python SDK client does) also kills the
+daemon its relay started when it closes; the other relays then start a new one.
+
 ## Project structure
 
 ```
@@ -50,6 +112,7 @@ structured hybrid search and read-only freshness to MCP clients.
 |-- ingestion\          <- Atomic generations, scheduling, health, credentials
 |-- confluence_writer\  <- Allowlisted REST source and console bridge
 |-- server.py           <- FastMCP MCP server (4 Cortex tools)
+|-- daemon_*.py         <- Shared mode: daemon, relay, endpoint, frames
 |-- sync.bat            <- Development: sync section by section (%~dp0)
 |-- install.bat         <- Development: install from the clone (%~dp0)
 |-- setup_config.py     <- Safe multi-client registration + validation

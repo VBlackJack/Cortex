@@ -170,6 +170,7 @@ The installed package exposes a single command:
 | `cortex ingestion` | Shows source health and whether catch-up is due. |
 | `cortex confluence` | Stores the PAT interactively or runs the allowlisted writer. |
 | `cortex config` | Reads or changes configuration through an atomic JSON contract, notably for Companion. |
+| `cortex daemon` | Runs, inspects or stops the shared per-user server used when `[server] mode = "shared"` (opt-in). |
 | `cortex bundle` | Describes or verifies an encrypted portable archive. |
 | `cortex doctor` | Installation diagnostics (read-only). |
 | `cortex register` / `cortex unregister` | Adds or removes Cortex from MCP clients. |

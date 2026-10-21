@@ -177,6 +177,7 @@ Le paquet installé expose une commande unique :
 | `cortex ingestion` | Affiche la santé d'une source et indique si un rattrapage est dû. |
 | `cortex confluence` | Stocke le PAT interactivement ou lance le writer sur liste blanche. |
 | `cortex config` | Lit ou modifie la configuration via un contrat JSON atomique, notamment pour Companion. |
+| `cortex daemon` | Lance, inspecte ou arrête le serveur partagé par utilisateur utilisé quand `[server] mode = "shared"` (sur option). |
 | `cortex bundle` | Décrit ou vérifie une archive portable chiffrée. |
 | `cortex doctor` | Diagnostic de l'installation (lecture seule). |
 | `cortex register` / `cortex unregister` | Ajoute ou retire Cortex des clients MCP. |

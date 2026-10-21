@@ -101,6 +101,51 @@ When ingestion exists, `cortex_freshness` reports remote-to-disk source health,
 the current generation ID, and disk-to-index status. The dedicated
 `ingestion_index` summary is omitted when no document generation is available.
 
+## Shared server (opt-in)
+
+Each MCP client normally starts its own Cortex server, which loads the model and
+the index for itself. With many editors and agents open, those copies add up.
+The shared mode runs one daemon per user instead; every `cortex serve` started
+by a client becomes a light relay to it. Nothing changes in the clients: no
+re-registration, the same four tools, the same results.
+
+Opt in with the configuration file, `%APPDATA%\Cortex\config.toml`:
+
+```toml
+[server]
+mode = "shared"
+```
+
+or with the machine command, which refuses to overwrite a file that changed
+since you read it:
+
+```powershell
+cortex config server --json          # note "content_hash"
+cortex config set-server-mode shared --json --expected-hash <content_hash>
+```
+
+The new mode applies to the MCP sessions started afterwards: restart the
+clients, or let them open new sessions. The first relay starts the daemon; it
+stops by itself after 15 minutes without a session (`idle_timeout_seconds`).
+
+```powershell
+cortex daemon status          # running or stopped, pid, sessions, version
+cortex daemon status --json   # the same, as a contract_version 1 document
+cortex daemon stop --wait     # drain and stop now, for example before an update
+```
+
+To come back, set `mode = "per-client"` (or remove the `[server]` table), or
+run `cortex config set-server-mode per-client --json --expected-hash <hash>`,
+then restart the clients and run `cortex daemon stop`. Sessions already
+attached to the daemon keep it until they close.
+
+A change to `config.toml` makes the daemon drain and exit; the next request
+starts a fresh one with the new settings. If the daemon cannot be reached
+within 10 seconds, or a client passes different `CORTEX_*` variables, that
+session falls back to the per-client mode on its own. Details:
+[Configuration](configuration.md#shared-server) and
+[Architecture](architecture.md#per-client-or-shared-server).
+
 ## Ingestion operations
 
 The generic ingestion CLI reports the latest atomic source health and whether a

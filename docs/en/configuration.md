@@ -190,6 +190,40 @@ described in the [specification](spec.md#cli-contracts).
 Known limits: Cortex Companion does not display or edit mounts yet; use these
 commands or edit `config.toml`, then restart the MCP clients.
 
+## Shared server
+
+The optional `[server]` table chooses how `cortex serve`, the command every MCP
+client starts, runs:
+
+```toml
+[server]
+mode = "shared"
+idle_timeout_seconds = 900
+```
+
+| Key | Values | Default | Effect |
+|---|---|---|---|
+| `mode` | `"per-client"`, `"shared"` | `"per-client"` | `per-client`: each MCP client starts its own complete server, as before. `shared`: `cortex serve` becomes a light relay to one daemon per user that hosts every session. |
+| `idle_timeout_seconds` | integer, 0 or more | `900` | The daemon stops after this many seconds without an open session; `0` keeps it running. |
+
+Any other key in the table is refused. The table is written only when it departs
+from the defaults, so a file that never opted in stays readable by an older
+Cortex. There is no environment variable for it.
+
+Two machine commands read and change it through the same compare-and-swap
+protection and exit codes as `cortex config set-root`:
+
+```powershell
+cortex config server --json
+cortex config set-server-mode shared --json --expected-hash <hash>
+```
+
+`server` returns the hash that `set-server-mode` expects. A new mode applies to
+the MCP sessions started afterwards; sessions already open keep the mode they
+started with. The documents are described in the
+[specification](spec.md#cli-contracts), and the shared mode itself in the
+[architecture](architecture.md#per-client-or-shared-server).
+
 ## Index contracts (not user-editable)
 
 Index contracts stay centralized in `config.py` and are not user-editable:

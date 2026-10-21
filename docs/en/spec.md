@@ -44,8 +44,11 @@ content through an explicitly configured writer.
 ## 2. Transport and four-tool MCP surface
 
 The `cortex serve` entry point starts FastMCP through `mcp.run()` over stdio.
-The Cortex CLI exposes no HTTP or WebSocket transport and opens no network
-listener. The server code registers exactly four tools and no Cortex-specific
+With `[server] mode = "shared"`, it relays the same stdio session to one daemon
+per user (`cortex daemon run`) over a local endpoint restricted to that user, a
+Windows named pipe or a Unix domain socket; the tools, their parameters and
+their results are the same in both modes. The Cortex CLI exposes no HTTP or
+WebSocket transport and opens no network listener. The server code registers exactly four tools and no Cortex-specific
 MCP resource or prompt.
 
 | Tool | Parameters | Behavior | Response format |
@@ -260,7 +263,7 @@ The configuration commands emit one JSON document each and never a human
 rendering. Each document is a strict record: a client must reject unknown
 members, so a new member requires a new contract version.
 
-All five carry `contract_version: 1`:
+These five carry `contract_version: 1`:
 
 - `cortex config get --json`: operation `config_get`;
 - `cortex config set --json --kb-path <path>` with `--expected-hash <hash>` or
@@ -296,6 +299,47 @@ is absent or invalid, which a mount never repairs:
  "previous_content_hash": "<sha256>", "content_hash": "<sha256>",
  "backup_written": true, "restart_required": true, "error": null}
 ```
+
+The shared server adds three documents, each a separate contract with
+`contract_version: 1`:
+
+- `cortex config server --json`: operation `config_server`, the resolved
+  `[server]` table; always exit code 0, an invalid file is reported with
+  `valid: false` and `values: null`;
+- `cortex config set-server-mode <per-client|shared> --json --expected-hash <hash>`:
+  operation `config_set_server_mode`, with the statuses, error codes and exit
+  codes of `config set-root`;
+- `cortex daemon status --json`: operation `daemon_status`; `state` is
+  `running`, `stopped` (no daemon, a valid state, exit code 0) or `unavailable`
+  (the endpoint answered but refused, with `reason`); the live members are
+  `null` unless the daemon runs.
+
+```json
+{"contract_version": 1, "operation": "config_server", "status": "succeeded",
+ "present": true, "content_hash": "<sha256>", "valid": true, "error": null,
+ "values": {"mode": "shared", "idle_timeout_seconds": 900}}
+```
+
+```json
+{"contract_version": 1, "operation": "config_set_server_mode",
+ "status": "succeeded", "changed": true, "previous_content_hash": "<sha256>",
+ "content_hash": "<sha256>", "backup_written": true, "restart_required": true,
+ "error": null, "values": {"mode": "shared", "idle_timeout_seconds": 900}}
+```
+
+```json
+{"contract_version": 1, "operation": "daemon_status", "state": "running",
+ "reason": null, "endpoint": "\\\\.\\pipe\\cortex-<SID>-v1",
+ "configured_mode": "shared", "protocol_version": 1, "pid": 4242,
+ "product_version": "<version>", "started_at": "<RFC 3339>",
+ "uptime_seconds": 12.5, "sessions": 2, "in_flight": 0, "sync_running": false,
+ "draining": false, "idle_timeout_seconds": 900}
+```
+
+`cortex daemon stop [--wait]` asks the daemon to drain and exit; it prints one
+human line and exits with 0, or 1 when the endpoint refuses or `--wait` times
+out. `cortex daemon run` runs the daemon in the foreground; relays start it on
+their own.
 
 If a legacy index exists next to the code, Cortex refuses to create a second
 active index. Migration uses an atomic rename with no copy fallback; if both the

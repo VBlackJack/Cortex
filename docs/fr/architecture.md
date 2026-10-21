@@ -36,6 +36,76 @@ d'ingestion avec `source_kind=doc` ; seule la génération désignée par
 `server.py` expose la recherche hybride structurée et la fraîcheur en lecture
 seule aux clients MCP.
 
+## Mode par client ou mode partagé
+
+Par défaut (`[server] mode = "per-client"`), chaque session de client MCP lance
+son propre `cortex serve`, qui charge le modèle d'embedding, ouvre l'index et ne
+sert que ce client. Trente sessions ouvertes font trente processus complets.
+
+Avec `mode = "shared"`, la ligne de commande inscrite dans les clients reste
+`cortex serve`, mais elle devient un relais léger :
+
+```
+client MCP --stdio--> cortex serve (relais) --+
+client MCP --stdio--> cortex serve (relais) --+--> point local --> cortex daemon run
+client MCP --stdio--> cortex serve (relais) --+                    (un par utilisateur)
+```
+
+**Ce qui est partagé.** Le démon héberge l'unique instance FastMCP et ses quatre
+outils, le modèle d'embedding, le reranker, un client Chroma et une connexion
+lexicale en lecture seule, le verrou d'écriture et les journaux. Chaque
+connexion garde sa propre session MCP : initialisation, identifiants de requête
+et annulation. Les outils synchrones s'exécutent dans des threads de travail :
+une longue `cortex_sync` ne gèle jamais les autres sessions ; les lectures
+passent une à une, et une seconde sync lancée depuis une autre session reçoit la
+même réponse "locked" qu'une sync bloquée par un autre processus.
+
+**Voir les autres écrivains.** Un client Chroma de longue durée ne voit pas les
+vecteurs écrits par un autre processus : son segment vectoriel reste tel qu'il a
+été chargé. Le démon rouvre donc son client avant une lecture dès que les
+fichiers de l'index ont changé et que le verrou d'écriture est de nouveau libre :
+une `cortex sync` lancée depuis une console ou une tâche planifiée est visible
+dès la recherche suivante.
+
+**Sécurité du point d'accès.** Aucun port TCP n'est jamais ouvert. Sous Windows,
+le point d'accès est le named pipe `\\.\pipe\cortex-<SID utilisateur>-v1`, créé
+avec une DACL qui n'accorde l'accès qu'à l'utilisateur courant,
+`FILE_FLAG_FIRST_PIPE_INSTANCE` et `PIPE_REJECT_REMOTE_CLIENTS` ; le démon
+vérifie que chaque processus client appartient au même utilisateur, et le relais
+vérifie la même chose du processus serveur. Ailleurs, c'est un socket Unix dans
+un répertoire 0700 appartenant à l'utilisateur, le socket lui-même en 0600, avec
+vérification de l'uid du pair là où la plateforme l'expose. Chaque connexion
+s'ouvre par une trame versionnée de 4 Kio au plus, qui porte un jeton aléatoire
+de 32 octets que le démon écrit dans `<data home>\daemon\token` à chaque
+démarrage ; les lignes JSON-RPC sont ensuite limitées à 8 Mio. Le jeton n'est
+jamais journalisé.
+
+**Cycle de vie.**
+
+- Un démon par utilisateur, tenu par `<data home>\daemon\daemon.lock` ; le
+  système le libère si le processus meurt.
+- Le premier relais qui ne trouve pas de démon en lance un, détaché, puis
+  l'attend 10 secondes au plus ; au-delà, il sert lui-même la session en mode
+  par client.
+- Le démon se draine et s'arrête après `idle_timeout_seconds` sans session,
+  quand `config.toml` change (il résout la configuration une fois au démarrage,
+  comme tout processus Cortex), sur `cortex daemon stop`, ou quand un relais
+  d'une version plus récente le demande. Un drainage laisse finir les requêtes
+  en cours, une sync toujours.
+- Quand la connexion se ferme, le relais répond une erreur JSON-RPC pour une
+  requête en cours, sans jamais la rejouer, puis se reconnecte et rejoue
+  l'échange `initialize` de la session. Après trois pertes en cinq minutes, il
+  sert le reste de la session dans son propre processus.
+- Un relais dont l'environnement `CORTEX_*` diffère de celui du démon, ou qui
+  rencontre un démon plus récent ou un point d'accès tenu par un autre
+  processus, sert sa session en mode par client. Il ne prend jamais le contrôle
+  d'un point d'accès.
+
+Limite connue : un client qui place ses serveurs dans un job Windows tué à la
+fermeture sans autoriser la sortie du job (c'est le cas du client du SDK MCP
+Python) tue aussi, en se fermant, le démon que son relais a lancé ; les autres
+relais en lancent alors un nouveau.
+
 ## Structure du projet
 
 ```
@@ -51,6 +121,7 @@ seule aux clients MCP.
 |-- ingestion\          <- Generations atomiques, planification, sante, credentials
 |-- confluence_writer\  <- Source REST sur liste blanche et pont console
 |-- server.py           <- Serveur MCP FastMCP (4 outils Cortex)
+|-- daemon_*.py         <- Mode partage : demon, relais, point d'acces, trames
 |-- sync.bat            <- Developpement : sync section par section (%~dp0)
 |-- install.bat         <- Developpement : installation depuis le clone (%~dp0)
 |-- setup_config.py     <- Enregistrement multi-client sur + validation
