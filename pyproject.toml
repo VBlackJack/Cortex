@@ -71,6 +71,7 @@ py-modules = [
   "daemon_client",
   "daemon_command",
   "daemon_contract",
+  "daemon_relay",
   "daemon_resources",
   "daemon_server",
   "daemon_transport",

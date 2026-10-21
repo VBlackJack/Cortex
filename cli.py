@@ -27,6 +27,7 @@ from confluence_writer.constants import (
     EXIT_INVALID_INPUT,
     EXIT_OK,
 )
+from daemon_contract import SERVER_MODE_PER_CLIENT, SERVER_MODE_SHARED
 from sync_contract import SyncError, build_sync_failure_report
 
 if TYPE_CHECKING:
@@ -35,7 +36,7 @@ if TYPE_CHECKING:
 # One line per public subcommand, rendered by `cortex --help`. Keep this table
 # and the command table in both READMEs describing the same surface.
 _COMMANDS: tuple[tuple[str, str], ...] = (
-    ("serve", "Run the MCP server over stdio (started by MCP clients)."),
+    ("serve", "Run the MCP server over stdio, or relay to the shared daemon (MCP clients)."),
     ("sync", "Incrementally index the knowledge base and the current generation."),
     ("search", "Search the index from the console, the debugging twin of the MCP tool."),
     ("ingestion", "Report ingestion source health and whether a catch-up is due."),
@@ -107,6 +108,19 @@ def _handle_sync_configuration_error(
     return EXIT_INVALID_INPUT
 
 
+def _serve_mode() -> str:
+    """Return the configured `[server] mode`; an unreadable configuration means per-client.
+
+    Per-client mode then reports the configuration error exactly as it always did.
+    """
+    from user_config import CortexConfigError, load_user_config
+
+    try:
+        return load_user_config().server_mode
+    except CortexConfigError:
+        return SERVER_MODE_PER_CLIENT
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the root parser: the version flag and one bare entry per subcommand.
 
@@ -157,6 +171,14 @@ def _dispatch(namespace: argparse.Namespace, arguments: list[str]) -> int:
         from daemon_command import main as daemon_main
 
         return daemon_main(arguments)
+
+    if namespace.command == "serve" and _serve_mode() == SERVER_MODE_SHARED:
+        # The relay loads neither the server nor the model; it returns False,
+        # having read nothing, when this process must serve per-client after all.
+        from daemon_relay import run_relay
+
+        if run_relay():
+            return 0
 
     from offline_models import activate_if_embedded
 

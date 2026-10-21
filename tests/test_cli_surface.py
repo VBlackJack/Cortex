@@ -136,6 +136,8 @@ _HASH = "a" * 64
             "config",
             {"operation": "set-server-mode", "mode": "shared", "expected_hash": _HASH},
         ),
+        (["daemon", "status", "--json"], "daemon", {"operation": "status", "json": True}),
+        (["daemon", "stop", "--wait"], "daemon", {"operation": "stop", "wait": True}),
     ],
 )
 def test_every_desktop_line_lands_its_values_in_the_right_slots(
