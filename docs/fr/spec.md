@@ -226,6 +226,7 @@ profil live `~/.gemini/antigravity` pour éviter un faux positif Gemini.
 | Donnée | Emplacement par défaut | Contrat |
 |---|---|---|
 | Base de connaissances | Chemin choisi dans `kb_path` | Source utilisateur, jamais supprimée par setup ou reset |
+| Sections montées | Table facultative `[section_roots]` : nom de section vers dossier absolu | Mode sections uniquement, clés issues de `included_sections`, aucune surcharge par l'environnement |
 | Configuration | Windows : `%APPDATA%\Cortex\config.toml` ; autres : `~/.config/Cortex/config.toml` | TOML strict, `schema_version = 1`, clés inconnues refusées |
 | Data home | Windows : `%LOCALAPPDATA%\Cortex` ; autres : `$XDG_DATA_HOME/Cortex` ou `~/.local/share/Cortex` | Racine des données générées propres au poste |
 | Index vectoriel | `<data_home>/chroma_db` | Surchargeable par `chroma_path` |
@@ -237,7 +238,54 @@ profil live `~/.gemini/antigravity` pour éviter un faux positif Gemini.
 La précédence de configuration est environnement, puis TOML, puis défaut
 produit. `CORTEX_KB_PATH` peut surcharger le corpus. Les limites par défaut sont
 1 000 000 octets pour Markdown et 50 000 000 pour PDF. Les chemins indexés sont
-stockés relativement à `kb_path` avec des séparateurs POSIX.
+stockés relativement à `kb_path` avec des séparateurs POSIX. Un fichier d'une
+section montée garde le chemin logique `<section>/<chemin dans le montage>`,
+celui qu'il aurait sous `kb_path` : monter une section déplacée ne change aucun
+identifiant de chunk.
+
+### Contrats CLI
+
+Les commandes de configuration émettent chacune un seul document JSON, jamais
+de rendu humain. Chaque document est un enregistrement strict : un client doit
+refuser les membres inconnus, donc un nouveau membre exige une nouvelle version
+de contrat.
+
+Les cinq portent `contract_version: 1` :
+
+- `cortex config get --json` : opération `config_get` ;
+- `cortex config set --json --kb-path <chemin>` avec
+  `--expected-hash <empreinte>` ou `--expect-absent` : opération `config_set` ;
+- `cortex config roots --json` : opération `config_roots` ;
+- `cortex config set-root <section> <chemin> --json --expected-hash <empreinte>` :
+  opération `config_set_root` ;
+- `cortex config clear-root <section> --json --expected-hash <empreinte>` :
+  opération `config_clear_root`.
+
+`config roots` liste chaque section de la configuration, ou la section racine
+`.` en mode dossier entier, et sort toujours avec le code 0 ; un fichier
+invalide est signalé par `valid: false` et une liste vide :
+
+```json
+{"contract_version": 1, "operation": "config_roots", "status": "succeeded",
+ "present": true, "content_hash": "<sha256>", "valid": true, "error": null,
+ "kb_path": "D:\\Knowledge", "index_whole_folder": false,
+ "sections": [{"section": "_memory", "root": "G:\\_DATACRON\\_memory", "mounted": true, "exists": true},
+              {"section": "knowledge", "root": "D:\\Knowledge\\knowledge", "mounted": false, "exists": true}]}
+```
+
+`config set-root` et `config clear-root` partagent un même document. `root` est
+le montage normalisé enregistré après un succès, `null` après `clear-root` ou
+un échec. Statuts, codes d'erreur et codes de sortie sont ceux de `config set` :
+`invalid_argument` (6), `hash_mismatch` (9), `locked` (2), `validation_failed`
+et `write_failed` (1), plus `invalid_configuration` (1) quand le fichier
+existant est absent ou invalide, ce qu'un montage ne répare jamais :
+
+```json
+{"contract_version": 1, "operation": "config_set_root", "status": "succeeded",
+ "section": "_memory", "root": "G:\\_DATACRON\\_memory", "changed": true,
+ "previous_content_hash": "<sha256>", "content_hash": "<sha256>",
+ "backup_written": true, "restart_required": true, "error": null}
+```
 
 Si un index legacy existe à côté du code, Cortex refuse de créer un second
 index actif. La migration utilise un renommage atomique sans fallback copie ;

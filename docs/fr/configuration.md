@@ -149,6 +149,60 @@ disponibles.
 Sans cet opt-in, le dossier reste visible comme "out of policy" mais n'est
 jamais envoyé au modèle d'embedding.
 
+### Monter une section hors de kb_path
+
+Une section est normalement le dossier du même nom sous `kb_path`. Quand une
+section part sur un autre disque ou dans un autre dossier, montez-la à son
+nouvel emplacement avec la table facultative `[section_roots]`, plutôt que de
+déplacer `kb_path` ou de reconstruire l'index :
+
+```toml
+[section_roots]
+_memory = "G:\\_DATACRON\\_memory"
+```
+
+Règles, vérifiées au chargement du fichier :
+
+- mode sections uniquement : la table est refusée avec
+  `index_whole_folder = true` ;
+- chaque clé doit déjà figurer dans `included_sections` ;
+- chaque valeur doit être un dossier absolu ; elle est enregistrée normalisée ;
+- aucune variable d'environnement ne surcharge cette table, et `CORTEX_KB_PATH`
+  ne la modifie pas.
+
+Seul l'emplacement sur disque change. Le chemin logique stocké dans l'index et
+utilisé dans les identifiants de chunks reste `<section>/<chemin dans la racine
+de la section>`, exactement comme si la section vivait encore sous `kb_path`.
+Une section indexée sous `kb_path`, déplacée puis montée garde tous ses chunks :
+la sync suivante ignore ses fichiers inchangés au lieu de les republier. La
+sync, la fraîcheur, les verdicts de fraîcheur de la recherche et les cibles
+d'ouverture des résultats passent tous par le montage.
+
+Un dossier monté absent n'est jamais ignoré en silence : `cortex doctor`
+affiche un contrôle `config.section_roots.<section>` par montage, en FAIL avec
+le chemin quand le dossier manque, et une sync signale `section_unavailable`
+avec le chemin du montage tout en conservant le contenu indexé.
+
+Deux commandes machine lisent et modifient la table avec la même protection
+compare-and-swap que `cortex config set` (code de sortie 0 en cas de succès, 9
+pour une empreinte périmée, 2 si le verrou est pris, 6 pour une entrée
+invalide, 1 sinon) :
+
+```powershell
+cortex config roots --json
+cortex config set-root _memory "G:\_DATACRON\_memory" --json --expected-hash <hash>
+cortex config clear-root _memory --json --expected-hash <hash>
+```
+
+`roots` liste chaque section avec sa racine résolue, indique si elle est montée
+et si le dossier existe ; l'empreinte qu'elle renvoie est celle qu'attendent
+`set-root` et `clear-root`. Leurs documents portent `contract_version: 1` et
+sont décrits dans la [spécification](spec.md#contrats-cli).
+
+Limites connues : Cortex Companion n'affiche ni ne modifie encore les montages ;
+utilisez ces commandes ou modifiez `config.toml`, puis redémarrez les clients
+MCP.
+
 ## Contrats d'index (non modifiables)
 
 Les contrats d'index restent centralisés dans `config.py` et ne sont pas

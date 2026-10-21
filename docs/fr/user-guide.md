@@ -38,6 +38,24 @@ cortex_sync                       # toutes les sections
 cortex_sync section="operations"  # une seule section
 ```
 
+### Une section a déménagé
+
+Quand le dossier d'une section quitte `kb_path`, la sync conserve son contenu
+indexé mais signale `section_unavailable` avec le chemin cherché, et
+`cortex doctor` le relève. Montez la section là où elle vit désormais plutôt
+que de reconstruire :
+
+```powershell
+cortex config roots --json                 # noter content_hash
+cortex config set-root _memory "G:\_DATACRON\_memory" --json --expected-hash <content_hash>
+cortex sync
+```
+
+Redémarrez les clients MCP après le changement. La sync ignore les fichiers
+inchangés, puisque leurs chemins logiques et leurs identifiants de chunks ne
+changent pas ; voir
+[Monter une section hors de kb_path](configuration.md#monter-une-section-hors-de-kb_path).
+
 ### Repartir de zéro (modèle changé, index corrompu)
 
 1. Quitter tous les clients MCP connectés à Cortex.

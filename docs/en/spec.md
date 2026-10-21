@@ -217,6 +217,7 @@ avoid a Gemini false positive.
 | Data | Default location | Contract |
 |---|---|---|
 | Knowledge base | Path selected as `kb_path` | User source, never deleted by setup or reset |
+| Mounted sections | Optional `[section_roots]` table: section name to absolute folder | Sections mode only, keys from `included_sections`, no environment override |
 | Configuration | Windows: `%APPDATA%\Cortex\config.toml`; others: `~/.config/Cortex/config.toml` | Strict TOML, `schema_version = 1`, unknown keys rejected |
 | Data home | Windows: `%LOCALAPPDATA%\Cortex`; others: `$XDG_DATA_HOME/Cortex` or `~/.local/share/Cortex` | Root for generated machine-local data |
 | Vector index | `<data_home>/chroma_db` | Overridable with `chroma_path` |
@@ -228,7 +229,52 @@ avoid a Gemini false positive.
 Configuration precedence is environment, then TOML, then product default.
 `CORTEX_KB_PATH` can override the corpus. Default limits are 1,000,000 bytes for
 Markdown and 50,000,000 for PDF. Indexed paths are stored relative to `kb_path`
-with POSIX separators.
+with POSIX separators. A file of a mounted section keeps the logical path
+`<section>/<path inside the mount>`, the path it would have under `kb_path`, so
+mounting a moved section changes no chunk id.
+
+### CLI contracts
+
+The configuration commands emit one JSON document each and never a human
+rendering. Each document is a strict record: a client must reject unknown
+members, so a new member requires a new contract version.
+
+All five carry `contract_version: 1`:
+
+- `cortex config get --json`: operation `config_get`;
+- `cortex config set --json --kb-path <path>` with `--expected-hash <hash>` or
+  `--expect-absent`: operation `config_set`;
+- `cortex config roots --json`: operation `config_roots`;
+- `cortex config set-root <section> <path> --json --expected-hash <hash>`:
+  operation `config_set_root`;
+- `cortex config clear-root <section> --json --expected-hash <hash>`: operation
+  `config_clear_root`.
+
+`config roots` lists every section of the configuration, or the root section
+`.` in whole-folder mode, and always exits with code 0; an invalid file is
+reported with `valid: false` and an empty list:
+
+```json
+{"contract_version": 1, "operation": "config_roots", "status": "succeeded",
+ "present": true, "content_hash": "<sha256>", "valid": true, "error": null,
+ "kb_path": "D:\\Knowledge", "index_whole_folder": false,
+ "sections": [{"section": "_memory", "root": "G:\\_DATACRON\\_memory", "mounted": true, "exists": true},
+              {"section": "knowledge", "root": "D:\\Knowledge\\knowledge", "mounted": false, "exists": true}]}
+```
+
+`config set-root` and `config clear-root` share one document. `root` is the
+normalized persisted mount after a success, `null` after `clear-root` or a
+failure. Statuses, error codes and exit codes are those of `config set`:
+`invalid_argument` (6), `hash_mismatch` (9), `locked` (2), `validation_failed`
+and `write_failed` (1), plus `invalid_configuration` (1) when the existing file
+is absent or invalid, which a mount never repairs:
+
+```json
+{"contract_version": 1, "operation": "config_set_root", "status": "succeeded",
+ "section": "_memory", "root": "G:\\_DATACRON\\_memory", "changed": true,
+ "previous_content_hash": "<sha256>", "content_hash": "<sha256>",
+ "backup_written": true, "restart_required": true, "error": null}
+```
 
 If a legacy index exists next to the code, Cortex refuses to create a second
 active index. Migration uses an atomic rename with no copy fallback; if both the

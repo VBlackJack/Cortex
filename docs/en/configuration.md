@@ -141,6 +141,55 @@ From Claude, the `cortex_list_sections` MCP tool lists all available sections.
 Without this opt-in, the folder stays visible as "out of policy" but is never
 sent to the embedding model.
 
+### Mount a section outside kb_path
+
+A section is normally the folder of the same name under `kb_path`. When one
+section moves to another drive or folder, mount it there with the optional
+`[section_roots]` table instead of moving `kb_path` or rebuilding the index:
+
+```toml
+[section_roots]
+_memory = "G:\\_DATACRON\\_memory"
+```
+
+Rules, checked when the file is loaded:
+
+- sections mode only: the table is refused with `index_whole_folder = true`;
+- every key must already be listed in `included_sections`;
+- every value must be an absolute directory; it is stored normalized;
+- there is no environment variable for this table, and `CORTEX_KB_PATH` does
+  not change it.
+
+Only the location on disk moves. The logical path stored in the index and used
+in chunk ids stays `<section>/<path inside the section root>`, exactly as if the
+section still lived under `kb_path`. A section indexed under `kb_path`, moved,
+then mounted keeps every chunk: the next sync skips its unchanged files instead
+of republishing them. Sync, freshness, search freshness verdicts and search
+open targets all resolve through the mount.
+
+A mounted folder that does not exist is never silently skipped: `cortex doctor`
+reports one `config.section_roots.<section>` check per mount, FAIL with the
+path when the folder is missing, and a sync reports `section_unavailable` with
+the mount path while it preserves the indexed content.
+
+Two machine commands read and change the table through the same
+compare-and-swap protection as `cortex config set` (exit code 0 on success, 9
+for a stale hash, 2 when locked, 6 for invalid input, 1 otherwise):
+
+```powershell
+cortex config roots --json
+cortex config set-root _memory "G:\_DATACRON\_memory" --json --expected-hash <hash>
+cortex config clear-root _memory --json --expected-hash <hash>
+```
+
+`roots` lists every section with its resolved root, whether it is mounted and
+whether the folder exists; the hash it returns is the one `set-root` and
+`clear-root` expect. Their documents carry `contract_version: 1` and are
+described in the [specification](spec.md#cli-contracts).
+
+Known limits: Cortex Companion does not display or edit mounts yet; use these
+commands or edit `config.toml`, then restart the MCP clients.
+
 ## Index contracts (not user-editable)
 
 Index contracts stay centralized in `config.py` and are not user-editable:
