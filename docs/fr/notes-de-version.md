@@ -11,6 +11,34 @@ Les commandes de l'interface sont nommées comme la version actuelle les affiche
 compris dans les entrées des versions antérieures, afin qu'une commande citée ici se
 retrouve à l'écran aujourd'hui.
 
+<!-- release:2026-1021-00 -->
+## 2026.1021.00 - 2026-10-21
+
+- L'exécutable Cortex est désormais livré sous forme de dossier au lieu d'un fichier unique auto-extractible. Il démarre en une à trois secondes au lieu de 13 à 18, ne se décompresse plus dans le dossier temporaire à chaque démarrage et ne laisse plus de dossiers `_MEI` orphelins quand une application d'IA ou Companion l'arrête. Les archives portables se décompressent maintenant dans un dossier `cortex/` qui contient l'exécutable, son runtime et ses licences ; ce dossier se garde entier.
+- Cortex passe au SDK Python MCP 1.30.0 et à des dépendances mises à jour, ce qui lève les avis de sécurité signalés sur les versions précédentes.
+- L'installation depuis les sources demande désormais Python 3.11 à 3.13 ; Python 3.10, arrivé en fin de vie, n'est plus pris en charge. Les exécutables autonomes embarquent CPython 3.13.
+- `cortex doctor` fonctionne désormais sur un fichier de configuration abîmé : il signale la configuration comme invalide au lieu de s'arrêter sur une trace Python.
+- `cortex setup` n'abîme plus la configuration d'une application d'IA qui contient des tableaux de tables, comme peut le faire Codex : il réécrivait l'entrée suivante ou, au retrait, supprimait tout ce qui suivait l'entrée Cortex.
+- Un fichier source illisible donne maintenant une synchronisation partielle avec la recommandation `check_sources` et un index sain, au lieu d'un échec à chaque passage qu'aucune nouvelle tentative ne pouvait corriger.
+- `cortex sync` rend les codes de sortie documentés aussi sans `--json`, avec un message d'erreur d'une ligne au lieu d'une trace.
+- Un certificat refusé, un hôte Confluence inconnu ou une connexion refusée est désormais signalé comme un échec permanent au lieu d'être retenté comme un échec temporaire, et la cause est écrite dans le journal.
+- `cortex setup --reset` conserve les fichiers de modèles posés par l'installateur Windows : la recherche continue de fonctionner hors ligne après une remise à zéro.
+- Un dossier de base de connaissances dont le chemin contient un emoji est désormais écrit dans une configuration valide ; Cortex refuse d'enregistrer une configuration qu'il ne saurait pas relire.
+- L'exécutable signale un payload de modèles embarqué refusé en une ligne claire au lieu d'une trace à chaque commande.
+- `release.bat` valide désormais `server.json` avec la version, et les dépendances sont analysées chaque semaine à la recherche de nouveaux avis.
+
+Companion associé 2026.1021.00 :
+
+- Les lecteurs d'écran annoncent la portée confirmée lors de l'ajout d'une source, et l'écran de planification annonce ses résultats au fil de l'eau.
+- Chaque contrôle affiche l'anneau de focus du thème, et les couleurs de sélection des résultats de recherche et de l'arbre des sources, ainsi que le sélecteur de date, suivent le thème.
+- Une tâche planifiée reste conforme après un changement de langue de l'interface : sa description est désormais la même dans toutes les langues.
+- Une configuration Confluence invalide, verrouillée ou illisible est expliquée dans la langue de l'interface, avec le chemin du profil.
+- Le délai configuré pour la ligne de commande est respecté partout, y compris pour la vérification de configuration d'une mise à jour documentaire et pour la tâche planifiée.
+- Une mise à jour documentaire dont les seules erreurs sont des sources illisibles compte les documents comme prêts et indique combien de sources n'ont pas pu être lues.
+- Deux libellés français restés en anglais sont traduits.
+
+Mettre à jour Cortex et Companion ensemble avec l'installeur combiné, qui remplace l'ancien exécutable en fichier unique par le nouveau dossier. Une installation portable se remplace par le nouveau dossier `cortex/` en entier.
+
 <!-- release:2026-0909-04 -->
 ## 2026.0909.04 - 2026-09-09
 

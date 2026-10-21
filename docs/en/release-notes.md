@@ -10,6 +10,34 @@ This page summarizes user-visible changes. See the
 Interface controls are named as the current version shows them, including in entries
 about earlier versions, so a control quoted here can be found on screen today.
 
+<!-- release:2026-1021-00 -->
+## 2026.1021.00 - 2026-10-21
+
+- The Cortex executable now ships as a folder instead of a single self-extracting file. It starts in one to three seconds instead of 13 to 18, no longer unpacks itself into the temporary folder at every start, and no longer leaves orphaned `_MEI` folders behind when an AI application or Companion stops it. The portable archives now unpack to a `cortex/` folder that holds the executable, its runtime and its licenses; keep that folder whole.
+- Cortex moves to the MCP Python SDK 1.30.0 and refreshed dependencies, which clears the security advisories reported against the previous versions.
+- Installing from source now requires Python 3.11 to 3.13; Python 3.10, which reached end of life, is no longer supported. The standalone executables embed CPython 3.13.
+- `cortex doctor` now runs on a damaged configuration file: it reports the configuration as invalid instead of stopping with a Python traceback.
+- `cortex setup` no longer damages the configuration of an AI application that contains array tables, as Codex can: it used to rewrite the next entry or, on removal, delete everything after the Cortex entry.
+- A source file that cannot be read now gives a partial synchronisation with the `check_sources` recommendation and a healthy index, instead of a failure on every run that no retry could fix.
+- `cortex sync` returns the documented exit codes without `--json` too, with a one-line error message instead of a traceback.
+- A rejected certificate, an unknown Confluence host or a refused connection is now reported as a permanent failure instead of being retried as a temporary one, and the underlying cause is written to the log.
+- `cortex setup --reset` keeps the model files installed by the Windows installer, so search keeps working offline after a reset.
+- A knowledge base folder whose path contains an emoji is now written as a valid configuration; Cortex refuses to save a configuration it could not read back.
+- The executable reports a rejected embedded model payload in one clear line instead of a traceback on every command.
+- `release.bat` now commits `server.json` with the version, and the dependencies are scanned for new advisories every week.
+
+Paired Companion 2026.1021.00:
+
+- Screen readers announce which scope is being confirmed when adding a source, and the scheduling screen announces its outcomes as they happen.
+- Every control shows the theme focus ring, and the selection colours of search results and the source tree, as well as the date picker, follow the theme.
+- A scheduled task stays conforming after the interface language changes: its description is now the same in every language.
+- An invalid, locked or unreadable Confluence configuration is explained in the interface language, with the profile path.
+- The configured command line delay is honoured everywhere, including the configuration check of a document update and the scheduled task.
+- A document update whose only errors are unreadable sources counts the documents as ready and says how many sources could not be read.
+- Two French labels that were left in English are translated.
+
+Upgrade Cortex and Companion together with the combined installer, which replaces the previous single-file executable with the new folder. A portable installation must be replaced by the new `cortex/` folder as a whole.
+
 <!-- release:2026-0909-04 -->
 ## 2026.0909.04 - 2026-09-09
 

@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.1021.00] - 2026-10-21
+
 ### Fixed
 - Stop the Codex client registration at the next `[[array.of.tables]]` header: `cortex setup` no longer rewrites the command of a following table and `--unregister` no longer deletes everything after the Cortex entry. A rewrite that would change any other table is refused.
 - Keep the installer-owned model payload in `%LOCALAPPDATA%\Cortex\models` during `cortex setup --reset`, and say so in the reset explanation.
