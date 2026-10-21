@@ -249,8 +249,8 @@ choisir ou de fusionner.
 
 | Canal | Contenu et contrat |
 |---|---|
-| Sources Python | Python 3.10 ou plus, pins directs dans `requirements.txt`, arbre transitif universel et hashé dans `requirements.lock` |
-| Binaires autonomes | Windows x64, macOS arm64 et Linux x64 ; CLI et serveur stdio sans Python, modèles non embarqués |
+| Sources Python | Python 3.11 à 3.13, pins directs dans `requirements.txt`, arbre transitif universel et hashé dans `requirements.lock` |
+| Binaires autonomes | Windows x64, macOS arm64 et Linux x64 ; dossier d'exécutable `cortex/` embarquant CPython 3.13, CLI et serveur stdio sans Python, modèles non embarqués |
 | Installeur Windows | `Cortex-Setup.exe`, x64 compatible, sans élévation, binaire plus payload de modèles dans `%LOCALAPPDATA%\Cortex\models` |
 | Métadonnées de release | `SHA256SUMS` pour les artefacts et attestation GitHub de provenance du build |
 

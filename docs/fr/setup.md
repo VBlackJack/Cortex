@@ -8,16 +8,18 @@
 
 | Outil | Version minimale |
 |---|---|
-| Runtime | Binaire Cortex autonome, ou Python 3.10+ |
+| Runtime | Exécutable Cortex autonome, ou Python 3.11 à 3.13 |
 | Client | Claude Desktop/Code, Codex ou Gemini avec support MCP |
 | Espace disque | ~500 Mo (modèle + index) |
 
-Pour un poste cible sans Python, utiliser un binaire autonome publié et voir la
-[distribution autonome](distribution.md). Les chemins `install.bat` depuis le
-clone et pip ci-dessous restent les options de développement et d'installation
-depuis les sources.
+L'utilisateur final installe Cortex avec `Cortex-Setup.exe` sous Windows (voir
+l'[installation Windows](installation-windows.md)) ou avec une archive autonome
+sur toute plateforme (voir la [distribution autonome](distribution.md)). Les
+chemins `install.bat` depuis le clone et pip ci-dessous servent à développer
+Cortex depuis les sources ; ce n'est pas l'installation prise en charge pour
+l'utilisateur final.
 
-## Installation en un clic
+## Installation de développement depuis un clone
 
 ```bat
 :: Depuis le dossier ou vous avez clone Cortex
@@ -46,8 +48,11 @@ python -m pip install -e .
 cortex doctor
 ```
 
-Les scripts `.bat` restent pleinement pris en charge et `install.bat` ne
-requiert pas que le paquet Cortex soit installé. Pour une installation
+Les scripts `.bat` servent au développement depuis un clone des sources et
+`install.bat` ne requiert pas que le paquet Cortex soit installé. Il installe
+les dépendances non verrouillées de `requirements.txt`, et `sync.bat` indexe le
+dossier section par section sans les documents Confluence ; `cortex sync` couvre
+les deux. Pour une installation
 verrouillée par hash (chaînes identiques à l'octet près), voir
 [Installation reproductible](install-reproductible.md).
 

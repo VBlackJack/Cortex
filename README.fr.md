@@ -15,7 +15,7 @@ locaux.
 
 Depuis 2026.0906.01, Companion propose un accueil guidé, un historique et l'ajout Confluence par un seul lien de page ou d'espace. La connexion et le choix du nombre de pages restent dans le parcours ; la collecte réussie est suivie de l'indexation. Utiliser l'installeur combiné pour garder Cortex et Companion compatibles.
 
-Avec la version associée 2026.0909.02, les mises à jour Confluence conservent la génération servie si un sous-arbre ne peut pas être énuméré et réappliquent les changements de cible/classification lors de la reprise. La recherche utilise le vectoriel multilingue par défaut ; les clients CLI et MCP peuvent choisir explicitement les modes hybride ou rerank. La première collecte réussie après mise à jour régénère les anciennes révisions, puis la synchronisation retire les entrées obsolètes de l'index.
+Depuis 2026.0909.02, les mises à jour Confluence conservent la génération servie si un sous-arbre ne peut pas être énuméré et réappliquent les changements de cible/classification lors de la reprise. La recherche utilise le vectoriel multilingue par défaut ; les clients CLI et MCP peuvent choisir explicitement les modes hybride ou rerank. La première collecte réussie après mise à jour régénère les anciennes révisions, puis la synchronisation retire les entrées obsolètes de l'index.
 
 ## Mise à jour documentaire guidée (2026.0909.00)
 
@@ -94,9 +94,10 @@ Cortex sans terminal. Détails, mode silencieux et réinstallation :
 
 ### Archives autonomes (Windows x64, macOS Apple Silicon, Linux x64)
 
-Chaque release fournit aussi une archive ZIP par plateforme. Elle contient le
-binaire unique `cortex` ou `cortex.exe` (serveur MCP + CLI, sans Python) et les
-licences de toutes les dépendances embarquées. Voir
+Chaque release fournit aussi une archive ZIP par plateforme. Elle se décompresse
+dans un dossier `cortex/` qui contient l'exécutable `cortex` ou `cortex.exe`
+(serveur MCP + CLI, sans Python), son runtime et les licences de toutes les
+dépendances embarquées ; ce dossier se garde entier. Voir
 [Distribution autonome](docs/fr/distribution.md).
 
 ### Depuis PyPI (Python, avancé)
@@ -109,16 +110,19 @@ cortex setup
 Cette voie installe la CLI et le serveur MCP, mais pas Cortex Companion. Le
 modèle est téléchargé lors de sa première utilisation si son cache est vide.
 
-### Depuis les sources (Python, avancé)
+### Depuis les sources (développement)
 
 ```bat
 :: Depuis le dossier ou vous avez clone Cortex
 install.bat
 ```
 
-`install.bat` initialise la configuration, installe les dépendances, propose
-d'enregistrer Cortex dans les clients MCP détectés et valide l'installation.
-Détails : [Installation](docs/fr/setup.md).
+`install.bat` et `sync.bat` sont le chemin de développement d'un clone des
+sources, pas une installation prise en charge pour l'utilisateur final :
+`install.bat` installe les dépendances non verrouillées de `requirements.txt`,
+et `sync.bat` indexe le dossier section par section sans les documents
+Confluence. Pour utiliser Cortex, installer plutôt `Cortex-Setup.exe` ou une
+archive autonome. Détails : [Installation](docs/fr/setup.md).
 
 ## Fonctionnement en bref
 
@@ -231,7 +235,7 @@ cortex setup --yes --kb-path "D:\Documents\Connaissances"
 |---|---|
 | Installeur Windows | Aucun Python ni runtime .NET séparé. ~500 Mo d'espace minimum (applications, modèle + index). |
 | Archive autonome | Aucun Python. ~500 Mo d'espace (modèle + index). |
-| Depuis les sources | Python 3.10+. ~500 Mo d'espace. |
+| Depuis les sources | Python 3.11 à 3.13. ~500 Mo d'espace. |
 | Client | Claude Desktop/Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf ou VS Code (support MCP). |
 
 ## Licence

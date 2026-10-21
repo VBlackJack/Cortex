@@ -22,12 +22,13 @@ client may still pass requested chunks to its model under its own policy.
 
 ## Table of contents
 
-- [Setup](setup.md): prerequisites, `install.bat`, connecting MCP clients
-  (Claude, Codex, Gemini).
 - [Windows installation](windows-install.md): one Python-free installer for
-  Cortex, Companion, and the models, plus silent deployment.
-- [Standalone distribution](distribution.md): one-file executables, local
-  PyInstaller builds and release artifacts.
+  Cortex, Companion, and the models, plus silent deployment. The recommended
+  path for end users.
+- [Standalone distribution](distribution.md): portable executable folders,
+  local PyInstaller builds and release artifacts.
+- [Setup](setup.md): prerequisites, development install from a clone with
+  `install.bat`, connecting MCP clients (Claude, Codex, Gemini).
 - [User guide](user-guide.md): indexing and sync, search, the four MCP tools,
   the doctor, logs.
 - [FAQ](faq.md): installation, local data, sync, diagnostics, and security.
@@ -59,6 +60,6 @@ client may still pass requested chunks to its model under its own policy.
 | Type | Local MCP server (FastMCP) |
 | Search | Hybrid vector + lexical, FR and EN |
 | Index | ChromaDB + SQLite FTS5 in `%LOCALAPPDATA%\Cortex` |
-| Runtime | Standalone binary, or Python 3.10+ |
+| Runtime | Standalone executable (CPython 3.13 inside), or Python 3.11 to 3.13 |
 | Clients | Claude Desktop/Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf, VS Code |
 | License | Apache 2.0 |

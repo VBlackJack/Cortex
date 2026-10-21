@@ -51,8 +51,8 @@ seule aux clients MCP.
 |-- ingestion\          <- Generations atomiques, planification, sante, credentials
 |-- confluence_writer\  <- Source REST sur liste blanche et pont console
 |-- server.py           <- Serveur MCP FastMCP (4 outils Cortex)
-|-- sync.bat            <- Lance le sync section par section (portable, %~dp0)
-|-- install.bat         <- Installation / reinstallation en un clic (portable)
+|-- sync.bat            <- Developpement : sync section par section (%~dp0)
+|-- install.bat         <- Developpement : installation depuis le clone (%~dp0)
 |-- setup_config.py     <- Enregistrement multi-client sur + validation
 |-- cli.py              <- Dispatcher des sous-commandes cortex
 |-- pyproject.toml      <- Packaging et configuration des outils qualite
@@ -126,12 +126,14 @@ machine n'est codée dans les sources :
 
 - `config.py` résout `CHROMA_PATH` vers `%LOCALAPPDATA%\Cortex\chroma_db` ou la
   surcharge utilisateur.
-- `install.bat` et `sync.bat` utilisent `%~dp0` : ils trouvent eux-mêmes leur
-  dossier d'exécution.
+- Les scripts de développement `install.bat` et `sync.bat` utilisent `%~dp0` :
+  ils trouvent eux-mêmes leur dossier d'exécution.
 - `setup_config.py` détecte sa propre localisation pour enregistrer le serveur
   dans chaque client.
 - `%APPDATA%\Cortex\config.toml` sépare les choix roaming du code livré ;
   `%LOCALAPPDATA%\Cortex` contient les données propres au poste.
 
-Conséquence : tu peux cloner Cortex dans n'importe quel dossier sur n'importe
-quelle machine, lancer `install.bat`, et c'est opérationnel.
+Conséquence : un développeur peut cloner Cortex dans n'importe quel dossier sur
+n'importe quelle machine, lancer `install.bat` et travailler depuis ce clone.
+L'utilisateur final ne clone rien : `Cortex-Setup.exe` ou une archive autonome
+installe le même code sous forme de dossier d'exécutable autonome.

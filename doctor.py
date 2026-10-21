@@ -50,7 +50,9 @@ from user_config import (
 DOCTOR_SCHEMA_VERSION = 1
 DOCTOR_STATUSES = ("OK", "WARN", "FAIL", "SKIP", "UNKNOWN", "INFO")
 DEFAULT_HANDSHAKE_TIMEOUT_SECONDS = 20.0
-TYPICAL_HANDSHAKE_WARMUP_SECONDS = 15.0
+# The directory-layout executable starts in one to three seconds; the handshake
+# then loads the server modules, which keeps a normal warm-up near five seconds.
+TYPICAL_HANDSHAKE_WARMUP_SECONDS = 5.0
 DEFAULT_ERROR_LINE_LIMIT = 10
 DEFAULT_ERROR_MAX_AGE_DAYS = 7
 MINIMUM_PYTHON_VERSION = (3, 11)

@@ -18,10 +18,12 @@ Python, installe l'application dans `%LOCALAPPDATA%\Programs\Cortex`, ajoute les
 raccourcis et le `PATH` utilisateur, et fournit le payload de modèles vérifié.
 C'est la voie recommandée pour un poste utilisateur.
 
-L'installation depuis les sources demande Python 3.10 ou plus. Choisis-la pour
-développer Cortex, modifier le code ou tester une révision qui n'est pas encore
-publiée. `install.bat` installe les dépendances, initialise la configuration et
-propose l'enregistrement des clients. Les binaires autonomes macOS et Linux
+L'installation depuis les sources demande Python 3.11 à 3.13. Choisis-la
+seulement pour développer Cortex, modifier le code ou tester une révision qui
+n'est pas encore publiée. `install.bat` installe les dépendances non
+verrouillées, initialise la configuration et propose l'enregistrement des
+clients ; c'est un chemin de développement, pas l'installation prise en charge
+pour l'utilisateur final. Les binaires autonomes macOS et Linux
 n'exigent pas Python non plus.
 
 <!-- faq:data-locations -->

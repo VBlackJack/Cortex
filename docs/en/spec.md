@@ -239,8 +239,8 @@ legacy source and target exist, Cortex refuses to choose or merge them.
 
 | Channel | Content and contract |
 |---|---|
-| Python source | Python 3.10 or newer, direct pins in `requirements.txt`, universal transitively resolved and hashed tree in `requirements.lock` |
-| Standalone binaries | Windows x64, macOS arm64, and Linux x64; CLI and stdio server without Python, models not embedded |
+| Python source | Python 3.11 to 3.13, direct pins in `requirements.txt`, universal transitively resolved and hashed tree in `requirements.lock` |
+| Standalone binaries | Windows x64, macOS arm64, and Linux x64; a `cortex/` executable folder embedding CPython 3.13, CLI and stdio server without Python, models not embedded |
 | Windows installer | `Cortex-Setup.exe`, x64 compatible, no elevation, binary plus model payload in `%LOCALAPPDATA%\Cortex\models` |
 | Release metadata | `SHA256SUMS` for artifacts and GitHub build provenance attestation |
 

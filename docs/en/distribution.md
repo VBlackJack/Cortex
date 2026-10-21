@@ -4,10 +4,11 @@
 
 [Back to table of contents](index.md)
 
-Cortex can be delivered as a standalone ZIP archive. It contains one executable
-providing both the CLI and the MCP stdio server, plus the exact licenses for its
-embedded dependencies. The executable does not require Python on the target
-machine.
+Cortex can be delivered as a standalone ZIP archive. It unpacks to a `cortex/`
+folder holding one executable that provides both the CLI and the MCP stdio
+server, its `_internal` runtime folder, and the exact licenses for its embedded
+dependencies. The executable embeds CPython 3.13 and does not require Python on
+the target machine.
 
 ## Command model
 
@@ -44,7 +45,8 @@ use.
 1. Download the archive for your operating system and `SHA256SUMS` from the
    matching GitHub Release, then verify its SHA-256 digest.
 2. Extract the complete archive into a stable location that will not be renamed
-   or deleted. Keep the `licenses` folder beside the binary.
+   or deleted. Keep the `cortex/` folder whole: the executable needs the
+   `_internal` folder beside it, and the `licenses` folder ships with it.
 3. On Linux or macOS, make the binary executable with `chmod +x cortex`.
 4. Run `cortex setup` from that binary, then restart the registered MCP clients.
 
@@ -76,22 +78,61 @@ On Linux or macOS:
 ./scripts/build_installer.sh --clean
 ```
 
-Both scripts create a PyInstaller one-file executable and a verified license
-inventory under `dist/`. The binary bundles ChromaDB, FastEmbed, ONNX Runtime,
+Both scripts create a PyInstaller directory build, `dist/cortex/` with the
+executable beside `_internal/`, and a verified license inventory under
+`dist/licenses/`. The directory bundles ChromaDB, FastEmbed, ONNX Runtime,
 Tokenizers and the Cortex modules, so it is substantially larger than a simple
-Python CLI. The model files themselves are not bundled.
+Python CLI. The model files themselves are not bundled. Because nothing is
+unpacked at start-up, the executable starts in one to three seconds.
 
 ## Release workflow
 
-Pushing a `v*` tag starts `.github/workflows/release.yml`. It builds on Windows
-x64, macOS arm64 and Linux x64, smoke-tests the CLI and server imports, and
-attaches three ZIP archives with their licenses to the GitHub Release.
-`workflow_dispatch` can build the same artifacts without publishing a release.
-The Windows leg also compiles `Cortex-Setup.exe` with Inno Setup and attaches it
-to the release. This Windows version is unsigned; users must compare its digest
-with `SHA256SUMS` before running it. The publish job generates checksums for every
-artifact and creates a GitHub build provenance attestation before publishing the
-release once.
+Pushing a `v*` tag starts `.github/workflows/release.yml`. `workflow_dispatch`
+builds the same artifacts for a candidate, against a chosen Companion ref,
+without publishing anything. The jobs run in this order, and each one needs the
+previous one to succeed:
+
+1. **Retrieval gate.** The bilingual retrieval benchmark from
+   `.github/workflows/retrieval.yml` must pass first.
+2. **Verify.** On CPython 3.13: the tag must equal `_version.py` and the version
+   in `server.json`; then `ruff`, `mypy`, the full `pytest` suite and
+   `pip-audit` on the three hash-locked trees (`requirements.lock`,
+   `requirements-dev.lock`, `requirements-model.lock`) with the same assessed
+   ignore list as CI.
+3. **Build.** Three portable builds, Windows x64, macOS arm64 and Linux x64,
+   each with the frozen CPython 3.13 interpreter. PyInstaller produces a
+   directory (`cortex` or `cortex.exe` beside `_internal`); the build checks the
+   runner architecture, generates and verifies the license inventory, smoke-tests
+   the CLI and the server imports, and archives the directory inside a single
+   `cortex/` folder with its licenses.
+4. **Windows installer.** The Windows leg verifies and publishes the paired
+   Cortex Companion (the Companion tag of the same name) and the pinned
+   Confluence console converter, prepares the embedded model payload and
+   verifies it against `models/manifest.json`, then compiles the combined
+   `Cortex-Setup.exe` with Inno Setup. An offline smoke test installs it with
+   Hugging Face offline, then runs a synchronization, a search and a JSON search
+   on the installed models.
+5. **Signing.** When the `WINDOWS_CERT_PFX_BASE64` and `WINDOWS_CERT_PASSWORD`
+   secrets exist, `cortex.exe`, the converter, `CortexCompanion.exe`, the
+   embedded uninstaller and `Cortex-Setup.exe` are signed with Authenticode, and
+   the certificate is deleted at the end of the job whatever the outcome.
+   Without the secrets the build continues unsigned; users must then compare the
+   installer digest with `SHA256SUMS` before running it.
+6. **Python distribution.** The wheel is built with reproducible metadata,
+   checked with `twine`, installed over `requirements.lock` in a clean virtual
+   environment and smoke-tested.
+7. **PyPI and MCP Registry.** The wheel is published to PyPI through trusted
+   publishing (skipped when that exact version is already there), then the
+   committed `server.json` is published to the MCP Registry.
+8. **GitHub Release.** The job refuses anything but the exact five-asset set:
+   `Cortex-Setup.exe`, `cortex-windows-x64.zip`, `cortex-macos-arm64.zip`,
+   `cortex-linux-x64.zip` and the `cortex_local_rag` wheel. It then writes
+   `SHA256SUMS`, creates a build provenance attestation for every asset and
+   publishes the release once, without GitHub-generated notes.
 
 The release job must never publish an archive from a failed platform build,
 license inventory, or smoke-test.
+
+CI tests every push on Python 3.11, 3.12 and 3.13. Its dependency scan also runs
+every Monday, so a new advisory against a locked dependency surfaces between
+releases instead of at the next tag.

@@ -50,8 +50,8 @@ structured hybrid search and read-only freshness to MCP clients.
 |-- ingestion\          <- Atomic generations, scheduling, health, credentials
 |-- confluence_writer\  <- Allowlisted REST source and console bridge
 |-- server.py           <- FastMCP MCP server (4 Cortex tools)
-|-- sync.bat            <- Runs the sync section by section (portable, %~dp0)
-|-- install.bat         <- One-click install / reinstall (portable)
+|-- sync.bat            <- Development: sync section by section (%~dp0)
+|-- install.bat         <- Development: install from the clone (%~dp0)
 |-- setup_config.py     <- Safe multi-client registration + validation
 |-- cli.py              <- Dispatcher for the cortex subcommands
 |-- pyproject.toml      <- Packaging and quality tool configuration
@@ -122,11 +122,14 @@ Installation paths are portable. `kb_path` comes from the user configuration or
 
 - `config.py` resolves `CHROMA_PATH` to `%LOCALAPPDATA%\Cortex\chroma_db` or the
   user override.
-- `install.bat` and `sync.bat` use `%~dp0`: they find their own run folder.
+- The development scripts `install.bat` and `sync.bat` use `%~dp0`: they find
+  their own run folder.
 - `setup_config.py` detects its own location to register the server in each
   client.
 - `%APPDATA%\Cortex\config.toml` separates roaming choices from the shipped
   code; `%LOCALAPPDATA%\Cortex` holds the machine-specific data.
 
-Result: you can clone Cortex into any folder on any machine, run `install.bat`,
-and it is operational.
+Result: a developer can clone Cortex into any folder on any machine, run
+`install.bat`, and work from that checkout. End users do not clone anything:
+`Cortex-Setup.exe` or a standalone archive installs the same code as a
+self-contained executable folder.

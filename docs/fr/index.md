@@ -23,12 +23,13 @@ demandés, selon sa propre politique.
 
 ## Sommaire
 
-- [Installation](setup.md) : prérequis, `install.bat`, connexion des clients
-  MCP (Claude, Codex, Gemini).
 - [Installation Windows](installation-windows.md) : installateur unique sans
-  Python pour Cortex, Companion et les modèles, puis déploiement silencieux.
-- [Distribution autonome](distribution.md) : exécutables one-file, builds
-  PyInstaller locaux et artefacts de release.
+  Python pour Cortex, Companion et les modèles, puis déploiement silencieux. La
+  voie recommandée pour l'utilisateur final.
+- [Distribution autonome](distribution.md) : dossiers d'exécutable portables,
+  builds PyInstaller locaux et artefacts de release.
+- [Installation](setup.md) : prérequis, installation de développement depuis un
+  clone avec `install.bat`, connexion des clients MCP (Claude, Codex, Gemini).
 - [Guide d'utilisation](user-guide.md) : indexation et sync, recherche, les
   quatre outils MCP, le doctor, les logs.
 - [FAQ](faq.md) : installation, données locales, sync, diagnostic et sécurité.
@@ -61,6 +62,6 @@ demandés, selon sa propre politique.
 | Type | Serveur MCP local (FastMCP) |
 | Recherche | Hybride vectorielle + lexicale, FR et EN |
 | Index | ChromaDB + SQLite FTS5 dans `%LOCALAPPDATA%\Cortex` |
-| Runtime | Binaire autonome, ou Python 3.10+ |
+| Runtime | Exécutable autonome (CPython 3.13 embarqué), ou Python 3.11 à 3.13 |
 | Clients | Claude Desktop/Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf, VS Code |
 | Licence | Apache 2.0 |

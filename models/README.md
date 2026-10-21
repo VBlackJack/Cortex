@@ -14,7 +14,8 @@ For a local build without Hugging Face access, set `CORTEX_MODEL_SNAPSHOT_DIR` t
 previously materialized cache root. `scripts/model_payload.py prepare` still verifies it
 against the committed manifest before it can enter the installer.
 
-On Windows, after building `dist/cortex.exe`, the local fallback is:
+On Windows, after building the executable directory `dist/cortex/` (with
+`dist/cortex/cortex.exe` beside `_internal/`), the local fallback is:
 
 ```powershell
 $env:CORTEX_MODEL_SNAPSHOT_DIR = "D:\cortex-model-snapshot"

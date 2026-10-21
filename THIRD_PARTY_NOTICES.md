@@ -22,3 +22,13 @@ The complete Apache License, Version 2.0 text is installed as
 
 The pinned source repositories and binary SHA-256 values are documented in
 `models/INVENTORY.md` and `models/manifest.json` in the Cortex source distribution.
+
+## Runtime dependencies
+
+This file covers the two embedded models only. The licenses of every runtime
+dependency bundled in the standalone executable ship as the generated
+`THIRD_PARTY_LICENSES.json`, with the license texts it lists, in the `licenses`
+folder next to the executable (in the installation folder and in each portable
+archive). `packaging/license_bundle.py` produces that inventory from the exact
+PyInstaller build and verifies it at build time, so a release cannot ship a bundled
+dependency without its license.

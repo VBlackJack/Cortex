@@ -263,6 +263,12 @@ def test_doctor_handshake_title_uses_configured_timeout(tmp_path: Path) -> None:
     titles = {section["id"]: section["title"] for section in report["sections"]}
 
     assert "(7.5s timeout;" in titles["mcp"]
+    assert "normal warmup may take ~5s)" in titles["mcp"]
+
+
+def test_doctor_typical_warmup_stays_well_inside_the_default_timeout() -> None:
+    assert doctor.TYPICAL_HANDSHAKE_WARMUP_SECONDS == 5.0
+    assert doctor.TYPICAL_HANDSHAKE_WARMUP_SECONDS < doctor.DEFAULT_HANDSHAKE_TIMEOUT_SECONDS / 2
 
 
 def test_doctor_reranker_probe_failure_is_reported_in_english(tmp_path: Path) -> None:

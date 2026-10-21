@@ -15,7 +15,7 @@ the generated Markdown, vector index, and lexical index remain local.
 
 Starting with 2026.0906.01, Companion offers a guided home screen, operation history and Confluence setup from one page or space link. Connection and measured scope confirmation stay in the flow; successful collection is followed by indexing. Use the combined installer to keep Cortex and Companion compatible.
 
-With paired version 2026.0909.02, Confluence updates preserve the served generation when subtree enumeration fails and apply changed target/classification settings on retry. Search uses multilingual vector retrieval by default; CLI and MCP callers can explicitly select hybrid or reranked search. The first successful collection after upgrading regenerates older publication revisions, and the following sync removes obsolete index entries.
+Since 2026.0909.02, Confluence updates preserve the served generation when subtree enumeration fails and apply changed target/classification settings on retry. Search uses multilingual vector retrieval by default; CLI and MCP callers can explicitly select hybrid or reranked search. The first successful collection after upgrading regenerates older publication revisions, and the following sync removes obsolete index entries.
 
 ## Guided document updates (2026.0909.00)
 
@@ -89,10 +89,10 @@ without a terminal. Details, silent mode and reinstall:
 
 ### Standalone archives (Windows x64, macOS Apple Silicon, Linux x64)
 
-Every release also ships one ZIP archive per platform. It contains the single
-`cortex` or `cortex.exe` binary (MCP server + CLI, no Python) and the licenses
-for every embedded dependency. See
-[Standalone distribution](docs/en/distribution.md).
+Every release also ships one ZIP archive per platform. It unpacks to a `cortex/`
+folder holding the `cortex` or `cortex.exe` executable (MCP server + CLI, no
+Python), its runtime, and the licenses for every embedded dependency; keep the
+folder whole. See [Standalone distribution](docs/en/distribution.md).
 
 ### From PyPI (Python, advanced)
 
@@ -104,16 +104,19 @@ cortex setup
 This path installs the CLI and MCP server, but not Cortex Companion. The model
 is downloaded on first use if its cache is empty.
 
-### From source (Python, advanced)
+### From source (development)
 
 ```bat
 :: From the folder where you cloned Cortex
 install.bat
 ```
 
-`install.bat` initializes the configuration, installs the dependencies, offers
-to register Cortex in the detected MCP clients, and validates the installation.
-Details: [Setup](docs/en/setup.md).
+`install.bat` and `sync.bat` are the development path for a source checkout,
+not a supported end-user installation: `install.bat` installs the unlocked
+dependencies from `requirements.txt`, and `sync.bat` indexes the folder section
+by section without the Confluence documents. To use Cortex, install
+`Cortex-Setup.exe` or a standalone archive instead. Details:
+[Setup](docs/en/setup.md).
 
 ## How it works
 
@@ -224,7 +227,7 @@ cortex setup --yes --kb-path "D:\Documents\Knowledge"
 |---|---|
 | Windows installer | No separate Python or .NET runtime. At least ~500 MB of space (applications, model + index). |
 | Standalone archive | No Python. ~500 MB of space (model + index). |
-| From source | Python 3.10+. ~500 MB of space. |
+| From source | Python 3.11 to 3.13. ~500 MB of space. |
 | Client | Claude Desktop/Code, Codex, Gemini, Antigravity, LM Studio, Cursor, Windsurf or VS Code (MCP support). |
 
 ## License
