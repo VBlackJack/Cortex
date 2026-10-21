@@ -224,6 +224,8 @@ def _windows_security_attributes() -> Any:
 
 
 def _create_pipe_instance(address: str, attributes: Any, *, first: bool) -> Any:
+    if sys.platform != "win32":
+        raise OSError("named pipes exist only on Windows")
     from asyncio import windows_utils
 
     import pywintypes
