@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -38,6 +39,7 @@ from config import (
     INGESTION_DOCUMENT_SUFFIX,
     KB_PATH,
     ROOT_SECTION,
+    SECTION_ROOTS,
     VAULT_SOURCE_KIND,
     CortexConfigError,
     require_kb_path,
@@ -45,6 +47,7 @@ from config import (
 from ingestion.config import load_ingestion_settings
 from ingestion.constants import DOCUMENTS_DIRECTORY_NAME
 from ingestion.storage import IngestionStorage, IngestionStorageError
+from section_roots import SectionLocation, locate_section, resolve_logical_path
 
 _LOG = logging.getLogger("cortex.freshness")
 _HASH_LENGTH = 64
@@ -64,6 +67,7 @@ class FreshnessScope:
     excluded_dirs: frozenset[str]
     exclude_files: frozenset[str]
     index_whole_folder: bool = False
+    section_roots: Mapping[str, str] = field(default_factory=dict)
 
 
 def _default_scope() -> FreshnessScope:
@@ -74,6 +78,7 @@ def _default_scope() -> FreshnessScope:
         excluded_dirs=EXCLUDED_DIRS,
         exclude_files=EXCLUDE_FILES,
         index_whole_folder=INDEX_WHOLE_FOLDER,
+        section_roots=SECTION_ROOTS,
     )
 
 
@@ -85,8 +90,14 @@ class FileSnapshot:
     content_hash: str
 
 
-def read_source_snapshot(path: Path, kb_root: Path) -> FileSnapshot:
-    """Read, contain and hash one source, strictly decoding Markdown."""
+def read_source_snapshot(
+    path: Path, kb_root: Path, *, logical_prefix: str | None = None
+) -> FileSnapshot:
+    """Read, contain and hash one source, strictly decoding Markdown.
+
+    ``kb_root`` is the root the source must stay inside: kb_path, or the mount
+    of a mounted section, whose name is then given as ``logical_prefix``.
+    """
     root = kb_root.resolve(strict=True)
     resolved = path.resolve(strict=True)
     try:
@@ -96,7 +107,10 @@ def read_source_snapshot(path: Path, kb_root: Path) -> FileSnapshot:
     raw = resolved.read_bytes()
     if resolved.suffix.lower() == ".md":
         raw.decode("utf-8", errors="strict")
-    return FileSnapshot(path=rel_path.as_posix(), content_hash=sha256_bytes(raw))
+    logical = rel_path.as_posix()
+    if logical_prefix is not None:
+        logical = f"{logical_prefix}/{logical}"
+    return FileSnapshot(path=logical, content_hash=sha256_bytes(raw))
 
 
 def read_markdown_snapshot(path: Path, kb_root: Path) -> FileSnapshot:
@@ -141,16 +155,18 @@ def cortex_freshness_report(
             emit_log=emit_log,
         )
 
-    for excluded in _discover_excluded(root, section, active):
-        rel_path = excluded.relative_to(root).as_posix()
+    for excluded, location in _discover_excluded(root, section, active):
+        rel_path = location.logical_path(excluded)
         seen_paths.add(rel_path)
         entries.append({"path": rel_path, "status": "excluded"})
 
-    for source in _discover_sources(root, section, active):
-        rel_path = source.relative_to(root).as_posix()
+    for source, location in _discover_sources(root, section, active):
+        rel_path = location.logical_path(source)
         seen_paths.add(rel_path)
         try:
-            snapshot = read_source_snapshot(source, root)
+            snapshot = read_source_snapshot(
+                source, location.base, logical_prefix=location.prefix
+            )
         except (OSError, UnicodeDecodeError, ValueError) as exc:
             entries.append({"path": rel_path, "status": "error", "reason": str(exc)})
             continue
@@ -188,21 +204,32 @@ def cortex_freshness_report(
     )
 
 
-def _source_scan_bases(root: Path, section: str | None, scope: FreshnessScope) -> list[Path]:
+def _locations(
+    root: Path, names: list[str], scope: FreshnessScope
+) -> list[SectionLocation]:
+    return [locate_section(root, name, scope.section_roots) for name in names]
+
+
+def _source_scan_bases(
+    root: Path, section: str | None, scope: FreshnessScope
+) -> list[SectionLocation]:
     """Bases to scan for indexable sources. Explicit section: that one
     folder, whatever its policy status (a diagnostic look is fine -
     freshness never writes). Whole vault (no section): included_sections
     only - an out-of-policy dir must not be silently scanned as if it were
     a normal section (it would get real fresh/unindexed statuses instead
-    of being surfaced distinctly via out_of_policy_dirs)."""
+    of being surfaced distinctly via out_of_policy_dirs). A mounted section
+    is scanned at its mount."""
     if scope.index_whole_folder and section in {None, ROOT_SECTION}:
-        return [root]
+        return _locations(root, [ROOT_SECTION], scope)
     if section:
-        return [root / section]
-    return [root / name for name in sorted(scope.included_sections)]
+        return _locations(root, [section], scope)
+    return _locations(root, sorted(scope.included_sections), scope)
 
 
-def _excluded_scan_bases(root: Path, section: str | None, scope: FreshnessScope) -> list[Path]:
+def _excluded_scan_bases(
+    root: Path, section: str | None, scope: FreshnessScope
+) -> list[SectionLocation]:
     """Bases to scan for excluded content, to surface it rather than hide
     it. Explicit section: that one folder. Whole vault: included_sections
     (catches nested exclusions like _memory/_archive/) plus every
@@ -210,48 +237,51 @@ def _excluded_scan_bases(root: Path, section: str | None, scope: FreshnessScope)
     _archive/) - but never an out-of-policy dir, which is a distinct
     status, not folded into "excluded"."""
     if scope.index_whole_folder and section in {None, ROOT_SECTION}:
-        return [root]
+        return _locations(root, [ROOT_SECTION], scope)
     if section:
-        return [root / section]
-    return [root / name for name in sorted(scope.included_sections | scope.excluded_dirs)]
+        return _locations(root, [section], scope)
+    return _locations(root, sorted(scope.included_sections | scope.excluded_dirs), scope)
 
 
-def _discover_sources(root: Path, section: str | None, scope: FreshnessScope) -> list[Path]:
-    paths: list[Path] = []
-    for base in _source_scan_bases(root, section, scope):
-        if not base.is_dir():
+def _discover_sources(
+    root: Path, section: str | None, scope: FreshnessScope
+) -> list[tuple[Path, SectionLocation]]:
+    paths: list[tuple[Path, SectionLocation]] = []
+    for location in _source_scan_bases(root, section, scope):
+        if not location.directory.is_dir():
             continue
-        for path in sorted(base.rglob("*")):
+        for path in sorted(location.directory.rglob("*")):
             if not path.is_file() or path.suffix.lower() not in {".md", ".pdf"}:
                 continue
-            rel = path.relative_to(root)
             if is_excluded_path(
-                rel,
+                Path(location.logical_path(path)),
                 excluded_dirs=scope.excluded_dirs,
                 exclude_files=scope.exclude_files,
             ):
                 continue
-            paths.append(path)
-    return sorted(paths)
+            paths.append((path, location))
+    return sorted(paths, key=lambda item: item[0])
 
 
-def _discover_excluded(root: Path, section: str | None, scope: FreshnessScope) -> list[Path]:
-    paths: list[Path] = []
-    for base in _excluded_scan_bases(root, section, scope):
-        if not base.is_dir():
+def _discover_excluded(
+    root: Path, section: str | None, scope: FreshnessScope
+) -> list[tuple[Path, SectionLocation]]:
+    paths: dict[Path, SectionLocation] = {}
+    for location in _excluded_scan_bases(root, section, scope):
+        if not location.directory.is_dir():
             continue
-        paths.extend(
-            path
-            for path in base.rglob("*")
-            if path.is_file()
-            and path.suffix.lower() in {".md", ".pdf"}
-            and is_excluded_path(
-                path.relative_to(root),
-                excluded_dirs=scope.excluded_dirs,
-                exclude_files=scope.exclude_files,
-            )
-        )
-    return sorted(set(paths))
+        for path in location.directory.rglob("*"):
+            if (
+                path.is_file()
+                and path.suffix.lower() in {".md", ".pdf"}
+                and is_excluded_path(
+                    Path(location.logical_path(path)),
+                    excluded_dirs=scope.excluded_dirs,
+                    exclude_files=scope.exclude_files,
+                )
+            ):
+                paths.setdefault(path, location)
+    return sorted(paths.items(), key=lambda item: item[0])
 
 
 def _indexed_metadata(
@@ -553,14 +583,23 @@ def annotate_search_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         cache_key = (domain, normalized)
         if cache_key not in verdict_cache:
-            verdict_cache[cache_key] = _annotate_source(root, normalized, metadata)
+            source, containment = (
+                resolve_logical_path(root, normalized, SECTION_ROOTS)
+                if domain == VAULT_SOURCE_KIND
+                else (root / normalized, root)
+            )
+            verdict_cache[cache_key] = _annotate_source(
+                source, containment, normalized, metadata
+            )
         hit["freshness"] = verdict_cache[cache_key]
     return hits
 
 
-def _annotate_source(root: Path, rel_path: str, metadata: dict[str, Any]) -> str:
+def _annotate_source(
+    source: Path, root: Path, rel_path: str, metadata: dict[str, Any]
+) -> str:
     try:
-        snapshot = read_markdown_snapshot(root / rel_path, root)
+        snapshot = read_markdown_snapshot(source, root)
     except FileNotFoundError:
         return "missing"
     except (OSError, UnicodeDecodeError, ValueError) as exc:

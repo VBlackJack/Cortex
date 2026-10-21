@@ -21,7 +21,7 @@ import os
 import tempfile
 import tomllib
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
@@ -45,6 +45,8 @@ DEFAULT_EXCLUDE_FILES = frozenset({"00_INDEX.md"})
 DEFAULT_MAX_MARKDOWN_FILE_SIZE_BYTES = 1_000_000
 DEFAULT_MAX_PDF_SIZE_BYTES = 50_000_000
 DEFAULT_WRITE_LOCK_TIMEOUT_SECONDS = 30.0
+# The optional TOML table that mounts a section outside kb_path.
+SECTION_ROOTS_KEY = "section_roots"
 
 _ALLOWED_KEYS = {
     "schema_version",
@@ -58,11 +60,16 @@ _ALLOWED_KEYS = {
     "max_pdf_size_bytes",
     "write_lock_path",
     "write_lock_timeout_seconds",
+    SECTION_ROOTS_KEY,
 }
 
 
 class CortexConfigError(RuntimeError):
     """Raised when user configuration is missing, invalid or unsupported."""
+
+
+class SectionRootError(ValueError):
+    """Raised when one section mount breaks a ``[section_roots]`` rule."""
 
 
 @dataclass(frozen=True)
@@ -80,6 +87,63 @@ class CortexUserConfig:
     max_pdf_size_bytes: int
     write_lock_path: str
     write_lock_timeout_seconds: float
+    # Section name -> absolute, normalized directory; empty when nothing is mounted.
+    section_roots: Mapping[str, str] = field(default_factory=dict)
+
+
+def normalize_section_root(
+    section: str,
+    root: str,
+    *,
+    included_sections: frozenset[str],
+    index_whole_folder: bool,
+) -> str:
+    """Validate one section mount and return its normalized absolute directory.
+
+    A mount needs sections mode, a section that is already included, and an
+    absolute directory. The directory need not exist yet: the doctor and
+    `cortex config roots` report it while it is missing.
+    """
+    if index_whole_folder:
+        raise SectionRootError(
+            f"'{SECTION_ROOTS_KEY}' requires index_whole_folder = false."
+        )
+    if section not in included_sections:
+        raise SectionRootError(
+            f"'{SECTION_ROOTS_KEY}' entry '{section}' is not in included_sections."
+        )
+    candidate = root.strip()
+    if not candidate or not Path(candidate).is_absolute():
+        raise SectionRootError(
+            f"'{SECTION_ROOTS_KEY}' entry '{section}' must be an absolute directory."
+        )
+    return os.path.normpath(candidate)
+
+
+def _section_roots(
+    data: dict[str, Any],
+    path: Path,
+    *,
+    included_sections: frozenset[str],
+    index_whole_folder: bool,
+) -> dict[str, str]:
+    table = _require_exact_type(data, SECTION_ROOTS_KEY, dict, path)
+    roots: dict[str, str] = {}
+    for section, root in sorted(table.items()):
+        if type(root) is not str:
+            raise _error(
+                f"'{SECTION_ROOTS_KEY}' entry '{section}' must be a string.", path
+            )
+        try:
+            roots[section] = normalize_section_root(
+                section,
+                root,
+                included_sections=included_sections,
+                index_whole_folder=index_whole_folder,
+            )
+        except SectionRootError as exc:
+            raise _error(str(exc), path) from exc
+    return roots
 
 
 def user_config_path(environ: Mapping[str, str] | None = None) -> Path:
@@ -346,6 +410,18 @@ def load_user_config(
     )
     if env_lock_timeout is not None:
         write_lock_timeout = env_lock_timeout
+    # Validated last, against the final mode and section list; there is no
+    # environment override for mounts.
+    section_roots = (
+        _section_roots(
+            data,
+            config_path,
+            included_sections=included_sections,
+            index_whole_folder=index_whole_folder,
+        )
+        if SECTION_ROOTS_KEY in data
+        else {}
+    )
 
     return CortexUserConfig(
         schema_version=SCHEMA_VERSION,
@@ -359,6 +435,7 @@ def load_user_config(
         max_pdf_size_bytes=max_pdf,
         write_lock_path=write_lock_path,
         write_lock_timeout_seconds=write_lock_timeout,
+        section_roots=section_roots,
     )
 
 
@@ -399,6 +476,13 @@ def render_user_config(config: CortexUserConfig) -> str:
         f"write_lock_path = {_toml_literal(config.write_lock_path)}",
         f"write_lock_timeout_seconds = {config.write_lock_timeout_seconds:g}",
     ]
+    if config.section_roots:
+        # A TOML table closes the top-level keys, so it is always rendered last.
+        lines.extend(["", f"[{SECTION_ROOTS_KEY}]"])
+        lines.extend(
+            f"{_toml_literal(section)} = {_toml_literal(root)}"
+            for section, root in sorted(config.section_roots.items())
+        )
     return "\n".join(lines) + "\n"
 
 

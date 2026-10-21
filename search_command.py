@@ -7,11 +7,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 from index_contract import DEFAULT_RETRIEVAL_MODE, RETRIEVAL_MODES, SOURCE_KINDS, RetrievalMode
+from section_roots import resolve_logical_path
 
 CONTRACT_VERSION = 1
 EXCERPT_LIMIT = 1200
@@ -53,18 +55,31 @@ def build_parser(prog: str = "cortex search") -> argparse.ArgumentParser:
     return parser
 
 
-def safe_document_path(root: Path | None, relative: str) -> str | None:
-    """Resolve only existing documents contained in a configured source root."""
+def safe_document_path(
+    root: Path | None,
+    relative: str,
+    section_roots: Mapping[str, str] | None = None,
+) -> str | None:
+    """Resolve only existing documents contained in a configured source root.
+
+    A logical path inside a mounted section resolves inside its mount, and must
+    stay there; any other path must stay inside ``root``.
+    """
     if root is None or not relative:
         return None
-    base = root.resolve()
-    candidate = (base / relative).resolve()
+    source, containment = resolve_logical_path(root, relative, section_roots or {})
+    base = containment.resolve()
+    candidate = source.resolve()
     if not candidate.is_relative_to(base) or candidate.suffix.lower() not in DOCUMENT_EXTENSIONS:
         return None
     return str(candidate) if candidate.is_file() else None
 
 
-def present_hit(hit: dict[str, Any], root: Path | None) -> dict[str, Any]:
+def present_hit(
+    hit: dict[str, Any],
+    root: Path | None,
+    section_roots: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
     """Expose display fields without allowing arbitrary launch targets."""
     meta = hit.get("metadata") or {}
     path = str(meta.get("path", ""))
@@ -81,7 +96,7 @@ def present_hit(hit: dict[str, Any], root: Path | None) -> dict[str, Any]:
         "section": str(meta.get("section", "")),
         "source_kind": str(meta.get("source_kind", "note")),
         "updated_at": str(meta.get("updated_at") or ""),
-        "open_target": safe_url or safe_document_path(root, path),
+        "open_target": safe_url or safe_document_path(root, path, section_roots),
     }
 
 
@@ -90,7 +105,7 @@ def emit_search(
     *, retrieval_mode: RetrievalMode = DEFAULT_RETRIEVAL_MODE,
 ) -> int:
     """Write one versioned response; failures never resemble an empty successful search."""
-    from config import KB_PATH
+    from config import KB_PATH, SECTION_ROOTS
     from indexer import search
 
     try:
@@ -107,6 +122,7 @@ def emit_search(
                 Path(KB_PATH)
                 if KB_PATH and hit.get("metadata", {}).get("source_kind", "note") == "note"
                 else None,
+                SECTION_ROOTS,
             )
             for hit in hits
         ]

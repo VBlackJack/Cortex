@@ -56,6 +56,7 @@ TYPICAL_HANDSHAKE_WARMUP_SECONDS = 5.0
 DEFAULT_ERROR_LINE_LIMIT = 10
 DEFAULT_ERROR_MAX_AGE_DAYS = 7
 MINIMUM_PYTHON_VERSION = (3, 11)
+SECTION_ROOTS_CHECK_ID = "config.section_roots"
 _FINGERPRINT_KEYS = ("embedding_model", "fastembed_version", "pooling")
 _FRESHNESS_KEYS = (
     "path",
@@ -355,6 +356,7 @@ def _configuration_checks(
                 _check("kb.accessible", "SKIP", "Skipped because kb_path is missing"),
             ]
         )
+        checks.extend(_section_root_checks(config))
         return checks, config, False
 
     kb_path = Path(config.kb_path)
@@ -377,7 +379,31 @@ def _configuration_checks(
             path=str(kb_path),
         )
     )
+    checks.extend(_section_root_checks(config))
     return checks, config, accessible
+
+
+def _section_root_checks(config: CortexUserConfig) -> list[DiagnosticCheck]:
+    """One check per mounted section: its folder must exist.
+
+    A section that moved used to be skipped by every sync with only a log line,
+    while its stale chunks stayed searchable; a missing mount is a failure.
+    """
+    checks = []
+    for section, root in sorted(config.section_roots.items()):
+        present = Path(root).is_dir()
+        checks.append(
+            _check(
+                f"{SECTION_ROOTS_CHECK_ID}.{section}",
+                "OK" if present else "FAIL",
+                f"Section '{section}' is mounted on {root}"
+                if present
+                else f"Section '{section}' is mounted on {root}, which is not a directory",
+                section=section,
+                path=root,
+            )
+        )
+    return checks
 
 
 def _data_home_check(context: DoctorContext, config: CortexUserConfig) -> DiagnosticCheck:
@@ -600,6 +626,7 @@ def _freshness_check(
             excluded_dirs=config.excluded_dirs,
             exclude_files=config.exclude_files,
             index_whole_folder=config.index_whole_folder,
+            section_roots=config.section_roots,
         ),
     )
     summary = report.get("summary", {})

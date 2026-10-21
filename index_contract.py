@@ -29,6 +29,11 @@ CHUNKING_CONTRACT_VERSION = "v3"
 METADATA_SCHEMA_VERSION = 2
 LEXICAL_INDEX_CONTRACT_VERSION = "v2"
 
+# The synthetic section that stands for the whole knowledge-base folder. It
+# lives here so the configuration commands can name it without loading the
+# user configuration.
+ROOT_SECTION = "."
+
 # The source kinds a chunk may carry. They live here, not next to the chunker,
 # because the search command line offers them as choices and must be buildable
 # without loading the user configuration the chunker depends on.
@@ -62,6 +67,7 @@ __all__ = [
     "LEXICAL_INDEX_CONTRACT_VERSION",
     "METADATA_SCHEMA_VERSION",
     "RETRIEVAL_MODES",
+    "ROOT_SECTION",
     "RetrievalMode",
     "SOURCE_KINDS",
     "build_embedding_fingerprint",

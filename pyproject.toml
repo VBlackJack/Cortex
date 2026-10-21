@@ -80,6 +80,7 @@ py-modules = [
   "reranker",
   "server",
   "search_command",
+  "section_roots",
   "setup_config",
   "setup_wizard",
   "sync_command",

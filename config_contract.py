@@ -92,11 +92,58 @@ class ConfigSetReport(ConfigContractModel):
     error: ConfigError | None
 
 
+CONFIG_ROOTS_CONTRACT_VERSION: Literal[1] = 1
+
+
+class SectionRootEntry(ConfigContractModel):
+    """Where one section resolves on disk."""
+
+    section: str
+    root: str | None
+    mounted: bool
+    exists: bool
+
+
+class ConfigRootsReport(ConfigContractModel):
+    """Every section the configuration indexes, with its resolved root."""
+
+    contract_version: Literal[1] = CONFIG_ROOTS_CONTRACT_VERSION
+    operation: Literal["config_roots"] = "config_roots"
+    status: Literal["succeeded"] = "succeeded"
+    present: bool
+    content_hash: str | None
+    valid: bool
+    error: ConfigError | None
+    kb_path: str | None
+    index_whole_folder: bool | None
+    sections: tuple[SectionRootEntry, ...]
+
+
+class ConfigRootMutationReport(ConfigContractModel):
+    """Complete result for one compare-and-swap mount or unmount of a section."""
+
+    contract_version: Literal[1] = CONFIG_ROOTS_CONTRACT_VERSION
+    operation: Literal["config_set_root", "config_clear_root"]
+    status: Literal["succeeded", "unchanged", "conflict", "locked", "failed"]
+    section: str
+    root: str | None
+    changed: bool
+    previous_content_hash: str | None
+    content_hash: str | None
+    backup_written: bool
+    restart_required: bool
+    error: ConfigError | None
+
+
 __all__ = [
     "CONFIG_CLI_CONTRACT_VERSION",
+    "CONFIG_ROOTS_CONTRACT_VERSION",
     "ConfigError",
     "ConfigErrorCode",
     "ConfigGetReport",
+    "ConfigRootMutationReport",
+    "ConfigRootsReport",
     "ConfigSetReport",
     "ConfigValues",
+    "SectionRootEntry",
 ]

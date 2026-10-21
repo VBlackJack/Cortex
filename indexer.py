@@ -53,6 +53,7 @@ from config import (  # noqa: E402
     SEARCH_RRF_K,
     SEARCH_TOP_K_MAX,
     SEARCH_TOP_K_MIN,
+    SECTION_ROOTS,
     CortexConfigError,
     require_kb_path,
 )
@@ -97,6 +98,7 @@ from ingestion.locking import IngestionLockedError, source_sync_lock  # noqa: E4
 from ingestion.storage import IngestionStorage, IngestionStorageError  # noqa: E402
 from lexical_index import LexicalIndex, prepare_lexical_index  # noqa: E402
 from reranker import rerank_fused_hits, warmup_reranker  # noqa: E402
+from section_roots import section_root  # noqa: E402
 from sync_contract import (  # noqa: E402
     SyncError,
     SyncIndexes,
@@ -195,10 +197,11 @@ def discover_sections() -> list[str]:
         return []
     sections = []
     for name in sorted(INCLUDED_SECTIONS):
-        if (kb_root / name).is_dir():
+        root = section_root(kb_root, name, SECTION_ROOTS)
+        if root.is_dir():
             sections.append(name)
         else:
-            log.warning("Included section '%s' not found on disk at %s", name, kb_root / name)
+            log.warning("Included section '%s' not found on disk at %s", name, root)
     return sections
 
 

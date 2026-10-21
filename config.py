@@ -25,6 +25,7 @@ from index_contract import (
     LEGACY_INDEX_FASTEMBED_VERSION,
     LEXICAL_INDEX_CONTRACT_VERSION,
     METADATA_SCHEMA_VERSION,
+    ROOT_SECTION,
 )
 from user_config import (
     CortexConfigError,
@@ -42,6 +43,8 @@ KB_PATH = _USER_CONFIG.kb_path
 CHROMA_PATH = _USER_CONFIG.chroma_path
 INDEX_WHOLE_FOLDER = _USER_CONFIG.index_whole_folder
 INCLUDED_SECTIONS = _USER_CONFIG.included_sections
+# Sections mounted outside kb_path; resolve them through section_roots.py.
+SECTION_ROOTS = _USER_CONFIG.section_roots
 EXCLUDED_DIRS = _USER_CONFIG.excluded_dirs
 EXCLUDE_FILES = _USER_CONFIG.exclude_files
 MAX_MARKDOWN_FILE_SIZE_BYTES = _USER_CONFIG.max_markdown_file_size_bytes
@@ -51,8 +54,6 @@ CORTEX_WRITE_LOCK_TIMEOUT_SECONDS = _USER_CONFIG.write_lock_timeout_seconds
 CORTEX_DATA_HOME = str(local_data_home())
 CORTEX_LOG_DIR = str(Path(CORTEX_DATA_HOME) / "logs")
 LEGACY_CHROMA_PATH = str(_SCRIPT_DIR / "chroma_db")
-
-ROOT_SECTION = "."
 
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64
@@ -112,6 +113,7 @@ __all__ = [
     "METADATA_SCHEMA_VERSION",
     "RERANKER_MODEL",
     "ROOT_SECTION",
+    "SECTION_ROOTS",
     "SEARCH_RERANK_CANDIDATES",
     "SEARCH_TOP_K_MAX",
     "SEARCH_TOP_K_MIN",

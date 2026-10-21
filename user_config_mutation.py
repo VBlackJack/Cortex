@@ -21,7 +21,7 @@ import math
 import os
 import re
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -36,6 +36,7 @@ from user_config import (
     CortexConfigError,
     CortexUserConfig,
     load_user_config,
+    normalize_section_root,
     render_user_config,
 )
 
@@ -59,6 +60,10 @@ class UserConfigLockedError(UserConfigMutationError):
 
 class UserConfigValidationError(UserConfigMutationError):
     """Raised when canonical TOML does not round-trip to the requested values."""
+
+
+class UserConfigInvalidBaseError(UserConfigMutationError):
+    """Raised when a change needs a valid existing configuration and there is none."""
 
 
 @dataclass(frozen=True)
@@ -212,9 +217,70 @@ def write_user_config_cas(
     timeout_seconds: float = DEFAULT_CONFIG_MUTATION_LOCK_TIMEOUT_SECONDS,
 ) -> UserConfigMutationResult:
     """Create or replace user config when its exact bytes match the caller snapshot."""
+    normalized_kb_path = _validate_kb_path(kb_path)
+    return _mutate_user_config_cas(
+        path,
+        lambda base: replace(base, kb_path=normalized_kb_path),
+        expected_hash=expected_hash,
+        environ=environ,
+        timeout_seconds=timeout_seconds,
+        rebuild_invalid=True,
+    )
+
+
+def write_section_root_cas(
+    path: Path,
+    *,
+    section: str,
+    root: str | None,
+    expected_hash: str,
+    environ: Mapping[str, str] | None = None,
+    timeout_seconds: float = DEFAULT_CONFIG_MUTATION_LOCK_TIMEOUT_SECONDS,
+) -> UserConfigMutationResult:
+    """Mount ``section`` on ``root``, or unmount it when ``root`` is None.
+
+    The existing file must be valid: a mount only makes sense next to the
+    kb_path and section list it refers to, so an invalid file is refused with
+    UserConfigInvalidBaseError instead of being rebuilt from defaults. A rule
+    violation (whole-folder mode, unknown section, relative path) raises
+    ValueError before anything is written.
+    """
+
+    def transform(base: CortexUserConfig) -> CortexUserConfig:
+        roots = dict(base.section_roots)
+        if root is None:
+            roots.pop(section, None)
+        else:
+            roots[section] = normalize_section_root(
+                section,
+                root,
+                included_sections=base.included_sections,
+                index_whole_folder=base.index_whole_folder,
+            )
+        return replace(base, section_roots=dict(sorted(roots.items())))
+
+    return _mutate_user_config_cas(
+        path,
+        transform,
+        expected_hash=expected_hash,
+        environ=environ,
+        timeout_seconds=timeout_seconds,
+        rebuild_invalid=False,
+    )
+
+
+def _mutate_user_config_cas(
+    path: Path,
+    transform: Callable[[CortexUserConfig], CortexUserConfig],
+    *,
+    expected_hash: str | None,
+    environ: Mapping[str, str] | None,
+    timeout_seconds: float,
+    rebuild_invalid: bool,
+) -> UserConfigMutationResult:
+    """Apply ``transform`` to the current file under the lock, compare-and-swap."""
     _validate_expected_hash(expected_hash)
     _validate_timeout(timeout_seconds)
-    normalized_kb_path = _validate_kb_path(kb_path)
     values = _file_environment(environ)
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -229,8 +295,12 @@ def write_user_config_cas(
             previous = read_user_config_snapshot(target, environ=values)
             _assert_cas(previous.content, expected_hash)
             rebuilt_from_defaults = previous.present and previous.config is None
+            if previous.config is None and not rebuild_invalid:
+                raise UserConfigInvalidBaseError(
+                    "User configuration is absent or invalid; fix it before this change."
+                )
             base = previous.config or _load_defaults(values)
-            requested = replace(base, kb_path=normalized_kb_path)
+            requested = transform(base)
             rendered = render_user_config(requested).encode("utf-8")
             if previous.content == rendered:
                 return UserConfigMutationResult(
@@ -288,6 +358,7 @@ def write_user_config_cas(
 
 __all__ = [
     "UserConfigConflictError",
+    "UserConfigInvalidBaseError",
     "UserConfigLockedError",
     "UserConfigMutationError",
     "UserConfigMutationResult",
@@ -296,5 +367,6 @@ __all__ = [
     "read_user_config_snapshot",
     "user_config_backup_path",
     "user_config_mutation_lock_path",
+    "write_section_root_cas",
     "write_user_config_cas",
 ]

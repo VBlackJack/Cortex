@@ -19,13 +19,24 @@ chunker_utils.py - Shared utilities for markdown and PDF chunkers.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
-from config import EXCLUDE_FILES, EXCLUDED_DIRS, INCLUDED_SECTIONS, METADATA_SCHEMA_VERSION
+from config import (
+    EXCLUDE_FILES,
+    EXCLUDED_DIRS,
+    INCLUDED_SECTIONS,
+    METADATA_SCHEMA_VERSION,
+    SECTION_ROOTS,
+)
 from index_contract import SOURCE_KINDS
+from section_roots import logical_source_path
+
+# Section label of a file that lies outside kb_path and every mount.
+UNKNOWN_SECTION = "Unknown"
 
 METADATA_CONTRACT_FIELDS = (
     "schema_version",
@@ -240,21 +251,36 @@ def reconstruct_contract_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     return {field: metadata.get(field) for field in METADATA_CONTRACT_FIELDS}
 
 
-def get_section(file_path: Path, kb_path: str) -> str:
-    """Extract top-level section from file path relative to KB_PATH."""
-    try:
-        rel = file_path.relative_to(kb_path)
-        return rel.parts[0] if rel.parts else "Unknown"
-    except ValueError:
-        return "Unknown"
+def _logical_path(
+    file_path: Path, kb_path: str, section_roots: Mapping[str, str] | None
+) -> str | None:
+    # The configured mounts are read at call time, so one module global is the
+    # single knob for both chunkers.
+    roots = SECTION_ROOTS if section_roots is None else section_roots
+    return logical_source_path(file_path, Path(kb_path), roots)
 
 
-def get_relative_path(file_path: Path, kb_path: str) -> str:
-    """Return file path relative to KB_PATH, or absolute path as fallback."""
-    try:
-        return file_path.relative_to(kb_path).as_posix()
-    except ValueError:
-        return str(file_path)
+def get_section(
+    file_path: Path,
+    kb_path: str,
+    section_roots: Mapping[str, str] | None = None,
+) -> str:
+    """Extract the top-level section of a file's logical path."""
+    logical = _logical_path(file_path, kb_path, section_roots)
+    if logical is None:
+        return UNKNOWN_SECTION
+    parts = PurePosixPath(logical).parts
+    return parts[0] if parts else UNKNOWN_SECTION
+
+
+def get_relative_path(
+    file_path: Path,
+    kb_path: str,
+    section_roots: Mapping[str, str] | None = None,
+) -> str:
+    """Return the logical path of a file (mounts included), or its absolute path."""
+    logical = _logical_path(file_path, kb_path, section_roots)
+    return str(file_path) if logical is None else logical
 
 
 def split_fixed_size_spans(

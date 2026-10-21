@@ -105,6 +105,31 @@ _HASH = "a" * 64
             "config",
             {"operation": "set", "expect_absent": True, "expected_hash": None},
         ),
+        (["config", "roots", "--json"], "config", {"operation": "roots", "json": True}),
+        (
+            [
+                "config",
+                "set-root",
+                "_memory",
+                "D:/moved/_memory",
+                "--json",
+                "--expected-hash",
+                _HASH,
+            ],
+            "config",
+            {
+                "operation": "set-root",
+                "section": "_memory",
+                "root": "D:/moved/_memory",
+                "expected_hash": _HASH,
+                "json": True,
+            },
+        ),
+        (
+            ["config", "clear-root", "_memory", "--json", "--expected-hash", _HASH],
+            "config",
+            {"operation": "clear-root", "section": "_memory", "expected_hash": _HASH},
+        ),
     ],
 )
 def test_every_desktop_line_lands_its_values_in_the_right_slots(
@@ -128,6 +153,9 @@ def test_version_flag_prints_exactly_the_package_version() -> None:
         ["confluence", "catalog", "--config", _CONFIG, "PN", "--json"],
         ["confluence", "--config", _CONFIG, "catalog", "PN"],
         ["config", "set", "--json", "--kb-path", "C:/kb", "--expected-sha", _HASH],
+        ["config", "set-root", "_memory", "D:/moved/_memory", "--json"],
+        ["config", "clear-root", "--json", "--expected-hash", _HASH],
+        ["config", "roots"],
         ["search", "plan", "--json", "--source-kind", "confluence"],
         ["ingestion", "due", "doc", "--config", _INGESTION],
         ["--release"],

@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
-from pathlib import Path
+from collections.abc import Callable, Mapping
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from chroma_client import iter_collection_pages
@@ -34,11 +34,13 @@ from config import (
     INGESTION_DOCUMENT_SUFFIX,
     METADATA_SCHEMA_VERSION,
     ROOT_SECTION,
+    SECTION_ROOTS,
     VAULT_SOURCE_KIND,
 )
 from ingestion.constants import DOCUMENTS_DIRECTORY_NAME
 from ingestion.storage import IngestionStorage, IngestionStorageError
 from lexical_index import LexicalIndex
+from section_roots import locate_section
 from sync_contract import SYNC_ERROR_SAMPLE_LIMIT, SyncError
 from write_lock import chroma_write_lock
 
@@ -507,10 +509,20 @@ def _sync_section_locked(
     lexical_index: LexicalIndex | None = None,
     errors: list[SyncError] | None = None,
     progress: ProgressCallback | None = None,
+    *,
+    section_roots: Mapping[str, str] | None = None,
 ) -> dict[str, int]:
-    """Reconcile live, excluded and removed paths for one section."""
+    """Reconcile live, excluded and removed paths for one section.
+
+    ``root`` is kb_path. A section mounted through ``section_roots`` (the
+    configured table by default) is read from its mount, and its files keep the
+    logical paths they would have under ``root``.
+    """
     stats = empty_sync_stats()
-    section_root = root if section == ROOT_SECTION else root / section
+    location = locate_section(
+        root, section, SECTION_ROOTS if section_roots is None else section_roots
+    )
+    section_root = location.directory
     if not section_root.is_dir():
         stats["errors"] += 1
         _LOG.error(
@@ -533,7 +545,8 @@ def _sync_section_locked(
     )
     return _sync_files_locked(
         collection,
-        root=root,
+        root=location.base,
+        logical_prefix=location.prefix,
         section=section,
         files=files,
         source_kind=None,
@@ -586,8 +599,13 @@ def _sync_files_locked(
     generation_id: str | None = None,
     errors: list[SyncError] | None = None,
     progress: ProgressCallback | None = None,
+    logical_prefix: str | None = None,
 ) -> dict[str, int]:
-    """Reconcile an explicit immutable file set for one ownership domain."""
+    """Reconcile an explicit immutable file set for one ownership domain.
+
+    Logical paths are relative to ``root``, under ``logical_prefix`` when set
+    (a mounted section).
+    """
     stats = empty_sync_stats()
     existing = _existing_by_path(
         collection,
@@ -609,8 +627,11 @@ def _sync_files_locked(
     for index, path in enumerate(files, 1):
         if progress is not None:
             progress(index - 1, total_files)
-        rel_path = path.relative_to(root).as_posix()
-        if apply_exclusions and is_excluded_path(path.relative_to(root)):
+        relative = PurePosixPath(path.relative_to(root).as_posix())
+        if logical_prefix is not None:
+            relative = PurePosixPath(logical_prefix) / relative
+        rel_path = relative.as_posix()
+        if apply_exclusions and is_excluded_path(Path(relative)):
             continue
         eligible_paths.add(rel_path)
         result = CHUNKERS[path.suffix.lower()](path)
