@@ -180,6 +180,20 @@ the same exit codes: a partial or failed sync no longer exits `0`. Ctrl+C
 exits `130` without a traceback. `cortex sync --search` remains accepted as an
 alias of `cortex search`.
 
+The report's `status`, `indexes` and `recommendation` follow from the kind of
+each error code. The kind is not a field of the report; the most serious kind
+present decides, index over configuration over source:
+
+| Error kind | Codes | Status | Indexes | Recommendation |
+|---|---|---|---|---|
+| index | `chroma_publication_failed`, `inconsistent_generation`, `lexical_preparation_failed`, `lexical_publication_failed`, any other code | `failed` when nothing was published or removed, otherwise `partial` | `degraded` or `failed` | `repair_lexical` when the lexical index is unhealthy, otherwise `retry_sync` |
+| configuration | `section_unavailable`, `vault_unavailable`, `invalid_section`, `invalid_configuration` | `partial` | `ok` | `fix_configuration`: correct the knowledge-base path, section root or setting named in the errors; a retry cannot succeed before that |
+| source | `extraction_failed` | `partial` | `ok` | `check_sources`: the listed files could not be read |
+| no error | none | `succeeded` | `ok` | `none` |
+
+Without `--json`, a run that ends with a recommendation other than `none`
+writes one `Cortex sync recommendation:` line on stderr saying what to do.
+
 `cortex setup` chains init, index and client registration in a single call (see
 [Setup](setup.md#one-command-setup)).
 

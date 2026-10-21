@@ -15,6 +15,10 @@ available in [French](docs/fr/notes-de-version.md) and
 ### Changed
 - Rehearse the release build chain on every push: a new Windows `build-chain` CI job freezes the executable, generates the license bundle, stages the portable archive, builds the wheel and smoke-tests it, with the commands of `release.yml`, without compiling the installer, signing or publishing. The two failed tags of 2026-10-21 broke in exactly those steps. `tests/test_ci_build_chain.py` holds the two workflows to the same command lines.
 
+### Fixed
+- Report a sync whose only errors are configuration errors (`section_unavailable`, `vault_unavailable`, `invalid_section`, `invalid_configuration`) as `partial` with both indexes `ok` and the new `fix_configuration` recommendation, instead of a degraded or failed Chroma index with `retry_sync`, which no retry could satisfy. Error codes now fall into three internal kinds (index, configuration, source) and the most serious kind present decides; exit codes are unchanged.
+- Print one `Cortex sync recommendation:` line on stderr after a human-mode `cortex sync` whose recommendation is not `none`, saying what to do.
+
 ## [2026.1021.02] - 2026-10-21
 
 ### Fixed

@@ -61,6 +61,28 @@ inconnue retourne une erreur avec les sections disponibles. Les erreurs de
 configuration, de migration, de fingerprint et de verrou sont converties en
 réponses explicites ; elles ne deviennent pas des traces brutes côté client.
 
+La commande opérateur `cortex sync --json` déduit `status`, `indexes` et
+`recommendation` d'une nature interne de chaque code d'erreur, qui n'est pas un
+champ du rapport. La nature la plus grave présente l'emporte : index avant
+configuration avant source.
+
+- **index** (`chroma_publication_failed`, `inconsistent_generation`,
+  `lexical_preparation_failed`, `lexical_publication_failed` et tout autre
+  code) : `failed` sans aucune publication ni retrait, sinon `partial` ; index
+  `degraded` ou `failed` ; `repair_lexical` si l'index lexical est en défaut,
+  sinon `retry_sync`.
+- **configuration** (`section_unavailable`, `vault_unavailable`,
+  `invalid_section`, `invalid_configuration`) : `partial`, les deux index à
+  `ok`, `fix_configuration`.
+- **source** (`extraction_failed`) : `partial`, les deux index à `ok`,
+  `check_sources`.
+- **aucune erreur** : `succeeded`, les deux index à `ok`, `none`.
+
+Les codes de sortie ne dépendent pas de la nature : `1` pour `partial` ou
+`failed`, `6` quand une erreur porte un code d'entrée invalide
+(`invalid_configuration`, `invalid_section`, `invalid_arguments`,
+`incompatible_index`).
+
 <!-- spec:search -->
 ## 3. Contrat de recherche
 

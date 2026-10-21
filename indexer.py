@@ -100,6 +100,7 @@ from lexical_index import LexicalIndex, prepare_lexical_index  # noqa: E402
 from reranker import rerank_fused_hits, warmup_reranker  # noqa: E402
 from section_roots import section_root  # noqa: E402
 from sync_contract import (  # noqa: E402
+    SYNC_RECOMMENDATION_ADVICE,
     SyncError,
     SyncIndexes,
     SyncIngestion,
@@ -461,13 +462,12 @@ def _build_sync_report(
 ) -> SyncReport:
     """Build one report from counters and ordered error samples."""
     error_codes = {error.code for error in errors}
-    # Source-side codes such as extraction_failed leave Chroma intact; the
-    # report contract classifies them separately.
+    # Source codes such as extraction_failed and configuration codes such as
+    # section_unavailable leave Chroma intact; the report contract classifies
+    # them separately.
     chroma_failure_codes = {
         "chroma_publication_failed",
         "inconsistent_generation",
-        "section_unavailable",
-        "vault_unavailable",
     }
     chroma_failed = bool(error_codes & chroma_failure_codes)
     successful_mutations = stats["published_files"] + stats["removed_files"]
@@ -947,9 +947,12 @@ def main(argv: Sequence[str] | None = None, *, prog: str = "cortex sync") -> int
 
     # The human run shares the machine exit contract: a partial or failed
     # sync must not exit 0, or batch drivers and shortcuts never see it.
-    _report, exit_code, failure = _run_sync_funnel(args.section, _log_indexation_progress)
+    report, exit_code, failure = _run_sync_funnel(args.section, _log_indexation_progress)
     if failure is not None:
         sys.stderr.write(f"Cortex sync error: {failure}\n")
+    if report.recommendation != "none":
+        advice = SYNC_RECOMMENDATION_ADVICE[report.recommendation]
+        sys.stderr.write(f"Cortex sync recommendation: {advice}\n")
     return exit_code
 
 

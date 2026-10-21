@@ -22,6 +22,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import get_args
 
 import pytest
 
@@ -38,13 +39,16 @@ from ingestion.config import IngestionConfigError
 from ingestion.locking import IngestionLockedError
 from ingestion.storage import IngestionStorageError
 from sync_contract import (
+    SYNC_RECOMMENDATION_ADVICE,
     SyncError,
     SyncIndexes,
     SyncIngestion,
+    SyncRecommendation,
     SyncReport,
     SyncScope,
     build_sync_failure_report,
     build_sync_report,
+    classify_sync_error,
 )
 from user_config import CortexConfigError
 from write_lock import CortexWriteLockedError
@@ -341,6 +345,131 @@ def test_source_error_mixed_with_index_error_stays_failed() -> None:
     assert report.recommendation == "retry_sync"
 
 
+_SECTION_MISSING = SyncError(code="section_unavailable", phase="validate", path="kb/gone")
+_SOURCE_UNREADABLE = SyncError(code="extraction_failed", phase="extract", path="kb/bad.pdf")
+_CHROMA_REJECTED = SyncError(code="chroma_publication_failed", phase="publish_chroma", path="a")
+_LEXICAL_REJECTED = SyncError(code="lexical_publication_failed", phase="publish_lexical", path="a")
+_ONE_PUBLISHED = {**_NO_MUTATION_ONE_ERROR, "published_files": 1, "added_chunks": 2}
+
+
+def _built_report(errors: list[SyncError], stats: dict[str, int]) -> SyncReport:
+    return indexer._build_sync_report(
+        section=None,
+        section_names=["knowledge", "gone"],
+        should_sync_documents=False,
+        stats={**stats, "errors": len(errors)},
+        errors=errors,
+        lexical_prepared=True,
+        indexed_generation_id=None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("code", "kind"),
+    [
+        ("extraction_failed", "source"),
+        ("section_unavailable", "configuration"),
+        ("vault_unavailable", "configuration"),
+        ("invalid_section", "configuration"),
+        ("invalid_configuration", "configuration"),
+        ("chroma_publication_failed", "index"),
+        ("inconsistent_generation", "index"),
+        ("lexical_preparation_failed", "index"),
+        ("lexical_publication_failed", "index"),
+        ("a_code_no_release_has_emitted", "index"),
+    ],
+)
+def test_sync_error_codes_have_one_kind(code: str, kind: str) -> None:
+    assert classify_sync_error(code) == kind
+
+
+@pytest.mark.parametrize("stats", [_NO_MUTATION_ONE_ERROR, _ONE_PUBLISHED])
+def test_missing_section_root_is_partial_with_healthy_indexes(stats: dict[str, int]) -> None:
+    report = _built_report([_SECTION_MISSING], stats)
+
+    assert report.status == "partial"
+    assert report.indexes == SyncIndexes(chroma="ok", lexical="ok")
+    assert report.recommendation == "fix_configuration"
+    assert indexer._sync_report_exit_code(report) == EXIT_ERROR
+
+
+def test_missing_vault_is_partial_with_fix_configuration() -> None:
+    vault_missing = SyncError(code="vault_unavailable", phase="validate", path="kb")
+    report = _built_report([vault_missing], _NO_MUTATION_ONE_ERROR)
+
+    assert report.status == "partial"
+    assert report.indexes == SyncIndexes(chroma="ok", lexical="ok")
+    assert report.recommendation == "fix_configuration"
+
+
+def test_configuration_error_outranks_source_error() -> None:
+    report = _built_report([_SOURCE_UNREADABLE, _SECTION_MISSING], _ONE_PUBLISHED)
+
+    assert report.status == "partial"
+    assert report.indexes == SyncIndexes(chroma="ok", lexical="ok")
+    assert report.recommendation == "fix_configuration"
+
+
+@pytest.mark.parametrize(
+    ("stats", "status", "chroma"),
+    [(_NO_MUTATION_ONE_ERROR, "failed", "failed"), (_ONE_PUBLISHED, "partial", "degraded")],
+)
+def test_index_error_outranks_configuration_and_source_errors(
+    stats: dict[str, int], status: str, chroma: str
+) -> None:
+    report = _built_report([_SOURCE_UNREADABLE, _SECTION_MISSING, _CHROMA_REJECTED], stats)
+
+    assert report.status == status
+    assert report.indexes.chroma == chroma
+    assert report.recommendation == "retry_sync"
+
+
+def test_lexical_error_outranks_configuration_error() -> None:
+    report = _built_report([_SECTION_MISSING, _LEXICAL_REJECTED], _ONE_PUBLISHED)
+
+    assert report.status == "partial"
+    assert report.indexes == SyncIndexes(chroma="ok", lexical="degraded")
+    assert report.recommendation == "repair_lexical"
+
+
+def test_invalid_configuration_keeps_the_invalid_input_exit_code() -> None:
+    invalid = SyncError(code="invalid_configuration", phase="validate", path=None)
+    report = _built_report([invalid], _ONE_PUBLISHED)
+
+    assert report.status == "partial"
+    assert report.recommendation == "fix_configuration"
+    assert indexer._sync_report_exit_code(report) == EXIT_INVALID_INPUT
+
+
+def test_every_recommendation_has_one_human_sentence() -> None:
+    assert set(SYNC_RECOMMENDATION_ADVICE) == set(get_args(SyncRecommendation))
+
+
+def test_human_sync_prints_the_recommendation_on_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    report = _built_report([_SECTION_MISSING], _NO_MUTATION_ONE_ERROR)
+    monkeypatch.setattr(indexer, "sync_report", lambda **_kwargs: report)
+
+    assert indexer.main([]) == EXIT_ERROR
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    advice = SYNC_RECOMMENDATION_ADVICE["fix_configuration"]
+    assert f"Cortex sync recommendation: {advice}\n" in captured.err
+
+
+def test_human_sync_prints_no_recommendation_after_success(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(indexer, "sync_report", lambda **_kwargs: _report())
+
+    assert indexer.main([]) == EXIT_OK
+    assert "Cortex sync recommendation" not in capsys.readouterr().err
+
+
 def test_human_sync_keeps_stdout_empty(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -572,17 +701,33 @@ def test_json_exception_funnel_maps_known_failures(
 
 
 @pytest.mark.parametrize(
-    ("error", "expected_code"),
+    ("error", "expected_code", "advice"),
     [
-        pytest.param(CortexWriteLockedError("index busy"), EXIT_LOCKED, id="write-lock"),
-        pytest.param(CortexConfigError("bad config"), EXIT_INVALID_INPUT, id="config"),
-        pytest.param(IngestionStorageError("bad generation"), EXIT_ERROR, id="storage"),
-        pytest.param(RuntimeError("boom"), EXIT_ERROR, id="unexpected"),
+        pytest.param(
+            CortexWriteLockedError("index busy"),
+            EXIT_LOCKED,
+            f"Cortex sync recommendation: {SYNC_RECOMMENDATION_ADVICE['retry_sync']}\n",
+            id="write-lock",
+        ),
+        pytest.param(CortexConfigError("bad config"), EXIT_INVALID_INPUT, "", id="config"),
+        pytest.param(
+            IngestionStorageError("bad generation"),
+            EXIT_ERROR,
+            f"Cortex sync recommendation: {SYNC_RECOMMENDATION_ADVICE['retry_sync']}\n",
+            id="storage",
+        ),
+        pytest.param(
+            RuntimeError("boom"),
+            EXIT_ERROR,
+            f"Cortex sync recommendation: {SYNC_RECOMMENDATION_ADVICE['retry_sync']}\n",
+            id="unexpected",
+        ),
     ],
 )
 def test_human_sync_shares_the_exception_funnel(
     error: Exception,
     expected_code: int,
+    advice: str,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -595,7 +740,7 @@ def test_human_sync_shares_the_exception_funnel(
     captured = capsys.readouterr()
 
     assert captured.out == ""
-    assert captured.err == f"Cortex sync error: {error}\n"
+    assert captured.err == f"Cortex sync error: {error}\n{advice}"
 
 
 def test_mcp_sync_survives_ingestion_lock_contention(monkeypatch: pytest.MonkeyPatch) -> None:

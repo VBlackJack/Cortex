@@ -60,6 +60,27 @@ error with the available sections. Configuration, migration, fingerprint, and
 lock errors are converted into explicit responses; they do not become raw
 traces on the client side.
 
+The operator command `cortex sync --json` derives `status`, `indexes`, and
+`recommendation` from an internal kind of each error code, which is not a
+report field. The most serious kind present decides: index over configuration
+over source.
+
+- **index** (`chroma_publication_failed`, `inconsistent_generation`,
+  `lexical_preparation_failed`, `lexical_publication_failed`, and any other
+  code): `failed` without any publication or removal, otherwise `partial`;
+  indexes `degraded` or `failed`; `repair_lexical` if the lexical index is
+  unhealthy, otherwise `retry_sync`.
+- **configuration** (`section_unavailable`, `vault_unavailable`,
+  `invalid_section`, `invalid_configuration`): `partial`, both indexes `ok`,
+  `fix_configuration`.
+- **source** (`extraction_failed`): `partial`, both indexes `ok`,
+  `check_sources`.
+- **no error**: `succeeded`, both indexes `ok`, `none`.
+
+Exit codes do not depend on the kind: `1` for `partial` or `failed`, `6` when
+an error carries an invalid-input code (`invalid_configuration`,
+`invalid_section`, `invalid_arguments`, `incompatible_index`).
+
 <!-- spec:search -->
 ## 3. Search contract
 

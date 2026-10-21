@@ -22,10 +22,42 @@ from pydantic import BaseModel, ConfigDict
 
 SYNC_CLI_CONTRACT_VERSION: Literal[1] = 1
 SYNC_ERROR_SAMPLE_LIMIT = 50
+SyncRecommendation = Literal[
+    "retry_sync", "repair_lexical", "check_sources", "fix_configuration", "none"
+]
+SyncErrorKind = Literal["source", "configuration", "index"]
 # Errors raised by an unreadable source file. They never damage either index,
 # so a sync whose only errors are these is partial, not failed.
 SOURCE_ERROR_CODES = frozenset({"extraction_failed"})
-SyncRecommendation = Literal["retry_sync", "repair_lexical", "check_sources", "none"]
+# Errors raised by a configured location or setting that does not resolve.
+# They leave both indexes untouched and no retry can fix them; only the
+# configuration can.
+CONFIGURATION_ERROR_CODES = frozenset(
+    {"invalid_configuration", "invalid_section", "section_unavailable", "vault_unavailable"}
+)
+# One sentence per recommendation for the human-mode console.
+SYNC_RECOMMENDATION_ADVICE: Mapping[SyncRecommendation, str] = {
+    "retry_sync": "Run the sync again once the reported index error is resolved.",
+    "repair_lexical": "Repair the lexical index by running the sync again.",
+    "check_sources": "Check the listed source files: Cortex could not read them.",
+    "fix_configuration": (
+        "Fix the configured knowledge-base path, section root or setting listed in the errors."
+    ),
+    "none": "No action is needed.",
+}
+
+
+def classify_sync_error(code: str) -> SyncErrorKind:
+    """Return the internal kind of one sync error code.
+
+    Unknown codes are treated as index errors, the conservative reading: it
+    keeps the historical status and recommends a retry.
+    """
+    if code in SOURCE_ERROR_CODES:
+        return "source"
+    if code in CONFIGURATION_ERROR_CODES:
+        return "configuration"
+    return "index"
 
 
 class SyncContractModel(BaseModel):  # type: ignore[misc]
@@ -127,7 +159,19 @@ def build_sync_report(
     indexes: SyncIndexes,
     errors: list[SyncError],
 ) -> SyncReport:
-    """Derive status and recommendations from exact synchronization facts."""
+    """Derive status and recommendations from exact synchronization facts.
+
+    Each error code has one kind (see ``classify_sync_error``), and the most
+    serious kind present decides: index over configuration over source.
+
+    - Index kind, or any index reported unhealthy: ``failed`` when nothing was
+      published or removed, otherwise ``partial``; ``repair_lexical`` when the
+      lexical index is unhealthy, otherwise ``retry_sync``.
+    - Configuration kind (no index error, both indexes ``ok``): ``partial`` and
+      ``fix_configuration``; retrying cannot resolve a missing root.
+    - Source kind only (both indexes ``ok``): ``partial`` and ``check_sources``.
+    - No error and both indexes ``ok``: ``succeeded`` and ``none``.
+    """
     counter_model = SyncCounters.from_stats(counters)
     changed = (
         counter_model.published_files
@@ -139,16 +183,14 @@ def build_sync_report(
     successful_mutations = counter_model.published_files + counter_model.removed_files
     # Error samples are bounded, as is the index health derived from them; an
     # unsampled index error would already have marked an index unhealthy.
-    source_errors_only = (
-        counter_model.errors > 0
-        and bool(errors)
-        and all(error.code in SOURCE_ERROR_CODES for error in errors)
-        and indexes.chroma == "ok"
-        and indexes.lexical == "ok"
+    kinds = {classify_sync_error(error.code) for error in errors}
+    indexes_healthy = indexes.chroma == "ok" and indexes.lexical == "ok"
+    non_index_errors_only = (
+        counter_model.errors > 0 and bool(errors) and "index" not in kinds and indexes_healthy
     )
     status: Literal["succeeded", "partial", "failed"]
     recommendation: SyncRecommendation
-    if source_errors_only:
+    if non_index_errors_only:
         status = "partial"
     elif successful_mutations == 0 and counter_model.errors > 0:
         status = "failed"
@@ -163,7 +205,9 @@ def build_sync_report(
 
     if indexes.lexical != "ok":
         recommendation = "repair_lexical"
-    elif source_errors_only:
+    elif non_index_errors_only and "configuration" in kinds:
+        recommendation = "fix_configuration"
+    elif non_index_errors_only:
         # The error samples name the unreadable sources; retrying cannot help.
         recommendation = "check_sources"
     elif counter_model.errors > 0:
@@ -223,8 +267,13 @@ def build_sync_failure_report(
 
 
 __all__ = [
+    "CONFIGURATION_ERROR_CODES",
+    "SOURCE_ERROR_CODES",
     "SYNC_CLI_CONTRACT_VERSION",
     "SYNC_ERROR_SAMPLE_LIMIT",
+    "SYNC_RECOMMENDATION_ADVICE",
+    "SyncErrorKind",
+    "SyncRecommendation",
     "SyncCounters",
     "SyncError",
     "SyncIndexes",
@@ -233,4 +282,5 @@ __all__ = [
     "SyncScope",
     "build_sync_failure_report",
     "build_sync_report",
+    "classify_sync_error",
 ]

@@ -188,6 +188,20 @@ un sync partiel ou en échec ne se termine plus par `0`. Une interruption par
 Ctrl+C rend `130`, sans trace d'appel. `cortex sync --search` reste accepté
 comme alias de `cortex search`.
 
+Le `status`, les `indexes` et la `recommendation` du rapport découlent de la
+nature de chaque code d'erreur. Cette nature n'est pas un champ du rapport ; la
+plus grave présente l'emporte, index avant configuration avant source :
+
+| Nature d'erreur | Codes | Statut | Index | Recommandation |
+|---|---|---|---|---|
+| index | `chroma_publication_failed`, `inconsistent_generation`, `lexical_preparation_failed`, `lexical_publication_failed`, tout autre code | `failed` quand rien n'a été publié ni retiré, sinon `partial` | `degraded` ou `failed` | `repair_lexical` quand l'index lexical est en défaut, sinon `retry_sync` |
+| configuration | `section_unavailable`, `vault_unavailable`, `invalid_section`, `invalid_configuration` | `partial` | `ok` | `fix_configuration` : corriger le chemin de la base, la racine de section ou le réglage cité dans les erreurs ; une nouvelle tentative ne peut pas réussir avant |
+| source | `extraction_failed` | `partial` | `ok` | `check_sources` : les fichiers listés n'ont pas pu être lus |
+| aucune erreur | aucun | `succeeded` | `ok` | `none` |
+
+Sans `--json`, un passage qui se termine sur une recommandation autre que `none`
+écrit sur stderr une ligne `Cortex sync recommendation:` qui dit quoi faire.
+
 `cortex setup` enchaîne init, index et enregistrement des clients en un appel
 (voir [Installation](setup.md#setup-en-une-commande)).
 
