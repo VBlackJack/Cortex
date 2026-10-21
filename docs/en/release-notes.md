@@ -397,7 +397,7 @@ including the remaining manual Narrator and physical multi-monitor checks.
 <!-- release:2026-0827-01 -->
 ## 2026.0827.01 - 2026-08-27
 
-- A "Forcer la collecte" (Force collection) checkbox now starts a Confluence
+- A "Force collection" checkbox now starts a Confluence
   collection without waiting for the schedule Cortex applies. A collection that
   had already succeeded inside the interval used to block the button until the
   schedule elapsed, with no way out from the interface.

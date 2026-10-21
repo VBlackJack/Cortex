@@ -15,11 +15,11 @@ locaux.
 
 Depuis 2026.0906.01, Companion propose un accueil guidé, un historique et l'ajout Confluence par un seul lien de page ou d'espace. La connexion et le choix du nombre de pages restent dans le parcours ; la collecte réussie est suivie de l'indexation. Utiliser l'installeur combiné pour garder Cortex et Companion compatibles.
 
-Avec la version associée 2026.0909.02, les mises à jour Confluence conservent la génération servie si un sous-arbre ne peut pas être énuméré et réappliquent les changements de cible/classification lors de la reprise. La recherche utilise le vectoriel multilingue par défaut ; les clients CLI et MCP peuvent choisir explicitement les modes hybride ou rerank. La première collecte réussie après mise à jour régénère les anciennes révisions, puis la synchronisation retire les entrées obsolètes de l’index.
+Avec la version associée 2026.0909.02, les mises à jour Confluence conservent la génération servie si un sous-arbre ne peut pas être énuméré et réappliquent les changements de cible/classification lors de la reprise. La recherche utilise le vectoriel multilingue par défaut ; les clients CLI et MCP peuvent choisir explicitement les modes hybride ou rerank. La première collecte réussie après mise à jour régénère les anciennes révisions, puis la synchronisation retire les entrées obsolètes de l'index.
 
 ## Mise à jour documentaire guidée (2026.0909.00)
 
-Companion réunit les documents locaux et Confluence dans **Mes sources**, avec une action **Mettre à jour mes documents**. L’aperçu de recherche est redimensionnable, les grands arbres réalisent les lignes visibles et l’annulation de la préparation conserve le brouillon. La disponibilité suit désormais le dossier et la configuration enregistrés, y compris après redémarrage. Lancer une mise à jour documentaire après la mise à niveau pour établir cette preuve sur les anciens index. Voir les [notes de version](docs/fr/notes-de-version.md).
+Companion réunit les documents locaux et Confluence dans **Mes sources**, avec une action **Mettre à jour mes documents**. L'aperçu de recherche est redimensionnable, les grands arbres réalisent les lignes visibles et l'annulation de la préparation conserve le brouillon. La disponibilité suit désormais le dossier et la configuration enregistrés, y compris après redémarrage. Lancer une mise à jour documentaire après la mise à niveau pour établir cette preuve sur les anciens index. Voir les [notes de version](docs/fr/notes-de-version.md).
 
 ## Périmètre mesuré sans énumérer l'espace (2026.0907.00)
 
@@ -80,7 +80,7 @@ runtime .NET n'est à installer séparément.
    `Exécuter quand même`.
 4. Choisir le dossier de vos documents, laisser `Tout indexer dans ce dossier`
    et terminer. Cortex Companion s'ouvre à la fin de l'installation.
-   L’indexation ne démarre que lorsque vous lancez la synchronisation dans Companion.
+   L'indexation ne démarre que lorsque vous lancez la synchronisation dans Companion.
 5. Dans Companion, ouvrir `Réglages` pour vérifier le dossier de la base de
    connaissances. L'exécutable Cortex installé avec Companion est détecté
    automatiquement.

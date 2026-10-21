@@ -29,7 +29,7 @@ configure les clients MCP pris en charge.
    les défauts sont `knowledge` (référence), `projects` (travail) et `notes`
    (notes libres).
 6. Sur la page de fin, laisser `Lancer Cortex Companion` coché et cliquer sur
-   `Terminer`. L’installation ne lance jamais l’indexation.
+   `Terminer`. L'installation ne lance jamais l'indexation.
 7. Dans Companion, ouvrir `Base locale`, puis choisir `Synchroniser les documents
    locaux` au moment souhaité. La durée dépend du nombre et de la taille des
    documents ; suivre le résultat dans cet écran. Redémarrer ensuite les
@@ -110,9 +110,9 @@ Cortex-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB"
 ```
 
 Le mode silencieux crée le dossier si nécessaire, installe Cortex et Companion,
-et enregistre les clients, mais ne lance pas Companion et n’indexe aucun
-document. L’ancienne option `/INDEX` est refusée avant l’installation. Lancer
-la synchronisation séparément après la fin réussie de l’installeur :
+et enregistre les clients, mais ne lance pas Companion et n'indexe aucun
+document. L'ancienne option `/INDEX` est refusée avant l'installation. Lancer
+la synchronisation séparément après la fin réussie de l'installeur :
 
 ```powershell
 $installation = Start-Process .\Cortex-Setup.exe -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /KBPATH="C:\Docs\Cortex-KB"' -Wait -PassThru -WindowStyle Hidden

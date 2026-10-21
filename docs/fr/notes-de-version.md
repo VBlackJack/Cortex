@@ -14,12 +14,12 @@ retrouve à l'écran aujourd'hui.
 <!-- release:2026-0909-04 -->
 ## 2026.0909.04 - 2026-09-09
 
-L’installation Windows se termine désormais sans indexer les documents dans un processus caché. Après avoir cliqué sur Terminer, lancez la synchronisation dans Cortex Companion pour suivre son résultat. Les mises à jour et remises à zéro suivent aussi ce parcours. Les déploiements automatisés doivent remplacer l’ancienne option `/INDEX` par une commande `cortex sync` après la fin réussie de l’installation.
+L'installation Windows se termine désormais sans indexer les documents dans un processus caché. Après avoir cliqué sur Terminer, lancez la synchronisation dans Cortex Companion pour suivre son résultat. Les mises à jour et remises à zéro suivent aussi ce parcours. Les déploiements automatisés doivent remplacer l'ancienne option `/INDEX` par une commande `cortex sync` après la fin réussie de l'installation.
 
 <!-- release:2026-0909-02 -->
 ## 2026.0909.02 - 2026-09-09
 
-Publie les corrections d’ingestion et de recherche multilingue de 2026.0909.01 avec le bon ensemble de fichiers. La version précédente a atteint PyPI et le registre MCP ; la publication de ses binaires GitHub a été arrêtée par le contrôle des artefacts. Les rapports du benchmark restent des preuves CI.
+Publie les corrections d'ingestion et de recherche multilingue de 2026.0909.01 avec le bon ensemble de fichiers. La version précédente a atteint PyPI et le registre MCP ; la publication de ses binaires GitHub a été arrêtée par le contrôle des artefacts. Les rapports du benchmark restent des preuves CI.
 
 <!-- release:2026-0909-01 -->
 ## 2026.0909.01 - 2026-09-09
@@ -32,14 +32,14 @@ Publie les corrections d’ingestion et de recherche multilingue de 2026.0909.01
 <!-- release:2026-0909-00 -->
 ## 2026.0909.00 - 2026-09-09
 
-- Mes sources réunit les documents locaux et Confluence. Mettre à jour mes documents collecte les sources configurées puis les indexe, avec une prochaine action claire sur l’accueil.
+- Mes sources réunit les documents locaux et Confluence. Mettre à jour mes documents collecte les sources configurées puis les indexe, avec une prochaine action claire sur l'accueil.
 - La recherche propose un aperçu redimensionnable et des actions de récupération sans résultat. Les paramètres mettent les documents et Confluence en premier et signalent les changements de dossier non enregistrés.
-- Les catalogues volumineux sont lus intégralement dans leur limite de sécurité. L’arbre réalise les lignes visibles, conserve le résumé de sélection et ouvre les branches correspondantes pendant le filtrage.
-- Annuler une lecture de pages ou la préparation de la confirmation conserve le brouillon sans enregistrer les changements. Un échec d’édition peut être repris tant que la configuration enregistrée n’a pas changé.
+- Les catalogues volumineux sont lus intégralement dans leur limite de sécurité. L'arbre réalise les lignes visibles, conserve le résumé de sélection et ouvre les branches correspondantes pendant le filtrage.
+- Annuler une lecture de pages ou la préparation de la confirmation conserve le brouillon sans enregistrer les changements. Un échec d'édition peut être repris tant que la configuration enregistrée n'a pas changé.
 - Une mise à jour locale réussie indique désormais que les documents sont prêts sans exiger Confluence. Changer le dossier documentaire enregistré ou la configuration impose une nouvelle indexation, y compris après redémarrage de Companion.
-- Les guides anglais et français utilisent désormais les libellés actuels de l’interface.
+- Les guides anglais et français utilisent désormais les libellés actuels de l'interface.
 
-Mettre à jour Cortex et Companion ensemble avec l’installeur combiné. Lancer une mise à jour documentaire après la mise à niveau : les anciens historiques d’indexation ne contiennent pas la preuve de configuration nécessaire pour confirmer la disponibilité.
+Mettre à jour Cortex et Companion ensemble avec l'installeur combiné. Lancer une mise à jour documentaire après la mise à niveau : les anciens historiques d'indexation ne contiennent pas la preuve de configuration nécessaire pour confirmer la disponibilité.
 
 <!-- release:2026-0908-01 -->
 ## 2026.0908.01 - 2026-09-08

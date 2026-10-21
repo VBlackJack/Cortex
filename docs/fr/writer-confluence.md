@@ -229,9 +229,9 @@ d'ingestion et du lock d'écriture Chroma. Aucune commande CLI de mutation n'est
 encore exposée.
 
 Pour ajouter une source sans éditer le TOML, ouvrez `Mes sources`, choisissez
-`Ajouter une source`, collez l’URL d’une page puis cliquez sur `Voir les documents à ajouter`.
-Companion vérifie le serveur et l’espace, mesure les périmètres disponibles et
-n’enregistre que la sélection confirmée sous le verrou CAS partagé.
+`Ajouter une source`, collez l'URL d'une page puis cliquez sur `Voir les documents à ajouter`.
+Companion vérifie le serveur et l'espace, mesure les périmètres disponibles et
+n'enregistre que la sélection confirmée sous le verrou CAS partagé.
 `Enregistrer pour plus tard` conserve la sélection en attente ;
 `Enregistrer et mettre à jour` collecte puis indexe les documents.
 Une prévisualisation annulée ne crée pas de source vide.
