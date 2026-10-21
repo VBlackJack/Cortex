@@ -30,6 +30,9 @@ from config_contract import (
     ConfigSetReport,
     ConfigValues,
     SectionRootEntry,
+    ServerConfigReport,
+    ServerConfigValues,
+    ServerModeSetReport,
 )
 from confluence_writer.constants import (
     EXIT_CONFLICT,
@@ -38,6 +41,7 @@ from confluence_writer.constants import (
     EXIT_LOCKED,
     EXIT_OK,
 )
+from daemon_contract import SERVER_MODES
 from index_contract import ROOT_SECTION
 from section_roots import locate_section
 from user_config import CortexUserConfig, user_config_path
@@ -51,6 +55,7 @@ from user_config_mutation import (
     UserConfigValidationError,
     read_user_config_snapshot,
     write_section_root_cas,
+    write_server_settings_cas,
     write_user_config_cas,
 )
 
@@ -59,6 +64,8 @@ _OPERATION_SET = "set"
 _OPERATION_ROOTS = "roots"
 _OPERATION_SET_ROOT = "set-root"
 _OPERATION_CLEAR_ROOT = "clear-root"
+_OPERATION_SERVER = "server"
+_OPERATION_SET_SERVER_MODE = "set-server-mode"
 _ROOT_OPERATION_NAMES = {
     _OPERATION_SET_ROOT: "config_set_root",
     _OPERATION_CLEAR_ROOT: "config_clear_root",
@@ -86,7 +93,14 @@ def _error(code: ConfigErrorCode, phase: str) -> ConfigError:
 
 
 def _write_report(
-    report: ConfigGetReport | ConfigSetReport | ConfigRootsReport | ConfigRootMutationReport,
+    report: (
+        ConfigGetReport
+        | ConfigSetReport
+        | ConfigRootsReport
+        | ConfigRootMutationReport
+        | ServerConfigReport
+        | ServerModeSetReport
+    ),
 ) -> None:
     sys.stdout.write(report.model_dump_json(indent=2) + "\n")
 
@@ -392,6 +406,114 @@ def _mutate_root(namespace: argparse.Namespace, environ: Mapping[str, str]) -> i
     return exit_code
 
 
+def _server_values(config: CortexUserConfig) -> ServerConfigValues:
+    return ServerConfigValues(
+        mode=config.server_mode,
+        idle_timeout_seconds=config.server_idle_timeout_seconds,
+    )
+
+
+def _server(environ: Mapping[str, str]) -> int:
+    target = user_config_path(environ)
+    try:
+        snapshot = read_user_config_snapshot(target, environ=environ)
+    except OSError:
+        snapshot = None
+    config = snapshot.config if snapshot is not None else None
+    report = ServerConfigReport(
+        present=snapshot.present if snapshot is not None else target.exists(),
+        content_hash=snapshot.content_hash if snapshot is not None else None,
+        valid=config is not None,
+        error=None if config is not None else _error("invalid_configuration", "validate"),
+        values=_server_values(config) if config is not None else None,
+    )
+    _write_report(report)
+    return EXIT_OK
+
+
+def _server_mode_failure(
+    *,
+    status: str,
+    code: ConfigErrorCode,
+    phase: str,
+    snapshot: UserConfigSnapshot | None = None,
+) -> ServerModeSetReport:
+    content_hash = snapshot.content_hash if snapshot is not None else None
+    config = snapshot.config if snapshot is not None else None
+    return ServerModeSetReport(
+        status=status,
+        changed=False,
+        previous_content_hash=content_hash,
+        content_hash=content_hash,
+        backup_written=False,
+        restart_required=False,
+        error=_error(code, phase),
+        values=_server_values(config) if config is not None else None,
+    )
+
+
+def _set_server_mode(namespace: argparse.Namespace, environ: Mapping[str, str]) -> int:
+    try:
+        result = write_server_settings_cas(
+            user_config_path(environ),
+            mode=namespace.mode,
+            expected_hash=namespace.expected_hash,
+            environ=environ,
+        )
+    except ValueError:
+        report = _server_mode_failure(status="failed", code="invalid_argument", phase="validate")
+        exit_code = EXIT_INVALID_INPUT
+    except UserConfigConflictError:
+        report = _server_mode_failure(
+            status="conflict",
+            code="hash_mismatch",
+            phase="compare",
+            snapshot=_safe_snapshot(environ),
+        )
+        exit_code = EXIT_CONFLICT
+    except UserConfigLockedError:
+        report = _server_mode_failure(
+            status="locked", code="locked", phase="lock", snapshot=_safe_snapshot(environ)
+        )
+        exit_code = EXIT_LOCKED
+    except UserConfigInvalidBaseError:
+        report = _server_mode_failure(
+            status="failed",
+            code="invalid_configuration",
+            phase="validate",
+            snapshot=_safe_snapshot(environ),
+        )
+        exit_code = EXIT_ERROR
+    except UserConfigValidationError:
+        report = _server_mode_failure(
+            status="failed",
+            code="validation_failed",
+            phase="validate",
+            snapshot=_safe_snapshot(environ),
+        )
+        exit_code = EXIT_ERROR
+    except (OSError, UserConfigMutationError):
+        report = _server_mode_failure(
+            status="failed", code="write_failed", phase="write", snapshot=_safe_snapshot(environ)
+        )
+        exit_code = EXIT_ERROR
+    else:
+        current = result.current.config
+        report = ServerModeSetReport(
+            status="succeeded" if result.changed else "unchanged",
+            changed=result.changed,
+            previous_content_hash=result.previous.content_hash,
+            content_hash=result.current.content_hash,
+            backup_written=result.backup_written,
+            restart_required=result.changed,
+            error=None,
+            values=_server_values(current) if current is not None else None,
+        )
+        exit_code = EXIT_OK
+    _write_report(report)
+    return exit_code
+
+
 # The machine commands have no human rendering, so the mandatory flag says so
 # instead of leaving argparse's bare 'required' error as the only hint.
 _JSON_HELP = (
@@ -456,6 +578,22 @@ def build_parser() -> argparse.ArgumentParser:
             required=True,
             help="Hash returned by `get` or `roots`; the write is refused when the file changed",
         )
+    server_parser = subparsers.add_parser(
+        _OPERATION_SERVER,
+        help="Print the [server] table: how `cortex serve` runs, and the idle delay",
+    )
+    server_parser.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
+    mode_parser = subparsers.add_parser(
+        _OPERATION_SET_SERVER_MODE,
+        help="Choose per-client or shared serving with compare-and-swap protection",
+    )
+    mode_parser.add_argument("mode", choices=SERVER_MODES, help="Server mode to record")
+    mode_parser.add_argument("--json", action="store_true", required=True, help=_JSON_HELP)
+    mode_parser.add_argument(
+        "--expected-hash",
+        required=True,
+        help="Hash returned by `get` or `server`; the write is refused when the file changed",
+    )
     return parser
 
 
@@ -473,6 +611,10 @@ def main(
         return _roots(values)
     if namespace.operation in _ROOT_OPERATION_NAMES:
         return _mutate_root(namespace, values)
+    if namespace.operation == _OPERATION_SERVER:
+        return _server(values)
+    if namespace.operation == _OPERATION_SET_SERVER_MODE:
+        return _set_server_mode(namespace, values)
     return _set(namespace, values)
 
 

@@ -130,6 +130,12 @@ _HASH = "a" * 64
             "config",
             {"operation": "clear-root", "section": "_memory", "expected_hash": _HASH},
         ),
+        (["config", "server", "--json"], "config", {"operation": "server", "json": True}),
+        (
+            ["config", "set-server-mode", "shared", "--json", "--expected-hash", _HASH],
+            "config",
+            {"operation": "set-server-mode", "mode": "shared", "expected_hash": _HASH},
+        ),
     ],
 )
 def test_every_desktop_line_lands_its_values_in_the_right_slots(

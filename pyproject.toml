@@ -68,6 +68,7 @@ py-modules = [
   "config_command",
   "config_contract",
   "cortex_logging",
+  "daemon_contract",
   "data_home",
   "dependencies",
   "doctor",

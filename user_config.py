@@ -25,6 +25,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
+from daemon_contract import (
+    DEFAULT_IDLE_TIMEOUT_SECONDS,
+    DEFAULT_SERVER_MODE,
+    SERVER_MODES,
+    ServerMode,
+)
+
 SCHEMA_VERSION = 1
 DEFAULT_INCLUDED_SECTIONS = frozenset(
     {"knowledge", "operations", "projects", "sources", "_memory", "_drafts"}
@@ -61,7 +68,10 @@ _ALLOWED_KEYS = {
     "write_lock_path",
     "write_lock_timeout_seconds",
     SECTION_ROOTS_KEY,
+    "server",
 }
+SERVER_TABLE = "server"
+_SERVER_KEYS = {"mode", "idle_timeout_seconds"}
 
 
 class CortexConfigError(RuntimeError):
@@ -89,6 +99,8 @@ class CortexUserConfig:
     write_lock_timeout_seconds: float
     # Section name -> absolute, normalized directory; empty when nothing is mounted.
     section_roots: Mapping[str, str] = field(default_factory=dict)
+    server_mode: ServerMode = DEFAULT_SERVER_MODE
+    server_idle_timeout_seconds: int = DEFAULT_IDLE_TIMEOUT_SECONDS
 
 
 def normalize_section_root(
@@ -285,6 +297,40 @@ def _read_toml(path: Path) -> dict[str, Any]:
     return data
 
 
+def _server_table(data: dict[str, Any], path: Path) -> dict[str, Any]:
+    """Validate the optional `[server]` table; return its CortexUserConfig fields."""
+    if SERVER_TABLE not in data:
+        return {}
+    table = data[SERVER_TABLE]
+    if type(table) is not dict:
+        raise _error(f"'{SERVER_TABLE}' must be a TOML table.", path)
+    unknown = sorted(set(table) - _SERVER_KEYS)
+    if unknown:
+        raise _error(
+            f"Unknown key(s) in [{SERVER_TABLE}]: {', '.join(unknown)}.",
+            path,
+        )
+    mode: ServerMode = DEFAULT_SERVER_MODE
+    if "mode" in table:
+        raw_mode = table["mode"]
+        if type(raw_mode) is not str or raw_mode not in SERVER_MODES:
+            raise _error(
+                f"[{SERVER_TABLE}] mode must be one of: {', '.join(SERVER_MODES)}.",
+                path,
+            )
+        mode = raw_mode
+    idle = DEFAULT_IDLE_TIMEOUT_SECONDS
+    if "idle_timeout_seconds" in table:
+        raw_idle = table["idle_timeout_seconds"]
+        if type(raw_idle) is not int or raw_idle < 0:
+            raise _error(
+                f"[{SERVER_TABLE}] idle_timeout_seconds must be an integer of zero or more.",
+                path,
+            )
+        idle = raw_idle
+    return {"server_mode": mode, "server_idle_timeout_seconds": idle}
+
+
 def _environment_int(
     environ: Mapping[str, str], key: str, path: Path
 ) -> int | None:
@@ -399,9 +445,7 @@ def load_user_config(
     if env_lock_path:
         write_lock_path = env_lock_path
     env_max_markdown = _environment_int(
-        values,
-        "CORTEX_MAX_MARKDOWN_FILE_SIZE_BYTES",
-        config_path,
+        values, "CORTEX_MAX_MARKDOWN_FILE_SIZE_BYTES", config_path
     )
     if env_max_markdown is not None:
         max_markdown = env_max_markdown
@@ -436,6 +480,7 @@ def load_user_config(
         write_lock_path=write_lock_path,
         write_lock_timeout_seconds=write_lock_timeout,
         section_roots=section_roots,
+        **_server_table(data, config_path),
     )
 
 
@@ -482,6 +527,20 @@ def render_user_config(config: CortexUserConfig) -> str:
         lines.extend(
             f"{_toml_literal(section)} = {_toml_literal(root)}"
             for section, root in sorted(config.section_roots.items())
+        )
+    # The table is written only when it departs from the defaults, so a file that
+    # never opted in stays readable by a Cortex that predates the table.
+    if (
+        config.server_mode != DEFAULT_SERVER_MODE
+        or config.server_idle_timeout_seconds != DEFAULT_IDLE_TIMEOUT_SECONDS
+    ):
+        lines.extend(
+            [
+                "",
+                f"[{SERVER_TABLE}]",
+                f"mode = {_toml_literal(config.server_mode)}",
+                f"idle_timeout_seconds = {config.server_idle_timeout_seconds}",
+            ]
         )
     return "\n".join(lines) + "\n"
 

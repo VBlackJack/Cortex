@@ -32,6 +32,7 @@ from confluence_writer.constants import (
     CONFIG_MUTATION_LOCK_SUFFIX,
     DEFAULT_CONFIG_MUTATION_LOCK_TIMEOUT_SECONDS,
 )
+from daemon_contract import SERVER_MODES
 from user_config import (
     CortexConfigError,
     CortexUserConfig,
@@ -269,6 +270,52 @@ def write_section_root_cas(
     )
 
 
+def write_server_settings_cas(
+    path: Path,
+    *,
+    mode: str | None = None,
+    idle_timeout_seconds: int | None = None,
+    expected_hash: str,
+    environ: Mapping[str, str] | None = None,
+    timeout_seconds: float = DEFAULT_CONFIG_MUTATION_LOCK_TIMEOUT_SECONDS,
+) -> UserConfigMutationResult:
+    """Change the ``[server]`` table: the mode, the idle delay, or both.
+
+    The existing file must be valid and record a kb_path, otherwise
+    UserConfigInvalidBaseError is raised: serving needs an index to serve. An
+    unknown mode or a negative delay raises ValueError before anything is written.
+    """
+    if mode is None and idle_timeout_seconds is None:
+        raise ValueError("at least one [server] value must change")
+    if mode is not None and mode not in SERVER_MODES:
+        raise ValueError(f"server mode must be one of: {', '.join(SERVER_MODES)}")
+    if idle_timeout_seconds is not None and (
+        type(idle_timeout_seconds) is not int or idle_timeout_seconds < 0
+    ):
+        raise ValueError("idle_timeout_seconds must be an integer of zero or more")
+
+    def transform(base: CortexUserConfig) -> CortexUserConfig:
+        if base.kb_path is None:
+            raise UserConfigInvalidBaseError(
+                "User configuration records no kb_path; set it before the server mode."
+            )
+        updated = base
+        if mode is not None:
+            updated = replace(updated, server_mode=mode)
+        if idle_timeout_seconds is not None:
+            updated = replace(updated, server_idle_timeout_seconds=idle_timeout_seconds)
+        return updated
+
+    return _mutate_user_config_cas(
+        path,
+        transform,
+        expected_hash=expected_hash,
+        environ=environ,
+        timeout_seconds=timeout_seconds,
+        rebuild_invalid=False,
+    )
+
+
 def _mutate_user_config_cas(
     path: Path,
     transform: Callable[[CortexUserConfig], CortexUserConfig],
@@ -369,4 +416,5 @@ __all__ = [
     "user_config_mutation_lock_path",
     "write_section_root_cas",
     "write_user_config_cas",
+    "write_server_settings_cas",
 ]

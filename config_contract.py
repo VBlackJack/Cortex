@@ -19,6 +19,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from daemon_contract import ServerMode
+
 CONFIG_CLI_CONTRACT_VERSION: Literal[1] = 1
 
 ConfigErrorCode = Literal[
@@ -135,9 +137,48 @@ class ConfigRootMutationReport(ConfigContractModel):
     error: ConfigError | None
 
 
+CONFIG_SERVER_CONTRACT_VERSION: Literal[1] = 1
+
+
+class ServerConfigValues(ConfigContractModel):
+    """The resolved `[server]` table: how `cortex serve` runs."""
+
+    mode: ServerMode
+    idle_timeout_seconds: int
+
+
+class ServerConfigReport(ConfigContractModel):
+    """Complete result for one read of the `[server]` table (`cortex config server`)."""
+
+    contract_version: Literal[1] = CONFIG_SERVER_CONTRACT_VERSION
+    operation: Literal["config_server"] = "config_server"
+    status: Literal["succeeded"] = "succeeded"
+    present: bool
+    content_hash: str | None
+    valid: bool
+    error: ConfigError | None
+    values: ServerConfigValues | None
+
+
+class ServerModeSetReport(ConfigContractModel):
+    """Complete result for one compare-and-swap change of the server mode."""
+
+    contract_version: Literal[1] = CONFIG_SERVER_CONTRACT_VERSION
+    operation: Literal["config_set_server_mode"] = "config_set_server_mode"
+    status: Literal["succeeded", "unchanged", "conflict", "locked", "failed"]
+    changed: bool
+    previous_content_hash: str | None
+    content_hash: str | None
+    backup_written: bool
+    restart_required: bool
+    error: ConfigError | None
+    values: ServerConfigValues | None
+
+
 __all__ = [
     "CONFIG_CLI_CONTRACT_VERSION",
     "CONFIG_ROOTS_CONTRACT_VERSION",
+    "CONFIG_SERVER_CONTRACT_VERSION",
     "ConfigError",
     "ConfigErrorCode",
     "ConfigGetReport",
@@ -146,4 +187,7 @@ __all__ = [
     "ConfigSetReport",
     "ConfigValues",
     "SectionRootEntry",
+    "ServerConfigReport",
+    "ServerConfigValues",
+    "ServerModeSetReport",
 ]
