@@ -388,6 +388,11 @@
       "en": "CLI: version not recognized - read-only"
     },
     {
+      "key": "HistoryCheckSources",
+      "fr": "Vérifier les sources listées",
+      "en": "Check the listed sources"
+    },
+    {
       "key": "HistoryConfluence",
       "fr": "Collecte Confluence",
       "en": "Confluence collection"
@@ -1121,6 +1126,11 @@
       "key": "SettingsConfluenceCredentialEmpty",
       "fr": "Saisissez un PAT avant de l'enregistrer.",
       "en": "Enter a PAT before saving it."
+    },
+    {
+      "key": "SettingsConfluenceCredentialPatLabel",
+      "fr": "Jeton d'accès personnel (PAT)",
+      "en": "Personal Access Token (PAT)"
     },
     {
       "key": "SettingsConfluenceCredentialSave",
