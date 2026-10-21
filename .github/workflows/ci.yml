@@ -104,6 +104,16 @@ jobs:
       # advisories, so no upgrade closes them; remove these ignores once a fixed
       # release ships and the pin is bumped.
       #
+      # CVE-2026-112395, CVE-2026-112397, CVE-2026-112400, CVE-2026-112404,
+      # CVE-2026-112895, CVE-2026-112896, CVE-2026-112897 and CVE-2026-112899
+      # all sit in Pillow image decoders and writers (TIFF, GIF, PPM, EPS and
+      # PDF append). The three locks pin pillow 12.3.0 because fastembed 0.8.0
+      # caps pillow<13, and fastembed is frozen: its version is part of the
+      # embedding fingerprint, so a bump would invalidate every existing index.
+      # Cortex never imports PIL and only calls pdfplumber extract_text, which
+      # reads the text layer and never decodes an embedded image. Remove these
+      # ignores when fastembed accepts Pillow 13 and the pin is bumped.
+      #
       # Scan every fully-pinned, hash-locked environment used to build or ship
       # Cortex so the runtime, release toolchain, and model fetcher are covered.
       - name: Audit every locked dependency tree for known CVEs
@@ -112,10 +122,34 @@ jobs:
             --ignore-vuln PYSEC-2026-311 \
             --ignore-vuln CVE-2026-45830 \
             --ignore-vuln CVE-2026-45831 \
-            --ignore-vuln CVE-2026-45833
+            --ignore-vuln CVE-2026-45833 \
+            --ignore-vuln CVE-2026-112395 \
+            --ignore-vuln CVE-2026-112397 \
+            --ignore-vuln CVE-2026-112400 \
+            --ignore-vuln CVE-2026-112404 \
+            --ignore-vuln CVE-2026-112895 \
+            --ignore-vuln CVE-2026-112896 \
+            --ignore-vuln CVE-2026-112897 \
+            --ignore-vuln CVE-2026-112899
           python -m pip_audit -r requirements-dev.lock \
             --ignore-vuln PYSEC-2026-311 \
             --ignore-vuln CVE-2026-45830 \
             --ignore-vuln CVE-2026-45831 \
-            --ignore-vuln CVE-2026-45833
-          python -m pip_audit -r requirements-model.lock
+            --ignore-vuln CVE-2026-45833 \
+            --ignore-vuln CVE-2026-112395 \
+            --ignore-vuln CVE-2026-112397 \
+            --ignore-vuln CVE-2026-112400 \
+            --ignore-vuln CVE-2026-112404 \
+            --ignore-vuln CVE-2026-112895 \
+            --ignore-vuln CVE-2026-112896 \
+            --ignore-vuln CVE-2026-112897 \
+            --ignore-vuln CVE-2026-112899
+          python -m pip_audit -r requirements-model.lock \
+            --ignore-vuln CVE-2026-112395 \
+            --ignore-vuln CVE-2026-112397 \
+            --ignore-vuln CVE-2026-112400 \
+            --ignore-vuln CVE-2026-112404 \
+            --ignore-vuln CVE-2026-112895 \
+            --ignore-vuln CVE-2026-112896 \
+            --ignore-vuln CVE-2026-112897 \
+            --ignore-vuln CVE-2026-112899

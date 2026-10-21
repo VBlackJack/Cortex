@@ -104,7 +104,11 @@ jobs:
 
       # The four ignored chromadb advisories all need the HTTP server, its
       # tenants, or its authorization provider. Cortex embeds PersistentClient
-      # only. The full justification lives next to the same gate in ci.yml.
+      # only. The eight ignored Pillow advisories sit in image decoders that
+      # Cortex never reaches: it never imports PIL and pdfplumber extract_text
+      # does not decode images; Pillow stays on 12.x while fastembed caps it.
+      # The full justification lives next to the same gate in ci.yml; remove
+      # these ignores when fastembed accepts Pillow 13 and the pin is bumped.
       - name: Run release gates
         run: |
           python -m ruff check .
@@ -114,13 +118,37 @@ jobs:
             --ignore-vuln PYSEC-2026-311 \
             --ignore-vuln CVE-2026-45830 \
             --ignore-vuln CVE-2026-45831 \
-            --ignore-vuln CVE-2026-45833
+            --ignore-vuln CVE-2026-45833 \
+            --ignore-vuln CVE-2026-112395 \
+            --ignore-vuln CVE-2026-112397 \
+            --ignore-vuln CVE-2026-112400 \
+            --ignore-vuln CVE-2026-112404 \
+            --ignore-vuln CVE-2026-112895 \
+            --ignore-vuln CVE-2026-112896 \
+            --ignore-vuln CVE-2026-112897 \
+            --ignore-vuln CVE-2026-112899
           python -m pip_audit -r requirements-dev.lock \
             --ignore-vuln PYSEC-2026-311 \
             --ignore-vuln CVE-2026-45830 \
             --ignore-vuln CVE-2026-45831 \
-            --ignore-vuln CVE-2026-45833
-          python -m pip_audit -r requirements-model.lock
+            --ignore-vuln CVE-2026-45833 \
+            --ignore-vuln CVE-2026-112395 \
+            --ignore-vuln CVE-2026-112397 \
+            --ignore-vuln CVE-2026-112400 \
+            --ignore-vuln CVE-2026-112404 \
+            --ignore-vuln CVE-2026-112895 \
+            --ignore-vuln CVE-2026-112896 \
+            --ignore-vuln CVE-2026-112897 \
+            --ignore-vuln CVE-2026-112899
+          python -m pip_audit -r requirements-model.lock \
+            --ignore-vuln CVE-2026-112395 \
+            --ignore-vuln CVE-2026-112397 \
+            --ignore-vuln CVE-2026-112400 \
+            --ignore-vuln CVE-2026-112404 \
+            --ignore-vuln CVE-2026-112895 \
+            --ignore-vuln CVE-2026-112896 \
+            --ignore-vuln CVE-2026-112897 \
+            --ignore-vuln CVE-2026-112899
           bash -n scripts/build_installer.sh
 
   build:
