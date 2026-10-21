@@ -12,6 +12,9 @@ available in [French](docs/fr/notes-de-version.md) and
 - Add `cortex config roots --json`, `cortex config set-root <section> <path> --json` and `cortex config clear-root <section> --json`, a new `contract_version: 1` surface that lists each section's resolved root and changes mounts through the same compare-and-swap path, error codes and exit codes as `cortex config set`. The `config get` and `config set` documents are unchanged.
 - Report one `config.section_roots.<section>` doctor check per mounted section, FAIL with the path when its folder is missing; a sync reports `section_unavailable` with the resolved mount path.
 
+### Changed
+- Rehearse the release build chain on every push: a new Windows `build-chain` CI job freezes the executable, generates the license bundle, stages the portable archive, builds the wheel and smoke-tests it, with the commands of `release.yml`, without compiling the installer, signing or publishing. The two failed tags of 2026-10-21 broke in exactly those steps. `tests/test_ci_build_chain.py` holds the two workflows to the same command lines.
+
 ## [2026.1021.02] - 2026-10-21
 
 ### Fixed

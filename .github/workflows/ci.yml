@@ -66,6 +66,122 @@ jobs:
       - name: Run the same pre-commit gate as local (ruff, mypy strict, pytest)
         run: python -m pre_commit run --all-files --show-diff-on-failure
 
+  # Rehearses the release build chain on every push, so a drift in the frozen
+  # build, the license bundle, the portable archive or the wheel build fails
+  # here instead of after a tag. The build commands are byte-identical to the
+  # build and build-dist jobs of release.yml, and tests/test_ci_build_chain.py
+  # keeps them so. Nothing is published: the installer is not compiled (it
+  # needs the Companion, converter and model payloads), nothing is signed and
+  # no artifact is uploaded.
+  build-chain:
+    name: Release build chain rehearsal (Windows)
+    if: github.event_name != 'schedule'
+    runs-on: windows-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      CPYTHON_LICENSE_URL: https://raw.githubusercontent.com/python/cpython/cbc944f4bc59639a444dd971c737788ba2283a91/LICENSE
+      CPYTHON_LICENSE_SHA256: 78b12c3a81360b357002334f0e70ea0e92eebf7a9b358805c03c48484945f3bb
+    strategy:
+      matrix:
+        include:
+          - archive: cortex-windows-x64.zip
+            binary: dist/cortex/cortex.exe
+            binary_name: cortex.exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.lock
+
+      - name: Install the locked project and build tooling
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock
+          python -m pip install --no-build-isolation --no-deps -e .
+
+      - name: Materialize the pinned CPython runtime license
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+
+          request = Request(
+              os.environ["CPYTHON_LICENSE_URL"],
+              headers={"Accept": "text/plain"},
+          )
+          with urlopen(request, timeout=30) as response:
+              content = response.read()
+          actual = hashlib.sha256(content).hexdigest()
+          expected = os.environ["CPYTHON_LICENSE_SHA256"]
+          if actual != expected:
+              raise SystemExit(
+                  f"CPython license SHA-256 mismatch: expected {expected}, got {actual}."
+              )
+          destination = Path(os.environ["RUNNER_TEMP"]) / "CPython-3.13.16-LICENSE.txt"
+          destination.write_bytes(content)
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as output:
+              output.write(f"CORTEX_CPYTHON_LICENSE={destination}\n")
+          PY
+
+      - name: Build standalone executable
+        shell: bash
+        run: >-
+          python packaging/build_executable.py --clean
+          --python-license "${CORTEX_CPYTHON_LICENSE}"
+
+      - name: Check the frozen executable reports the source version
+        shell: bash
+        env:
+          CORTEX_BINARY: ${{ matrix.binary }}
+        run: |
+          expected="$(python -c 'from _version import __version__; print(__version__)' | tr -d '\r')"
+          actual="$("${CORTEX_BINARY}" --version | tr -d '\r')"
+          test -n "${expected}"
+          if [[ "${actual}" != "${expected}" ]]; then
+            echo "Frozen executable reports ${actual}, _version.py holds ${expected}." >&2
+            exit 1
+          fi
+          echo "Frozen executable reports ${actual}"
+
+      - name: Stage the portable archive
+        shell: bash
+        run: |
+          mkdir -p out
+          python packaging/archive_portable.py \
+            --binary "${{ matrix.binary }}" \
+            --binary-name "${{ matrix.binary_name }}" \
+            --licenses dist/licenses \
+            --python-license "${CORTEX_CPYTHON_LICENSE}" \
+            --output "out/${{ matrix.archive }}"
+
+      - name: Build distributions
+        run: python -m build --wheel --no-isolation
+
+      # The frozen build leaves dist/cortex and dist/licenses beside the wheel.
+      - name: Check distribution metadata
+        run: python -m twine check dist/*.whl
+
+      # Same smoke as release.yml build-dist, with the Windows venv layout.
+      - name: Smoke-test installed wheel
+        shell: bash
+        run: |
+          wheel="$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          test -n "${wheel}"
+          python -m venv wheel-smoke
+          wheel-smoke/Scripts/python -m pip install --require-hashes -r requirements.lock
+          wheel-smoke/Scripts/python -m pip install --no-deps "${wheel}"
+          wheel-smoke/Scripts/cortex --version
+          wheel-smoke/Scripts/cortex --help
+
   dependency-audit:
     name: Dependency vulnerability scan (Py${{ matrix.python-version }})
     runs-on: ubuntu-latest

@@ -140,3 +140,12 @@ build, l'inventaire de licences ou le smoke-test a échoué.
 La CI teste chaque push sous Python 3.11, 3.12 et 3.13. Son analyse des
 dépendances tourne aussi chaque lundi : un nouvel avis sur une dépendance
 verrouillée apparaît entre deux releases au lieu d'attendre le tag suivant.
+
+La chaîne de build elle-même tourne aussi à chaque push, sous Windows : le job
+`build-chain` de `.github/workflows/ci.yml` gèle l'exécutable, génère et vérifie
+l'inventaire de licences, assemble l'archive portable, puis construit, vérifie
+et teste le wheel, avec les mêmes commandes que la release (un test les garde
+identiques). Une dérive de ces étapes échoue donc sur le commit qui la cause, et
+non après un tag. La release n'ajoute que l'assemblage des charges utiles
+(Companion, convertisseur, modèles embarqués) et l'installeur, la signature, les
+smoke-tests installés et hors ligne, et la publication.

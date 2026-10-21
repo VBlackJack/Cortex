@@ -136,3 +136,12 @@ license inventory, or smoke-test.
 CI tests every push on Python 3.11, 3.12 and 3.13. Its dependency scan also runs
 every Monday, so a new advisory against a locked dependency surfaces between
 releases instead of at the next tag.
+
+The build chain itself also runs on every push, on Windows: the `build-chain`
+job of `.github/workflows/ci.yml` freezes the executable, generates and checks
+the license inventory, stages the portable archive, then builds, checks and
+smoke-tests the wheel, with the same commands as the release (a test keeps them
+identical). A drift in those steps therefore fails on the commit that causes it,
+not after a tag. The release only adds the payload assembly (Companion,
+converter, embedded models) and the installer, signing, the installed and
+offline smoke tests, and publication.
