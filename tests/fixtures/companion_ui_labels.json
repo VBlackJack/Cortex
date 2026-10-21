@@ -408,6 +408,11 @@
       "en": "The error list is partial."
     },
     {
+      "key": "HistoryFixConfiguration",
+      "fr": "Corriger les dossiers de section configurés",
+      "en": "Fix the configured section roots"
+    },
+    {
       "key": "HistoryLoading",
       "fr": "Chargement de l'historique...",
       "en": "Loading history..."
@@ -1221,6 +1226,51 @@
       "key": "SettingsSavingKnowledgeBase",
       "fr": "Enregistrement du dossier par Cortex...",
       "en": "Cortex is saving the folder..."
+    },
+    {
+      "key": "SettingsSectionChangeCancelled",
+      "fr": "L'emplacement de la section n'a pas été modifié.",
+      "en": "The section location was not changed."
+    },
+    {
+      "key": "SettingsSectionConfirmTitle",
+      "fr": "Modifier l'emplacement d'une section",
+      "en": "Change where a section is read from"
+    },
+    {
+      "key": "SettingsSectionFolderInvalid",
+      "fr": "Choisissez un dossier existant avec un chemin absolu.",
+      "en": "Choose an existing folder with an absolute path."
+    },
+    {
+      "key": "SettingsSectionMountElsewhere",
+      "fr": "Monter ailleurs",
+      "en": "Mount elsewhere"
+    },
+    {
+      "key": "SettingsSectionMounted",
+      "fr": "Montée hors du dossier documentaire",
+      "en": "Mounted outside the document folder"
+    },
+    {
+      "key": "SettingsSectionSaving",
+      "fr": "Cortex enregistre l'emplacement de la section...",
+      "en": "Cortex is saving the section location..."
+    },
+    {
+      "key": "SettingsSectionUseDefault",
+      "fr": "Utiliser l'emplacement par défaut",
+      "en": "Use the default location"
+    },
+    {
+      "key": "SettingsSectionsEmpty",
+      "fr": "Aucune section n'est configurée.",
+      "en": "No section is configured."
+    },
+    {
+      "key": "SettingsSectionsLoaded",
+      "fr": "Tous les dossiers des sections ont été trouvés.",
+      "en": "Every section folder was found."
     },
     {
       "key": "ShortcutRefreshHint",
