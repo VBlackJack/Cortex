@@ -127,6 +127,10 @@ class SharedHome:
 def _make_home(idle_timeout_seconds: int) -> SharedHome:
     import _winapi
 
+    # Every test here starts the real server, which needs the embedding model; a
+    # fresh runner has no cache to link, and these tests must not download one.
+    if not _MODELS.is_dir():
+        pytest.skip("no local model cache to share with the throwaway data home")
     root = Path(tempfile.mkdtemp(prefix="cortex-daemon-"))
     appdata = root / "appdata"
     local = root / "local"
@@ -166,8 +170,6 @@ def _remove_home(home: SharedHome) -> None:
 
 @pytest.fixture(scope="module")
 def shared_home() -> Iterator[SharedHome]:
-    if not _MODELS.is_dir():
-        pytest.skip("no local model cache to share with the throwaway data home")
     home = _make_home(idle_timeout_seconds=0)
     synced = home.cli("sync")
     assert synced.returncode == 0, synced.stderr[-2000:]
