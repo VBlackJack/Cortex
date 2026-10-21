@@ -10,13 +10,14 @@ This page summarizes user-visible changes. See the
 Interface controls are named as the current version shows them, including in entries
 about earlier versions, so a control quoted here can be found on screen today.
 
-<!-- release:2026-1021-01 -->
-## 2026.1021.01 - 2026-10-21
+<!-- release:2026-1021-02 -->
+## 2026.1021.02 - 2026-10-21
 
-The 2026.1021.00 build stopped in the release workflow before anything was published: the
-refreshed dependency lock had moved the `tokenizers` library to 0.23.3 while the bundled
-license still named 0.23.1. The published version is 2026.1021.01, with the same content
-plus that correction and a test that keeps the two files aligned.
+The 2026.1021.00 and 2026.1021.01 builds stopped in the release workflow before anything
+was published: the refreshed dependency lock had moved the `tokenizers` library to 0.23.3
+while the bundled license still named 0.23.1, then the wheel build met a `setuptools`
+version other than the one the project declared. The published version is 2026.1021.02,
+with the same content plus those two corrections and tests that keep the files aligned.
 
 - The Cortex executable now ships as a folder instead of a single self-extracting file. It starts in one to three seconds instead of 13 to 18, no longer unpacks itself into the temporary folder at every start, and no longer leaves orphaned `_MEI` folders behind when an AI application or Companion stops it. The portable archives now unpack to a `cortex/` folder that holds the executable, its runtime and its licenses; keep that folder whole.
 - Cortex moves to the MCP Python SDK 1.30.0 and refreshed dependencies, which clears the security advisories reported against the previous versions.

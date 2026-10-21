@@ -11,14 +11,15 @@ Les commandes de l'interface sont nommées comme la version actuelle les affiche
 compris dans les entrées des versions antérieures, afin qu'une commande citée ici se
 retrouve à l'écran aujourd'hui.
 
-<!-- release:2026-1021-01 -->
-## 2026.1021.01 - 2026-10-21
+<!-- release:2026-1021-02 -->
+## 2026.1021.02 - 2026-10-21
 
-La construction 2026.1021.00 s'est arrêtée dans le workflow de release avant toute
-publication : le verrou de dépendances régénéré avait porté la bibliothèque `tokenizers` à
-0.23.3 alors que la licence embarquée nommait encore 0.23.1. La version publiée est
-2026.1021.01, au même contenu, avec cette correction et un test qui garde les deux fichiers
-alignés.
+Les constructions 2026.1021.00 et 2026.1021.01 se sont arrêtées dans le workflow de release
+avant toute publication : le verrou de dépendances régénéré avait porté la bibliothèque
+`tokenizers` à 0.23.3 alors que la licence embarquée nommait encore 0.23.1, puis la
+construction de la wheel a rencontré une version de `setuptools` différente de celle que le
+projet déclarait. La version publiée est 2026.1021.02, au même contenu, avec ces deux
+corrections et des tests qui gardent les fichiers alignés.
 
 - L'exécutable Cortex est désormais livré sous forme de dossier au lieu d'un fichier unique auto-extractible. Il démarre en une à trois secondes au lieu de 13 à 18, ne se décompresse plus dans le dossier temporaire à chaque démarrage et ne laisse plus de dossiers `_MEI` orphelins quand une application d'IA ou Companion l'arrête. Les archives portables se décompressent maintenant dans un dossier `cortex/` qui contient l'exécutable, son runtime et ses licences ; ce dossier se garde entier.
 - Cortex passe au SDK Python MCP 1.30.0 et à des dépendances mises à jour, ce qui lève les avis de sécurité signalés sur les versions précédentes.

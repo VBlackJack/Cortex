@@ -93,6 +93,26 @@ def test_pillow_pin_matches_the_assessed_release_in_every_lock() -> None:
         )
 
 
+def test_build_backend_pin_matches_the_locked_toolchain() -> None:
+    """The wheel is built with --no-isolation from requirements-dev.lock.
+
+    `python -m build --no-isolation` checks `[build-system] requires` against the
+    installed environment and stops on any mismatch, so the setuptools pin declared in
+    pyproject.toml must be the one the dev lock installs. 2026.1021.01 failed there after
+    a lock refresh moved setuptools while pyproject still required the previous version.
+    """
+    pyproject = (_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    declared = re.search(r'requires = \["setuptools==(?P<version>[^"]+)"\]', pyproject)
+    assert declared is not None, "pyproject.toml must pin setuptools in [build-system]."
+    lines = (_REPO_ROOT / "requirements-dev.lock").read_text(encoding="utf-8").splitlines()
+    locked = [line.split()[0] for line in lines if line.startswith("setuptools==")]
+    assert locked == [f"setuptools=={declared.group('version')}"], (
+        "The build backend pin in pyproject.toml must equal the setuptools version "
+        f"requirements-dev.lock installs; declared {declared.group('version')!r}, "
+        f"locked {locked!r}."
+    )
+
+
 def test_ci_suppresses_exactly_the_assessed_advisories() -> None:
     suppressed = set(_IGNORE_RE.findall(_workflow()))
     assert suppressed == _ASSESSED_ADVISORIES, (
