@@ -81,6 +81,12 @@ def _config_parser() -> argparse.ArgumentParser:
     return build_parser()
 
 
+def _daemon_parser() -> argparse.ArgumentParser:
+    from daemon_command import build_parser
+
+    return build_parser()
+
+
 # The commands a desktop client builds, each with the parser that actually runs it.
 _MACHINE_PARSERS: dict[str, Callable[[], argparse.ArgumentParser]] = {
     "sync": _sync_parser,
@@ -88,6 +94,7 @@ _MACHINE_PARSERS: dict[str, Callable[[], argparse.ArgumentParser]] = {
     "ingestion": _ingestion_parser,
     "confluence": _confluence_parser,
     "config": _config_parser,
+    "daemon": _daemon_parser,
 }
 
 

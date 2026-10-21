@@ -30,7 +30,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp.server.fastmcp import FastMCP
+from mcp.shared.message import SessionMessage
 
 from chunker_utils import reconstruct_contract_metadata
 from config import INDEX_WHOLE_FOLDER, ROOT_SECTION, CortexConfigError
@@ -57,6 +59,13 @@ from ingestion.locking import IngestionLockedError
 from write_lock import CortexWriteLockedError
 
 _LOG = logging.getLogger("cortex.server")
+
+SYNC_LOCKED_MESSAGE = (
+    "## Cortex sync locked\n\n"
+    "Another sync is already in progress. Refusing to write "
+    "concurrently - try again once it finishes."
+)
+"""cortex_sync result when another writer holds the index; the shared daemon reuses it."""
 
 
 class SearchResponse(dict[str, Any]):
@@ -303,11 +312,7 @@ def cortex_sync(section: str | None = None) -> str:
     except CortexDataHomeError as exc:
         return f"## Cortex data migration required\n\n{exc}"
     except (CortexWriteLockedError, IngestionLockedError):
-        return (
-            "## Cortex sync locked\n\n"
-            "Another sync is already in progress. Refusing to write "
-            "concurrently - try again once it finishes."
-        )
+        return SYNC_LOCKED_MESSAGE
     sec_label = (
         "whole knowledge base"
         if INDEX_WHOLE_FOLDER
@@ -401,6 +406,19 @@ def cortex_freshness(
 
 
 # -- Entry point ---------------------------------------------------------------
+
+
+async def run_session(
+    read_stream: MemoryObjectReceiveStream[SessionMessage | Exception],
+    write_stream: MemoryObjectSendStream[SessionMessage],
+) -> None:
+    """Serve one MCP session over an arbitrary stream pair, as run_stdio does over stdio.
+
+    The shared daemon calls this once per accepted connection: each call has its own
+    session and lifespan on the single FastMCP instance of the process.
+    """
+    lowlevel = mcp._mcp_server
+    await lowlevel.run(read_stream, write_stream, lowlevel.create_initialization_options())
 
 
 def run_stdio() -> None:

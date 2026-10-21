@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from collections.abc import Sequence
-from contextlib import closing
+from collections.abc import Iterator, Sequence
+from contextlib import closing, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -57,6 +57,12 @@ class LexicalIndex:
     def __init__(self, path: str | Path = DEFAULT_LEXICAL_PATH) -> None:
         self.path = Path(path)
 
+    @contextmanager
+    def _read(self) -> Iterator[sqlite3.Connection]:
+        """Yield a read-only connection; this class opens and closes one per read."""
+        with closing(_read_only_connection(self.path)) as connection:
+            yield connection
+
     def _connect_write(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(self.path)
@@ -94,7 +100,7 @@ class LexicalIndex:
         if not self.path.is_file():
             return None
         try:
-            with closing(_read_only_connection(self.path)) as connection:
+            with self._read() as connection:
                 return dict(connection.execute("SELECT key, value FROM meta"))
         except sqlite3.Error:
             return None
@@ -109,11 +115,11 @@ class LexicalIndex:
         )
 
     def count(self) -> int:
-        with closing(_read_only_connection(self.path)) as connection:
+        with self._read() as connection:
             return int(connection.execute("SELECT COUNT(*) FROM chunks").fetchone()[0])
 
     def ids(self) -> set[str]:
-        with closing(_read_only_connection(self.path)) as connection:
+        with self._read() as connection:
             return {str(row[0]) for row in connection.execute("SELECT id FROM chunks")}
 
     def replace_file(self, chunks: list[dict[str, Any]]) -> None:
@@ -205,7 +211,7 @@ class LexicalIndex:
                 params.append(value)
         sql += " ORDER BY bm25(chunks), id LIMIT ?"
         params.append(limit)
-        with closing(_read_only_connection(self.path)) as connection:
+        with self._read() as connection:
             rows = connection.execute(sql, params).fetchall()
         hits: list[dict[str, Any]] = []
         for (

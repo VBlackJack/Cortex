@@ -172,8 +172,27 @@ def get_embedding_function() -> FastEmbedFunction:
 # -- ChromaDB helpers ----------------------------------------------------------
 
 
+# The shared daemon installs these so that every session reuses one Chroma client and
+# one lexical reader for the whole process. Left unset, as in a per-client server or
+# a CLI command, each call opens its own.
+_client_provider: Callable[[], Any] | None = None
+_lexical_provider: Callable[[], LexicalIndex] | None = None
+
+
+def install_shared_resources(
+    client_provider: Callable[[], Any] | None,
+    lexical_provider: Callable[[], LexicalIndex] | None,
+) -> None:
+    """Route get_client() and the hybrid search reader through process-wide providers."""
+    global _client_provider, _lexical_provider
+    _client_provider = client_provider
+    _lexical_provider = lexical_provider
+
+
 def get_client() -> chromadb.PersistentClient:
     ensure_index_location(Path(LEGACY_CHROMA_PATH), Path(CHROMA_PATH))
+    if _client_provider is not None:
+        return _client_provider()
     return create_persistent_client(CHROMA_PATH)
 
 
@@ -734,7 +753,7 @@ def search(
     if retrieval_mode == "vector":
         return SearchResults(_vector_search(collection, query, where, bounded_top_k),
                              mode="vector-only")
-    lexical = LexicalIndex()
+    lexical = LexicalIndex() if _lexical_provider is None else _lexical_provider()
     fallback_reason: str | None = None
     lexical_hits: list[dict[str, Any]] = []
     if not lexical.path.is_file():

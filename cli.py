@@ -42,6 +42,7 @@ _COMMANDS: tuple[tuple[str, str], ...] = (
     ("confluence", "Store the Confluence PAT or run the allowlisted writer."),
     ("bundle", "Describe or verify an encrypted portable archive."),
     ("config", "Read or change the configuration through the atomic JSON contract."),
+    ("daemon", "Run, inspect or stop the shared per-user server (opt-in shared mode)."),
     ("doctor", "Diagnose the installation without writing anything."),
     ("setup", "Initialize the config, register MCP clients, and build the index."),
     ("init", "Create the per-user configuration only."),
@@ -152,6 +153,10 @@ def _dispatch(namespace: argparse.Namespace, arguments: list[str]) -> int:
         from bundle_command import main as bundle_main
 
         return bundle_main(arguments)
+    if namespace.command == "daemon":
+        from daemon_command import main as daemon_main
+
+        return daemon_main(arguments)
 
     from offline_models import activate_if_embedded
 

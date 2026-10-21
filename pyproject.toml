@@ -68,7 +68,12 @@ py-modules = [
   "config_command",
   "config_contract",
   "cortex_logging",
+  "daemon_client",
+  "daemon_command",
   "daemon_contract",
+  "daemon_resources",
+  "daemon_server",
+  "daemon_transport",
   "data_home",
   "dependencies",
   "doctor",
@@ -127,6 +132,8 @@ exclude = ["^tests/", "^local/"]
 
 [[tool.mypy.overrides]]
 module = [
+  "anyio",
+  "anyio.*",
   "chromadb.*",
   "cryptography.*",
   "fastembed.*",
@@ -134,11 +141,18 @@ module = [
   "huggingface_hub.*",
   "jsonschema.*",
   "mcp.*",
+  "ntsecuritycon",
   "pdfplumber.*",
   "pydantic.*",
   "pytest",
   "setuptools",
   "setuptools.*",
+  "pywintypes",
+  "win32api",
+  "win32con",
+  "win32file",
+  "win32pipe",
+  "win32security",
 ]
 ignore_missing_imports = true
 
