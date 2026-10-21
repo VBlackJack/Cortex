@@ -252,11 +252,28 @@ def test_run_stdio_configures_logging_and_runs_server(
     calls: list[str] = []
     monkeypatch.delenv("CORTEX_DOCTOR_READ_ONLY", raising=False)
     monkeypatch.setattr("cortex_logging.configure_logging", lambda: calls.append("logging"))
+    monkeypatch.setattr(server, "share_reopening_index", lambda: calls.append("index"))
     monkeypatch.setattr(server.mcp, "run", lambda: calls.append("server"))
 
     server.run_stdio()
 
-    assert calls == ["logging", "server"]
+    assert calls == ["logging", "index", "server"]
+
+
+def test_share_reopening_index_routes_reads_through_one_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import indexer
+
+    monkeypatch.setattr(indexer, "_client_provider", None)
+    monkeypatch.setattr(indexer, "_lexical_provider", None)
+
+    server.share_reopening_index()
+
+    provider = indexer._client_provider
+    assert provider is not None
+    assert getattr(provider, "__self__", None).__class__.__name__ == "SharedIndex"
+    assert indexer._lexical_provider is None
 
 
 def test_run_stdio_skips_logging_in_doctor_read_only_mode(
@@ -265,6 +282,7 @@ def test_run_stdio_skips_logging_in_doctor_read_only_mode(
     calls: list[str] = []
     monkeypatch.setenv("CORTEX_DOCTOR_READ_ONLY", "1")
     monkeypatch.setattr("cortex_logging.configure_logging", lambda: calls.append("logging"))
+    monkeypatch.setattr(server, "share_reopening_index", lambda: calls.append("index"))
     monkeypatch.setattr(server.mcp, "run", lambda: calls.append("server"))
 
     server.run_stdio()

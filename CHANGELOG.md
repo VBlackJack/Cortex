@@ -23,6 +23,7 @@ available in [French](docs/fr/notes-de-version.md) and
 - Read only chunk ids, not metadata, when the lexical index compares itself with Chroma before a sync.
 
 ### Fixed
+- A long-running MCP session now sees documents indexed after it started. A `cortex serve` kept open for days used to miss every chunk that a later `cortex sync` (from Companion, the scheduled task or the console) wrote, until its client restarted: the server now reopens its index before a search or a freshness report once the index files changed and the write lock is free, at the cost of two file status checks per request.
 - Report a sync whose only errors are configuration errors (`section_unavailable`, `vault_unavailable`, `invalid_section`, `invalid_configuration`) as `partial` with both indexes `ok` and the new `fix_configuration` recommendation, instead of a degraded or failed Chroma index with `retry_sync`, which no retry could satisfy. Error codes now fall into three internal kinds (index, configuration, source) and the most serious kind present decides; exit codes are unchanged.
 - Print one `Cortex sync recommendation:` line on stderr after a human-mode `cortex sync` whose recommendation is not `none`, saying what to do.
 

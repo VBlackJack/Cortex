@@ -421,12 +421,37 @@ async def run_session(
     await lowlevel.run(read_stream, write_stream, lowlevel.create_initialization_options())
 
 
+def share_reopening_index() -> None:
+    """Serve every read of this process through one Chroma client that follows writers.
+
+    An MCP session lives for days, and a long-lived Chroma client does not see the
+    vectors that another process (Companion, a scheduled task, `cortex sync`) wrote
+    after it opened. The shared client is reopened before a read once the index
+    files changed and the write lock is free again; the check is two stat calls.
+    """
+    from pathlib import Path
+
+    import indexer
+    from chroma_client import create_persistent_client
+    from config import CHROMA_PATH, CORTEX_WRITE_LOCK_PATH
+    from daemon_resources import SharedIndex
+
+    index = SharedIndex(
+        chroma_path=Path(CHROMA_PATH),
+        write_lock_path=CORTEX_WRITE_LOCK_PATH,
+        factory=lambda: create_persistent_client(CHROMA_PATH),
+    )
+    indexer.install_shared_resources(index.client, None)
+
+
 def run_stdio() -> None:
     """Run the MCP server over stdio with the standard Cortex logging policy."""
     if os.environ.get("CORTEX_DOCTOR_READ_ONLY") != "1":
         from cortex_logging import configure_logging
 
         configure_logging()
+        # The doctor's read-only probe never opens Chroma and must not write.
+        share_reopening_index()
     mcp.run()
 
 

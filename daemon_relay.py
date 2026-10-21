@@ -142,6 +142,7 @@ class InProcessBackend:
             activate_if_embedded()
             import server
 
+            server.share_reopening_index()
             return server
 
         server = await asyncio.to_thread(load)

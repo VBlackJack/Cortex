@@ -124,7 +124,7 @@ class SharedHome:
             daemon.wait(_WAIT_SECONDS)
 
 
-def _make_home(idle_timeout_seconds: int) -> SharedHome:
+def _make_home(idle_timeout_seconds: int, mode: str = "shared") -> SharedHome:
     import _winapi
 
     # Every test here starts the real server, which needs the embedding model; a
@@ -148,7 +148,7 @@ def _make_home(idle_timeout_seconds: int) -> SharedHome:
         f"kb_path = {json.dumps(str(kb))}\n"
         'included_sections = ["knowledge"]\n'
         "\n[server]\n"
-        'mode = "shared"\n'
+        f'mode = "{mode}"\n'
         f"idle_timeout_seconds = {idle_timeout_seconds}\n",
         encoding="utf-8",
     )
@@ -295,3 +295,25 @@ async def test_relay_with_another_environment_serves_per_client(
         async with _session(other) as separate:
             assert (await separate.list_tools()).tools
             assert shared_home.status()["sessions"] == 1
+
+
+async def test_per_client_session_sees_an_external_sync() -> None:
+    """A long-running per-client `cortex serve` and a sync run by another process."""
+    home = _make_home(idle_timeout_seconds=0, mode="per-client")
+    try:
+        synced = home.cli("sync")
+        assert synced.returncode == 0, synced.stderr[-2000:]
+        async with _session(home) as session:
+            before = _text(await session.call_tool("cortex_search", {"query": "zebra migration"}))
+            assert "beta.md" not in before
+            (home.kb / "knowledge" / "beta.md").write_text(
+                "# Beta\n\n" + "Zebra migration across the savannah follows the rains. " * 20,
+                encoding="utf-8",
+            )
+            synced = home.cli("sync")
+            assert synced.returncode == 0, synced.stderr[-2000:]
+            after = _text(await session.call_tool("cortex_search", {"query": "zebra migration"}))
+            assert "beta.md" in after
+        assert home.status()["state"] == "stopped"
+    finally:
+        _remove_home(home)
