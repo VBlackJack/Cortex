@@ -7,6 +7,8 @@ available in [French](docs/fr/notes-de-version.md) and
 
 ## [Unreleased]
 
+## [2026.1021.03] - 2026-10-21
+
 ### Added
 - Mount a section outside `kb_path` with the optional `[section_roots]` table in `config.toml` (sections mode only, keys from `included_sections`, absolute normalized folders). Sync, freshness, search freshness verdicts and search open targets resolve through the mount, while the logical path stored in the index stays `<section>/<path>`, so a section moved and then mounted keeps every chunk id and republishes nothing.
 - Add `cortex config roots --json`, `cortex config set-root <section> <path> --json` and `cortex config clear-root <section> --json`, a new `contract_version: 1` surface that lists each section's resolved root and changes mounts through the same compare-and-swap path, error codes and exit codes as `cortex config set`. The `config get` and `config set` documents are unchanged.

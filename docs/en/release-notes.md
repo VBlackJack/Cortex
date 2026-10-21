@@ -10,6 +10,25 @@ This page summarizes user-visible changes. See the
 Interface controls are named as the current version shows them, including in entries
 about earlier versions, so a control quoted here can be found on screen today.
 
+<!-- release:2026-1021-03 -->
+## 2026.1021.03 - 2026-10-21
+
+- A section can now live outside the knowledge base folder. When a section folder moves, mount it where it now lives instead of rebuilding the index: `cortex config roots --json` lists every section with the folder Cortex reads it from, `cortex config set-root <section> <path>` mounts a section on another folder, and `cortex config clear-root <section>` reads it from the knowledge base folder again (both take `--json` and the hash returned by the listing, as described in the user guide). The index stays valid after the move: the documents keep their identity, so the next synchronisation skips the unchanged files instead of indexing them again. `cortex doctor` flags a mounted section whose folder is missing. Mounts apply when the knowledge base is indexed by sections; restart the AI applications after a change.
+- Synchronisation statuses now tell a configuration problem from a damaged index. A run whose only errors come from the configuration, such as a section folder that cannot be found, is reported as partial with both indexes healthy and the new `fix_configuration` recommendation, instead of a damaged index and a `retry_sync` that no retry could satisfy. Read such a partial run this way: the index is intact and searchable, the content already indexed for the unreachable section is kept, and nothing improves until the knowledge base path, section folder or setting named in the errors is corrected. Each recommendation now says one thing: `retry_sync` or `repair_lexical`, the index itself needs attention; `fix_configuration`, correct the configuration first; `check_sources`, some files could not be read; `none`, nothing to do. Without `--json`, `cortex sync` ends with one line saying what to do.
+- `cortex doctor` runs in about ten seconds on a large index: 12 seconds on 165,000 chunks, where it used to take two to six minutes. It no longer extracts PDF files to judge their freshness, and its report keeps the same categories.
+- An MCP session that stays open for days now sees the documents indexed after it started. Until now, an AI application kept open for a long time missed everything that a later synchronisation, from Companion, the scheduled task or the console, had added, until the application restarted; the server now reopens its index when it has changed.
+- A shared server is available as an opt-in. Each AI application normally starts its own Cortex server, which loads the model and the index for itself, and with many applications and agents open those copies add up. With the shared mode, Cortex runs one server per user instead of one per AI application, and the configurations of the AI applications do not change. Measured on the author's machine with 30 sessions: about 2 GB of memory and 2 seconds to the first search result, instead of about 35 GB and 23 seconds. Turn it on with `cortex config set-server-mode shared` (with `--json` and the hash from `cortex config server --json`) or with `mode = "shared"` in the `[server]` table of `config.toml`, then restart the AI applications; `cortex daemon status` shows the shared server. The default does not change. To come back, set the mode to `per-client`, restart the AI applications and run `cortex daemon stop`. A session that cannot reach the shared server runs its own server, as before. Known limit: a shared server started from inside some AI applications stops when that application closes; the next session, from any application, starts a new one within a few seconds.
+- The release build chain now runs on every push, so the steps that stopped the 2026.1021.00 and 2026.1021.01 builds are rehearsed before a version is tagged rather than discovered after.
+
+Paired Companion 2026.1021.03:
+
+- Settings has a new Sections card that lists every indexed section with the folder Cortex reads it from, marks the sections mounted outside the document folder, and warns when a section folder cannot be found, since that section is then no longer indexed.
+- Each section can be mounted on another folder with `Mount elsewhere`, or read from the document folder again with `Use the default location`. Both actions ask for confirmation, since they change what the next update indexes; after a saved change, restart the applications that use Cortex.
+- History answers the `fix_configuration` recommendation with `Fix the configured section roots` instead of suggesting a retry.
+- A local update that is partial only because a configured section could not be reached, with both indexes healthy, counts as a usable index, with a notice on the run result and on the overview.
+
+Upgrade Cortex and Companion together with the combined installer: Companion 2026.1021.03 requires Cortex 2026.1021.03 or newer.
+
 <!-- release:2026-1021-02 -->
 ## 2026.1021.02 - 2026-10-21
 
